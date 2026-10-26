@@ -8,7 +8,8 @@ const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
-  zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit')
+  zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
+  formatTabs:$('format-tabs')
 };
 const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100 };
 function message(msg) {els.saved.textContent=msg;}
@@ -51,7 +52,9 @@ function applyAppearance(){
     '--title-size':f.titleSize+'px','--title-weight':f.titleWeight,
     '--title-font':FONTS[f.titleFont],'--title-spacing':f.titleLetterSpacing+'px',
     '--title-bottom':f.titleBottomGap+'px','--meta-size':f.metaSize+'px',
-    '--meta-font':FONTS[f.metaFont],'--meta-gap':f.metaGap+'px',
+    '--meta-font':FONTS[f.metaFont],'--meta-weight':f.metaWeight,
+    '--tempo-size':f.tempoSize+'px','--tempo-weight':f.tempoWeight,
+    '--meta-gap':f.metaGap+'px',
     '--meta-bottom':f.metaBottomGap+'px','--note-size':f.noteSize+'px',
     '--note-weight':f.noteWeight,'--note-font':FONTS[f.noteFont],
     '--accidental-size':f.accidentalSize+'px',
@@ -75,14 +78,39 @@ function updateAppearance(changes){
   syncAppearanceControls();render();persist();
 }
 function buildAppearanceControls(){
+  const tabs=[],panels=[];
+  function activateTab(index,focus=false){
+    tabs.forEach((tab,i)=>{
+      const active=i===index;
+      tab.setAttribute('aria-selected',String(active));
+      tab.tabIndex=active?0:-1;
+      panels[i].hidden=!active;
+    });
+    if(focus)tabs[index].focus();
+  }
   for(const [index,group] of FORMAT_GROUPS.entries()){
-    const details=document.createElement('details');details.className='format-group';details.open=index===0;
-    const summary=document.createElement('summary');summary.textContent=group.title;details.append(summary);
-    const body=document.createElement('div');body.className='format-group-body';
-    const hint=document.createElement('p');hint.className='format-group-hint';hint.textContent=group.hint;body.append(hint);
+    const tab=document.createElement('button');
+    tab.type='button';tab.className='format-tab';tab.id='format-tab-'+index;
+    tab.textContent=group.title;
+    tab.setAttribute('role','tab');
+    tab.setAttribute('aria-controls','format-panel-'+index);
+    tab.addEventListener('click',()=>activateTab(index));
+    tab.addEventListener('keydown',ev=>{
+      const next=ev.key==='ArrowRight'?(index+1)%tabs.length:
+        ev.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:
+        ev.key==='Home'?0:ev.key==='End'?tabs.length-1:null;
+      if(next!==null){ev.preventDefault();activateTab(next,true);}
+    });
+    const panel=document.createElement('section');
+    panel.className='format-tabpanel';panel.id='format-panel-'+index;
+    panel.setAttribute('role','tabpanel');
+    panel.setAttribute('aria-labelledby',tab.id);
+    const hint=document.createElement('p');hint.className='format-group-hint';
+    hint.textContent=group.hint;panel.append(hint);
     for(const field of group.fields){
       const box=document.createElement('div');box.className='format-field';
-      const label=document.createElement('label');label.textContent=field.label;label.htmlFor='format-'+field.key;box.append(label);
+      const label=document.createElement('label');label.textContent=field.label;
+      label.htmlFor='format-'+field.key;box.append(label);
       const controls=document.createElement('div');controls.className='format-field-controls';
       if(field.choices){
         const select=document.createElement('select');select.id=label.htmlFor;select.dataset.formatKey=field.key;
@@ -104,10 +132,12 @@ function buildAppearanceControls(){
         const unit=document.createElement('span');unit.className='format-unit';unit.textContent=field.unit;
         controls.append(range,number,unit);
       }
-      box.append(controls);body.append(box);
+      box.append(controls);panel.append(box);
     }
-    details.append(body);els.formatControls.append(details);
+    tabs.push(tab);panels.push(panel);
+    els.formatTabs.append(tab);els.formatControls.append(panel);
   }
+  activateTab(0);
   els.formatPreset.addEventListener('change',()=>{
     const preset=FORMAT_PRESETS[els.formatPreset.value];
     if(preset)updateAppearance(preset);
