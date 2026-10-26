@@ -151,7 +151,8 @@ function buildAppearanceControls(){
 const SCORE = {pad:30};
 function noteCellWidth(){
   const f=state.format;
-  return Math.max(30,65+f.noteSpacing);
+  const shrink=Math.min(0,f.noteSpacing);
+  return Math.max(30,65+f.noteSpacing,f.noteSize+16+shrink,f.accidentalSize+28+shrink);
 }
 function estimateWidth(element,song){
   const f=state.format;
