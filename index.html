@@ -36,11 +36,11 @@
         <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>
         <div class="editor-foot"><span id="source-hint">歌词中的 <code>/</code> 表示延续上一字、跳过一个音符，而不是分句。</span><span id="saved" aria-live="polite">自动保存已开启</span></div>
         <section class="format-panel" aria-labelledby="format-title">
-          <div class="format-head"><div><h3 id="format-title">谱面排版</h3><p>所有调整立即同步到右侧预览和 PDF。</p></div><span class="format-tag">自定义</span></div>
+          <div class="format-head"><div><h3 id="format-title">谱面排版</h3><p>所有调整立即同步到右侧预览和 PDF。</p></div><span class="format-tag">实时预览</span></div>
           <label class="tempo editor-tempo" for="tempo">演奏速度 <strong id="tempo-value">72</strong> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" /></label>
           <div class="format-toolbar">
             <label for="format-preset">排版预设</label>
-            <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom">自定义</option></select>
+            <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom" disabled>自定义（已调整）</option></select>
             <button type="button" class="btn secondary" id="format-reset">恢复默认</button>
           </div>
           <div id="format-controls" class="format-controls"></div>
