@@ -1,7 +1,7 @@
 // SanPu score-appearance configuration. Pure module, shared by the editor and tests.
 export const FORMAT_GROUPS = [
   {
-    title:'标题与调号', hint:'曲名、调号 1 = C 与速度 ♩ = 80 可分别调整。',
+    title:'标题与调号', hint:'曲名、调号 1 = C 与速度 ♩ = 80 可分别调整；字间距和上下留白可为负。',
     fields:[
       {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:65},
       {key:'titleWeight',label:'曲名字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗'],['900','极粗']],default:'800'},
@@ -18,7 +18,7 @@ export const FORMAT_GROUPS = [
     ]
   },
   {
-    title:'音符与歌词',hint:'音符、歌词、升降号、节奏线均可独立调整。',
+    title:'音符与歌词',hint:'音符、歌词、升降号、节奏线均可独立调整；歌词相对音符的位置可用负数上移。',
     fields:[
       {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:43},
       {key:'noteWeight',label:'音符字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'700'},
