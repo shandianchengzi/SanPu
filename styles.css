@@ -37,3 +37,79 @@
   .score-line .note-click.active .note-num,.score-line .note-click.active .lyrics-text{fill:#000!important}
   .score-line .note-click.active .note-bg{fill:transparent!important}
 }
+
+
+/* Appearance editor — grouped, accessible controls in the left workspace pane. */
+.format-panel{margin-top:20px;border:1px solid #dce6e2;border-radius:13px;padding:16px;background:#fbfdfb}
+.format-head{display:flex;justify-content:space-between;align-items:start;gap:12px}
+.format-head h3{font-size:17px;margin:0;color:var(--ink)}
+.format-head p{font-size:12px;line-height:1.65;color:var(--sub);margin:6px 0 0}
+.format-tag{font-size:11px;color:var(--accent);background:var(--light);border-radius:6px;padding:5px 8px;white-space:nowrap}
+.editor-tempo{margin:15px 0 17px;justify-content:flex-start;flex-wrap:wrap;font-size:12px}
+.editor-tempo input{flex:1;min-width:110px;max-width:260px}
+.format-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.format-toolbar label{font-size:12px;color:var(--ink);font-weight:650}
+.format-toolbar select,.format-field select,.format-field input[type=number]{background:#fff;border:1px solid #cbdad3;border-radius:7px;padding:7px 8px;color:var(--ink);font:inherit;font-size:12px;min-height:34px}
+.format-toolbar select{flex:1;min-width:90px}
+.format-toolbar .btn{padding:9px 10px}
+.format-group{border:1px solid #dde7e2;background:#fff;border-radius:10px;margin-bottom:9px;overflow:hidden}
+.format-group summary{padding:12px 13px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none}
+.format-group summary::-webkit-details-marker{display:none}
+.format-group summary::after{content:"＋";color:var(--accent);font-size:16px}
+.format-group[open] summary::after{content:"－"}
+.format-group[open] summary{border-bottom:1px solid #e6eee9}
+.format-group-body{padding:8px 13px 13px}
+.format-group-hint{font-size:11px;line-height:1.65;color:var(--sub);margin:4px 0 12px}
+.format-field{padding:8px 0;display:block}
+.format-field+.format-field{border-top:1px solid #f0f4f1}
+.format-field>label{display:block;font-size:12px;margin-bottom:6px;color:#38584f;font-weight:600}
+.format-field-controls{display:flex;align-items:center;gap:9px}
+.format-field-controls input[type=range]{width:100%;min-width:0;flex:1;accent-color:var(--accent)}
+.format-field-controls input[type=number]{width:70px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.format-field-controls .format-unit{font-size:11px;color:var(--sub);min-width:20px}
+.format-field-controls select{flex:1;max-width:100%;cursor:pointer}
+.format-footnote{margin:10px 0 0;font-size:11px;color:var(--sub);line-height:1.7}
+.format-panel input:focus-visible,.format-panel select:focus-visible,.format-panel button:focus-visible{outline:2px solid #8fc6b3;outline-offset:2px}
+@media(max-width:640px){.format-panel{padding:12px}.format-field-controls input[type=number]{width:65px}}
+
+/* Score appearance — the same variables drive live preview and PDF output. */
+.score-page{padding:var(--preview-padding,48px)!important}
+.score-page .score-title{
+  font-family:var(--title-font,Arial,sans-serif);font-size:var(--title-size,65px);
+  font-weight:var(--title-weight,800);letter-spacing:var(--title-spacing,1px);
+  margin:0 0 var(--title-bottom,42px)
+}
+.score-page .score-meta{
+  font-family:var(--meta-font,Arial,sans-serif);font-size:var(--meta-size,33px);
+  gap:var(--meta-gap,11px);margin:0 0 var(--meta-bottom,22px)
+}
+.score-page .score-line{width:var(--line-render-width,100%);min-width:0;margin-bottom:var(--system-gap,17px);max-width:none}
+.score-page .score-line .note-num{
+  font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,43px);
+  font-weight:var(--note-weight,700)
+}
+.score-page .score-line .lyrics-text{
+  font-family:var(--lyric-font,"Microsoft YaHei",sans-serif);font-size:var(--lyric-size,34px);
+  font-weight:var(--lyric-weight,400);letter-spacing:var(--lyric-spacing,0px)
+}
+.score-page .score-line .accidental{font-size:var(--accidental-size,23px)}
+.score-page .score-line .bar{stroke-width:var(--bar-stroke,2.4)}
+.score-page .score-line .rhythm{stroke-width:var(--rhythm-stroke,2.35)}
+/* At print size preserve all user-chosen font sizes / spacing. The browser scales
+   each complete SVG system into the physical page width without horizontal clipping. */
+@media print{
+  .score-page{padding:0!important;overflow:visible!important}
+  .score-page .score-title{
+    font-size:var(--title-size,65px)!important;
+    margin:0 0 var(--title-bottom,42px)!important;
+    letter-spacing:var(--title-spacing,1px)!important
+  }
+  .score-page .score-meta{
+    font-size:var(--meta-size,33px)!important;
+    margin:0 0 var(--meta-bottom,22px)!important
+  }
+  .score-page .score-line{
+    width:100%!important;min-width:0!important;
+    margin-bottom:var(--system-gap,17px)!important
+  }
+}
