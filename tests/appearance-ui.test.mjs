@@ -255,3 +255,23 @@ test('signed distances can be negative through sliders, numeric inputs, and save
   assert.match(css,/\.score-page \.score-meta\{[\s\S]*?gap:0;/);
   assert.match(css,/\.score-page \.score-tempo\{[^}]*margin-left:var\(--meta-gap,11px\)/);
 });
+
+test('negative note and lyric offsets change actual SVG coordinates',()=>{
+  const source='.Title\nTitle = t\n.Voice\n1 2 $(true)\n3 4\n.Words\nW1@1,1:\n天地玄黄';
+  const standard=boot({source});
+  const tight=boot({source,format:{noteSpacing:-30,lyricOffset:-45}});
+  const getNoteRects=app=>app.els.score.children
+    .filter(el=>el.className==='score-line')[0].children
+    .filter(el=>el.className==='note-click')
+    .map(group=>group.children.find(el=>el.tag==='rect').attrs.x);
+  const getLyricY=app=>app.els.score.children
+    .filter(el=>el.className==='score-line')[0].children
+    .filter(el=>el.className==='note-click')[0].children
+    .find(el=>el.className==='lyrics-text').attrs.y;
+  const normalX=getNoteRects(standard),tightX=getNoteRects(tight);
+  assert.ok(Number(tightX[1])-Number(tightX[0])<Number(normalX[1])-Number(normalX[0]));
+  assert.ok(Number(getLyricY(tight))<Number(getLyricY(standard)));
+  const css=read('styles.css');
+  assert.match(css,/\.score-page \.score-line:last-child\{margin-bottom:0\}/);
+  assert.match(css,/\.score-page \.score-line:last-child\{margin-bottom:0!important\}/);
+});
