@@ -90,6 +90,8 @@
   gap:0;margin:0 0 var(--meta-bottom,22px)
 }
 .score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px));max-width:none}
+/* Only gaps between neighboring systems belong to lyric-line spacing. */
+.score-page .score-line:last-child{margin-bottom:0}
 .score-page .score-line .note-num{
   font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,43px);
   font-weight:var(--note-weight,700)
@@ -118,6 +120,7 @@
     width:100%!important;min-width:0!important;
     margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px))!important
   }
+  .score-page .score-line:last-child{margin-bottom:0!important}
 }
 
 
