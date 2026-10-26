@@ -160,10 +160,10 @@ test('score metadata supports separate tonic and tempo type sizes and weights, i
   weight.value='700';weight.dispatch('change');
   assert.equal(els.score.style.props['--tempo-weight'],'700');
   const css=read('styles.css');
-  assert.match(css,/\\.score-page \\.score-tonic\\{font-size:var\\(--meta-size,33px\\)/);
-  assert.match(css,/\\.score-page \\.score-tempo\\{font-size:var\\(--tempo-size,26px\\)/);
-  assert.match(css,/@media print\\{[\\s\\S]*?\\.score-page \\.score-tempo\\{font-size:var\\(--tempo-size,26px\\)!important/);
-  assert.match(css,/\\.format-panel\\{display:none!important\\}/);
+  assert.match(css,/\.score-page \.score-tonic\{font-size:var\(--meta-size,33px\)/);
+  assert.match(css,/\.score-page \.score-tempo\{font-size:var\(--tempo-size,26px\)/);
+  assert.match(css,/@media print\{[\s\S]*?\.score-page \.score-tempo\{font-size:var\(--tempo-size,26px\)!important/);
+  assert.match(css,/\.format-panel\{display:none!important\}/);
 });
 
 test('appearance tabs are keyboard accessible and show only the selected settings group',()=>{
@@ -195,7 +195,7 @@ test('appearance tabs are keyboard accessible and show only the selected setting
 
 test('appearance editor occupies a collapsed full-width section after the workspace',()=>{
   const html=read('index.html'),css=read('styles.css');
-  assert.match(html,/<\\/section>\\s*<details class="format-panel" id="format-panel">/);
+  assert.match(html,/<\/section>\s*<details class="format-panel" id="format-panel">/);
   assert.doesNotMatch(html,/<details class="format-panel" id="format-panel" open/);
   const editorStart=html.indexOf('<div class="editor-pane">');
   const previewStart=html.indexOf('<div class="preview-pane">');
@@ -203,5 +203,5 @@ test('appearance editor occupies a collapsed full-width section after the worksp
   assert.ok(editorStart>=0 && editorStart<previewStart && previewStart<formatStart);
   assert.match(html,/id="format-tabs" class="format-tabs" role="tablist"/);
   assert.match(html,/id="preview-zoom"/);
-  assert.match(css,/\\.format-tabpanel\\[hidden\\]\\{display:none!important\\}/);
+  assert.match(css,/\.format-tabpanel\[hidden\]\{display:none!important\}/);
 });
