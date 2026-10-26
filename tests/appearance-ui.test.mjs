@@ -32,7 +32,7 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs'){
+    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
