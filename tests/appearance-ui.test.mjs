@@ -61,7 +61,7 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,55);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,57);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
@@ -204,4 +204,54 @@ test('appearance editor occupies a collapsed full-width section after the worksp
   assert.match(html,/id="format-tabs" class="format-tabs" role="tablist"/);
   assert.match(html,/id="preview-zoom"/);
   assert.match(css,/\.format-tabpanel\[hidden\]\{display:none!important\}/);
+});
+
+test('negative lyric-to-lyric spacing updates layout variables, print and local storage',()=>{
+  const source='.Title\\nTitle = 测试\\n.Voice\\n1 2 $(true)\\n3 4 $(true)\\n5 6';
+  const {state,els,localStorage}=boot({source});
+  assert.equal(els.score.children.filter(el=>el.className==='score-line').length,3);
+  const before=els.score.children.filter(el=>el.className==='score-line')
+    .map(el=>el.attrs.viewBox);
+  const slider=field(els,'lyricLineGap');
+  const numeric=field(els,'lyricLineGap','-value');
+  assert.equal(slider.min,'-160');
+  assert.equal(numeric.min,'-160');
+  slider.value='-70';slider.dispatch('input');
+  assert.equal(state.format.lyricLineGap,-70);
+  assert.equal(numeric.value,'-70');
+  assert.equal(els.score.style.props['--lyric-line-gap'],'-70px');
+  numeric.value='-115';numeric.dispatch('change');
+  assert.equal(state.format.lyricLineGap,-115);
+  assert.equal(slider.value,'-115');
+  assert.equal(els.score.style.props['--lyric-line-gap'],'-115px');
+  const saved=JSON.parse(localStorage.data['sanpu.editor.v1']);
+  assert.equal(saved.format.lyricLineGap,-115);
+  assert.deepEqual(els.score.children.filter(el=>el.className==='score-line').map(el=>el.attrs.viewBox),before);
+  const css=read('styles.css');
+  assert.match(css,/margin-bottom:calc\\(var\\(--system-gap,17px\\) \\+ var\\(--lyric-line-gap,0px\\)\\)/);
+  assert.match(css,/margin-bottom:calc\\(var\\(--system-gap,17px\\) \\+ var\\(--lyric-line-gap,0px\\)\\)!important/);
+});
+
+test('signed distances can be negative through sliders, numeric inputs, and saved settings',()=>{
+  const {state,els,localStorage}=boot();
+  const offsets=[
+    ['titleLetterSpacing',-3],['titleBottomGap',-25],['metaGap',-18],
+    ['metaBottomGap',-25],['lyricLetterSpacing',-4],['systemGap',-31],
+    ['lyricOffset',-25],['noteSpacing',-25]
+  ];
+  for(const [key,value] of offsets){
+    const control=field(els,key,'-value');
+    assert.ok(Number(control.min)<0,key+' numeric min');
+    control.value=String(value);control.dispatch('change');
+    assert.equal(state.format[key],value,key);
+    assert.equal(field(els,key).value,String(value),key+' slider sync');
+  }
+  assert.equal(els.score.style.props['--meta-gap'],'-18px');
+  assert.equal(els.score.style.props['--system-gap'],'-31px');
+  assert.equal(els.score.style.props['--lyric-spacing'],'-4px');
+  assert.equal(els.score.style.props['--title-bottom'],'-25px');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.noteSpacing,-25);
+  const css=read('styles.css');
+  assert.match(css,/\\.score-page \\.score-meta\\{[\\s\\S]*?gap:0;/);
+  assert.match(css,/\\.score-page \\.score-tempo\\{[^}]*margin-left:var\\(--meta-gap,11px\\)/);
 });
