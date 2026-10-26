@@ -81,3 +81,7 @@ LICENSE                      GNU GPL v3
 Copyright (C) 2026 SanPu contributors.
 
 Licensed under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`).
+
+## 谱面外观
+
+默认预览采用白底黑字的传统简谱排版：居中大标题、左侧调号与纵排分数拍号、音符减时线/低音点、逐音对齐歌词，原始 `$(true)` 决定换行。散板模式**不叠加错拍红框或警告圈**；保留原始歌词、音符、时值和拍号。页面在移动设备上可横向滚动查看完整谱行，PDF 打印会自动缩放到纸宽。

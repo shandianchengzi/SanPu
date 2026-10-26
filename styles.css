@@ -3,3 +3,41 @@
 @media(max-width:1150px){.workspace{grid-template-columns:1fr}.editor-pane,.preview-pane{padding:20px}#source{min-height:360px}.intro{align-items:start}}@media(max-width:640px){.site-header{height:69px;padding:0 16px}.brand strong{font-size:20px}.brand small{font-size:8px}.repo-link{font-size:11px;padding:9px}.intro{display:block}.intro h1{font-size:29px}.intro-pills{margin-top:19px}.intro p{font-size:13px}main{padding:27px 12px}.editor-pane,.preview-pane{padding:15px;border-radius:12px}.pane-head h2{font-size:16px}.playback{gap:12px}.score-page{padding:20px 9px}.editor-foot{display:block}.editor-foot span{display:block}#source{font-size:12px;min-height:340px}}
 @page{size:A4;margin:17mm 15mm}
 @media print{html,body{background:#fff!important;color:#000}.site-header,.intro,.editor-pane,.pane-head,.playback,.preview-tools,.warnings,.preview-note,footer{display:none!important}main{padding:0!important;margin:0!important;max-width:none!important}.workspace{display:block}.preview-pane{padding:0!important;border:none!important;box-shadow:none!important}.score-page{border:0!important;min-height:0!important;padding:0!important;overflow:visible}.score-title{margin-top:2mm;font-size:25pt}.score-meta{margin-bottom:9mm}.score-line{break-inside:avoid;page-break-inside:avoid;margin-bottom:6mm;max-height:none}.score-line .note-click.active .note-num,.score-line .note-click.active .lyrics-text{fill:#1b2927!important}.score-line .note-click.active .note-bg{fill:transparent!important}}
+
+/* Clean, full-width traditional jianpu. No beat-error outlines. */
+.workspace{display:flex;flex-direction:column;gap:22px}
+.preview-pane{order:0}
+.editor-pane{order:1}
+.score-page{width:100%;padding:55px 48px 46px;min-height:480px;overflow-x:auto;border-color:#e6eae7}
+.score-title{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;font-weight:800;font-size:65px;line-height:1.25;letter-spacing:1px;margin:0 0 42px;color:#000}
+.score-meta{display:flex;align-items:center;justify-content:flex-start;gap:11px;text-align:left;margin:0 0 22px;color:#000;font-family:Arial,"Microsoft YaHei",sans-serif;font-size:33px;letter-spacing:0}
+.score-tonic{white-space:nowrap}
+.meter-fraction{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-family:Arial,sans-serif;font-size:23px;line-height:1.02;transform:translateY(1px)}
+.meter-fraction span:first-child{border-bottom:1.8px solid #111;padding:0 4px 3px}
+.meter-fraction span:last-child{padding-top:3px}
+.meter-label{font-size:23px;color:#333}
+.score-line{display:block;width:100%;min-width:920px;height:auto;margin:0 0 17px;overflow:visible}
+.score-line text{fill:#000}
+.score-line .note-num{font-family:Arial,"Microsoft YaHei",sans-serif;font-size:43px;font-weight:700}
+.score-line .lyrics-text{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;font-size:34px;font-weight:400}
+.score-line .accidental{font-family:Arial,sans-serif;font-size:23px}
+.score-line .bar{stroke:#000;stroke-width:2.4}
+.score-line .rhythm{stroke:#000;stroke-width:2.35;stroke-linecap:butt}
+.score-line .octave{fill:#000}
+.score-line .melisma{stroke:#111;stroke-width:1.6;fill:none}
+.score-line .note-bg{fill:transparent}
+.score-line .note-click:hover .note-num{fill:#1b645b}
+.score-line .note-click.active .note-num,.score-line .note-click.active .lyrics-text{fill:#14796c}
+.score-line .note-click.active .note-bg{fill:#e3f4ec}
+#source{min-height:330px}
+@media(max-width:800px){.score-page{padding:32px 20px;min-height:330px}.score-title{font-size:39px;margin-bottom:25px}.score-meta{font-size:25px;margin-bottom:15px}.score-line{min-width:900px}}
+@media print{
+  .score-page{padding:0!important;overflow:visible!important;min-height:0!important;border:0!important}
+  .score-title{font-size:38pt!important;margin:0 0 12mm!important;color:#000!important}
+  .score-meta{font-size:20pt!important;margin:0 0 4mm!important;color:#000!important}
+  .meter-fraction{font-size:14pt!important}
+  .meter-label{font-size:14pt!important}
+  .score-line{min-width:0!important;width:100%!important;margin:0 0 1mm!important;break-inside:avoid}
+  .score-line .note-click.active .note-num,.score-line .note-click.active .lyrics-text{fill:#000!important}
+  .score-line .note-click.active .note-bg{fill:transparent!important}
+}
