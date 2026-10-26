@@ -87,9 +87,9 @@
 }
 .score-page .score-meta{
   font-family:var(--meta-font,Arial,sans-serif);font-size:var(--meta-size,33px);
-  gap:var(--meta-gap,11px);margin:0 0 var(--meta-bottom,22px)
+  gap:0;margin:0 0 var(--meta-bottom,22px)
 }
-.score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:var(--system-gap,17px);max-width:none}
+.score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px));max-width:none}
 .score-page .score-line .note-num{
   font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,43px);
   font-weight:var(--note-weight,700)
@@ -116,7 +116,7 @@
   }
   .score-page .score-line{
     width:100%!important;min-width:0!important;
-    margin-bottom:var(--system-gap,17px)!important
+    margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px))!important
   }
 }
 
@@ -150,7 +150,7 @@ main{padding-top:23px}
 .compact-zoom output{font-variant-numeric:tabular-nums;color:var(--ink);min-width:32px}
 .score-page .score-meta{font-weight:var(--meta-weight,400)}
 .score-page .score-tonic{font-size:var(--meta-size,33px)}
-.score-page .score-tempo{font-size:var(--tempo-size,26px);font-weight:var(--tempo-weight,500)}
+.score-page .score-tempo{font-size:var(--tempo-size,26px);font-weight:var(--tempo-weight,500);margin-left:var(--meta-gap,11px)}
 @media(max-width:1100px){.intro-pills{display:none}.preview-toolbar .preview-tools{margin-left:0}}
 @media(max-width:640px){.site-header{height:60px}.intro h1{font-size:25px}.editor-pane,.preview-pane{padding:13px}.preview-toolbar .preview-tools{flex-wrap:wrap}}
 /* Printing never includes editable styling controls, and honors user-controlled
