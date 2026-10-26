@@ -207,7 +207,7 @@ test('appearance editor occupies a collapsed full-width section after the worksp
 });
 
 test('negative lyric-to-lyric spacing updates layout variables, print and local storage',()=>{
-  const source='.Title\\nTitle = 测试\\n.Voice\\n1 2 $(true)\\n3 4 $(true)\\n5 6';
+  const source='.Title\nTitle = 测试\n.Voice\n1 2 $(true)\n3 4 $(true)\n5 6';
   const {state,els,localStorage}=boot({source});
   assert.equal(els.score.children.filter(el=>el.className==='score-line').length,3);
   const before=els.score.children.filter(el=>el.className==='score-line')
@@ -228,8 +228,8 @@ test('negative lyric-to-lyric spacing updates layout variables, print and local 
   assert.equal(saved.format.lyricLineGap,-115);
   assert.deepEqual(els.score.children.filter(el=>el.className==='score-line').map(el=>el.attrs.viewBox),before);
   const css=read('styles.css');
-  assert.match(css,/margin-bottom:calc\\(var\\(--system-gap,17px\\) \\+ var\\(--lyric-line-gap,0px\\)\\)/);
-  assert.match(css,/margin-bottom:calc\\(var\\(--system-gap,17px\\) \\+ var\\(--lyric-line-gap,0px\\)\\)!important/);
+  assert.match(css,/margin-bottom:calc\(var\(--system-gap,17px\) \+ var\(--lyric-line-gap,0px\)\)/);
+  assert.match(css,/margin-bottom:calc\(var\(--system-gap,17px\) \+ var\(--lyric-line-gap,0px\)\)!important/);
 });
 
 test('signed distances can be negative through sliders, numeric inputs, and saved settings',()=>{
@@ -252,6 +252,6 @@ test('signed distances can be negative through sliders, numeric inputs, and save
   assert.equal(els.score.style.props['--title-bottom'],'-25px');
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.noteSpacing,-25);
   const css=read('styles.css');
-  assert.match(css,/\\.score-page \\.score-meta\\{[\\s\\S]*?gap:0;/);
-  assert.match(css,/\\.score-page \\.score-tempo\\{[^}]*margin-left:var\\(--meta-gap,11px\\)/);
+  assert.match(css,/\.score-page \.score-meta\{[\s\S]*?gap:0;/);
+  assert.match(css,/\.score-page \.score-tempo\{[^}]*margin-left:var\(--meta-gap,11px\)/);
 });
