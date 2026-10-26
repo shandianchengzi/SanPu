@@ -1,0 +1,90 @@
+// SanPu score-appearance configuration. Pure module, shared by the editor and tests.
+export const FORMAT_GROUPS = [
+  {
+    title:'标题与调号', hint:'控制曲名、调号与速度标记的字体和留白。',
+    fields:[
+      {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:65},
+      {key:'titleWeight',label:'曲名字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗'],['900','极粗']],default:'800'},
+      {key:'titleFont',label:'曲名字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'titleLetterSpacing',label:'曲名字符间距',min:0,max:16,step:1,unit:'px',default:1},
+      {key:'titleBottomGap',label:'曲名下方间距',min:0,max:110,step:1,unit:'px',default:42},
+      {key:'metaSize',label:'调号字号',min:16,max:60,step:1,unit:'px',default:33},
+      {key:'metaFont',label:'调号字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'metaGap',label:'调号与速度间距',min:0,max:80,step:1,unit:'px',default:11},
+      {key:'metaBottomGap',label:'调号下方间距',min:0,max:100,step:1,unit:'px',default:22}
+    ]
+  },
+  {
+    title:'音符与歌词',hint:'音符、歌词、升降号、节奏线均可独立调整。',
+    fields:[
+      {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:43},
+      {key:'noteWeight',label:'音符字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'700'},
+      {key:'noteFont',label:'音符字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'accidentalSize',label:'升降号字号',min:14,max:48,step:1,unit:'px',default:23},
+      {key:'lyricSize',label:'歌词字号',min:14,max:65,step:1,unit:'px',default:34},
+      {key:'lyricWeight',label:'歌词字重',choices:[['300','细体'],['400','常规'],['500','中等'],['600','半粗'],['700','加粗']],default:'400'},
+      {key:'lyricFont',label:'歌词字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'lyricLetterSpacing',label:'歌词字符间距',min:0,max:12,step:1,unit:'px',default:0},
+      {key:'lyricOffset',label:'歌词与音符纵向间距',min:0,max:110,step:1,unit:'px',default:0},
+      {key:'octaveDotSize',label:'高低音点大小',min:2,max:6,step:.1,unit:'px',default:3.3},
+      {key:'rhythmStroke',label:'减时线/延长线粗细',min:1,max:6,step:.1,unit:'px',default:2.35},
+      {key:'barStroke',label:'小节线粗细',min:1,max:6,step:.1,unit:'px',default:2.4}
+    ]
+  },
+  {
+    title:'间距与页面',hint:'横向音符间距、每行高度、预览留白和打印页边距。',
+    fields:[
+      {key:'noteSpacing',label:'音符横向疏密',min:-15,max:100,step:1,unit:'px',default:0},
+      {key:'dashSpacing',label:'延长线间距',min:22,max:65,step:1,unit:'px',default:29},
+      {key:'barSpacing',label:'小节线占用宽度',min:16,max:90,step:1,unit:'px',default:24},
+      {key:'systemGap',label:'谱行之间的间距',min:0,max:120,step:1,unit:'px',default:17},
+      {key:'minLineWidth',label:'谱行最小宽度',min:580,max:2200,step:20,unit:'px',default:980},
+      {key:'previewPadding',label:'预览四周留白',min:0,max:100,step:1,unit:'px',default:48},
+      {key:'printMarginX',label:'PDF 左右页边距',min:4,max:35,step:1,unit:'mm',default:15},
+      {key:'printMarginY',label:'PDF 上下页边距',min:4,max:35,step:1,unit:'mm',default:17}
+    ]
+  }
+];
+export const FORMAT_FIELDS = FORMAT_GROUPS.flatMap(group=>group.fields);
+export const DEFAULT_FORMAT = Object.freeze(Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field.default])));
+export const FONTS = Object.freeze({
+  sans:'Arial,"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif',
+  serif:'"Songti SC","SimSun","Noto Serif CJK SC",serif',
+  kai:'"KaiTi","STKaiti","Kaiti SC",serif'
+});
+export function normalizeFormat(raw) {
+  const source=raw && typeof raw==='object' && !Array.isArray(raw) ? raw : {};
+  const result={};
+  for(const field of FORMAT_FIELDS){
+    if(field.choices){
+      const value=String(source[field.key] ?? field.default);
+      result[field.key]=field.choices.some(([id])=>id===value)?value:field.default;
+    }else{
+      const value=Number(source[field.key]);
+      const fallback=source[field.key]===undefined || source[field.key]===null || source[field.key]==='' || !Number.isFinite(value) ? field.default : value;
+      const bounded=Math.min(field.max,Math.max(field.min,fallback));
+      result[field.key]=Number(bounded.toFixed(2));
+    }
+  }
+  return result;
+}
+export const FORMAT_PRESETS=Object.freeze({
+  standard:DEFAULT_FORMAT,
+  compact:Object.freeze(normalizeFormat({
+    ...DEFAULT_FORMAT,titleSize:51,titleBottomGap:22,metaSize:26,metaBottomGap:12,
+    noteSize:36,lyricSize:28,noteSpacing:-10,dashSpacing:25,barSpacing:19,systemGap:5,
+    previewPadding:24,minLineWidth:820,lyricOffset:0
+  })),
+  spacious:Object.freeze(normalizeFormat({
+    ...DEFAULT_FORMAT,titleSize:76,titleBottomGap:58,metaSize:38,metaBottomGap:36,
+    noteSize:50,lyricSize:41,noteSpacing:24,dashSpacing:38,barSpacing:34,systemGap:45,
+    previewPadding:65,minLineWidth:1200,lyricOffset:24
+  }))
+});
+export function formatPresetId(format){
+  const value=normalizeFormat(format);
+  for(const [id,preset] of Object.entries(FORMAT_PRESETS)){
+    if(FORMAT_FIELDS.every(field=>preset[field.key]===value[field.key]))return id;
+  }
+  return 'custom';
+}
