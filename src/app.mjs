@@ -1,17 +1,17 @@
-import {EXAMPLE, parseSong, noteFrequency, beatReport} from './core.mjs';
+import {EXAMPLE, parseSong, noteFrequency} from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const STORAGE = 'sanpu.editor.v1';
 const els = {
-  source:$('source'), score:$('score'), warnings:$('warnings'), meter:$('meter-status'),
+  source:$('source'), score:$('score'), warnings:$('warnings'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
-  freeMode:$('free-mode'),play:$('play-btn'),stop:$('stop-btn'),saved:$('saved')
+  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved')
 };
-const state = { song:null, tempo:72, free:true, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,free:state.free}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -19,10 +19,8 @@ function load() {
   try{settings=JSON.parse(localStorage.getItem(STORAGE)||'null');}catch{ /* corrupt storage */ }
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
-  state.free=settings?.free !== false;
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
-  els.freeMode.checked=state.free;
 }
 function svg(tag,attrs={},text) {
   const el=document.createElementNS(SVG_NS,tag);
@@ -60,7 +58,7 @@ function drawSystem(elements,song,width) {
   const notes=elements.filter(e=>e.kind==='note');
   const natural=lineWidth(elements,song);
   const extra=Math.min(24,Math.max(0,(width-natural)/Math.max(1,notes.length)));
-  let x=SCORE.pad, previous=null;
+  let x=SCORE.pad;
   for(const e of elements) {
     if(e.kind==='bar'){
       const barX=x+9;
@@ -86,14 +84,10 @@ function drawSystem(elements,song,width) {
     const dashes=(n.suffix.match(/-/g)||[]).length;
     for(let k=0;k<dashes;k++)g.append(svg('line',{x1:cx+25+k*SCORE.dash,x2:cx+44+k*SCORE.dash,y1:69,y2:69,class:'rhythm'}));
     if(lyr?.text)g.append(svg('text',{x:cx,y:164,'text-anchor':'middle',class:'lyrics-text'},lyr.text));
-    if(lyr?.skip && previous){
-      const a=previous.x+14,b=cx-15;
-      if(b>a)g.append(svg('path',{d:`M ${a} 137 Q ${(a+b)/2} 123 ${b} 137`,class:'melisma'}));
-    }
     g.addEventListener('click',()=>playFrom(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();playFrom(n.id);}});
     s.append(g);
-    previous={x:cx};x+=w;
+    x+=w;
   }
   return s;
 }
@@ -104,32 +98,17 @@ function render() {
   const title=document.createElement('h2');title.className='score-title';title.textContent=song.title;
   const meta=document.createElement('div');meta.className='score-meta';
   const tonic=document.createElement('span');tonic.className='score-tonic';tonic.textContent=`1 = ${song.key}`;
-  meta.append(tonic);
-  if(song.meter){
-    const match=/^(\d+)\s*\/\s*(\d+)$/.exec(song.meter);
-    if(match){
-      const fraction=document.createElement('span');fraction.className='meter-fraction';
-      const top=document.createElement('span');top.textContent=match[1];
-      const bottom=document.createElement('span');bottom.textContent=match[2];
-      fraction.append(top,bottom);meta.append(fraction);
-    }else{
-      const value=document.createElement('span');value.className='meter-label';value.textContent=song.meter;meta.append(value);
-    }
-  }else{
-    const value=document.createElement('span');value.className='meter-label';value.textContent='散板';meta.append(value);
-  }
+  const tempo=document.createElement('span');tempo.className='score-tempo';
+  tempo.textContent=`♩ = ${state.tempo}`;
+  tempo.setAttribute('aria-label',`四分音符每分钟 ${state.tempo} 拍`);
+  meta.append(tonic,tempo);
   els.score.append(title,meta);
   const lines=systems(song);
   const width=Math.max(980,...lines.map(line=>lineWidth(line,song)));
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   for(const line of lines)els.score.append(drawSystem(line,song,width));
-  const report=beatReport(song).filter(x=>x.unequal);
-  if(state.free)els.meter.textContent='散板 · 不校验小节拍数（保留你记录的时值）';
-  else if(!song.meter)els.meter.textContent='没有指定拍号，无法校验小节时值';
-  else els.meter.textContent=report.length?`${song.meter} · ${report.length} 个小节与拍号不符（不会修改原谱）`:`${song.meter} · 小节拍数检查通过`;
   els.warnings.replaceChildren();
   const msgs=[...new Set(song.warnings)];
-  if(!state.free && report.length)msgs.push(`拍数不一致：${report.slice(0,8).map(r=>`第${r.index}小节 ${r.beats} 拍`).join('，')}${report.length>8?'…':''}。散板模式可忽略此项。`);
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
   highlight(state.active);
 }
@@ -198,8 +177,7 @@ $('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!c
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',stopAudio);
-els.tempo.addEventListener('input',ev=>{state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
-els.freeMode.addEventListener('change',ev=>{state.free=ev.target.checked;render();persist();});
+els.tempo.addEventListener('input',ev=>{state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
 let resizeTimer;
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,120);});
 window.addEventListener('beforeprint',()=>{render();});
