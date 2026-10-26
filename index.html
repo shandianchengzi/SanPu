@@ -43,6 +43,14 @@
             <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom" disabled>自定义（已调整）</option></select>
             <button type="button" class="btn secondary" id="format-reset">恢复默认</button>
           </div>
+          <div class="preview-zoom" aria-label="SVG 预览缩放">
+            <div class="preview-zoom-head"><label for="preview-zoom">SVG 预览缩放</label><output id="preview-zoom-value" for="preview-zoom">适应宽度 · 100%</output></div>
+            <div class="preview-zoom-actions">
+              <input id="preview-zoom" type="range" min="50" max="300" step="10" value="100" aria-label="乐谱预览缩放百分比" />
+              <button type="button" class="btn secondary" id="zoom-fit">适应宽度</button>
+            </div>
+            <p>默认完整适应右侧宽度；放大后可横向滚动查看，不影响 PDF。</p>
+          </div>
           <div id="format-controls" class="format-controls"></div>
           <p class="format-footnote">排版设置仅保存在本机浏览器，不会修改 JPW-ABC 源文。PDF 页边距由网页生成的 @page 控制；打印对话框的自定义页边距可能覆盖该设置。</p>
         </section>
