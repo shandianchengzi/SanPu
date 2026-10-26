@@ -42,9 +42,8 @@
         <div class="playback">
           <div class="play-controls"><button class="btn play" id="play-btn" type="button" aria-label="播放">▶ 播放</button><button class="btn secondary" id="stop-btn" type="button">■ 停止</button></div>
           <label class="tempo" for="tempo">速度 <strong id="tempo-value">72</strong> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" /></label>
-          <label class="mode"><input id="free-mode" type="checkbox" checked /> <span>散板模式</span></label>
         </div>
-        <div class="preview-tools"><div id="meter-status" class="meter-status" aria-live="polite">散板 · 不强制校验小节拍数</div><button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button></div>
+        <div class="preview-tools"><button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button></div>
         <div id="score" class="score-page" aria-label="数字简谱预览"></div>
         <div id="warnings" class="warnings" role="status" aria-live="polite"></div>
         <p class="preview-note">提示：单击谱中音符可从该位置试听。PDF 通过浏览器打印对话框选择「另存为 PDF」生成，无水印。</p>
