@@ -61,7 +61,8 @@ function applyAppearance(){
     '--lyric-size':f.lyricSize+'px','--lyric-weight':f.lyricWeight,
     '--lyric-font':FONTS[f.lyricFont],'--lyric-spacing':f.lyricLetterSpacing+'px',
     '--bar-stroke':f.barStroke,'--rhythm-stroke':f.rhythmStroke,
-    '--system-gap':f.systemGap+'px','--preview-padding':f.previewPadding+'px'
+    '--system-gap':f.systemGap+'px','--lyric-line-gap':f.lyricLineGap+'px',
+    '--preview-padding':f.previewPadding+'px'
   };
   for(const [name,value] of Object.entries(sizes))style.setProperty(name,value);
   let paper=$('print-page-rules');
@@ -150,7 +151,7 @@ function buildAppearanceControls(){
 const SCORE = {pad:30};
 function noteCellWidth(){
   const f=state.format;
-  return Math.max(50,65+f.noteSpacing,f.noteSize+16,f.accidentalSize+28);
+  return Math.max(30,65+f.noteSpacing);
 }
 function estimateWidth(element,song){
   const f=state.format;
@@ -193,7 +194,9 @@ function drawSystem(elements,song,width){
     const lowerEnd=n.octave<0?lowDotStart(n)+(Math.min(-n.octave,3)-1)*9+f.octaveDotSize:noteY;
     return Math.max(max,underlineEnd,lowerEnd);
   },noteY);
-  const lyricY=Math.max(164+lift+f.lyricOffset,bottom+f.lyricSize+9);
+  // A negative offset is intentional: permit tighter layouts without letting lyrics
+  // disappear entirely into the rhythm and octave markers.
+  const lyricY=Math.max(164+lift+f.lyricOffset,bottom+Math.max(8,f.lyricSize*.45));
   const height=Math.max(195+lift,Math.ceil(lyricY+Math.max(31,f.lyricSize*.95)));
   const s=svg('svg',{viewBox:`0 0 ${width} ${height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
   let x=SCORE.pad;
