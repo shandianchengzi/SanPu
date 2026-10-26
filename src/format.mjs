@@ -12,7 +12,7 @@ export const FORMAT_GROUPS = [
       {key:'metaWeight',label:'调号字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'400'},
       {key:'tempoSize',label:'速度 ♩ = 80 字号',min:14,max:64,step:1,unit:'px',default:26},
       {key:'tempoWeight',label:'速度标记字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'500'},
-      {key:'metaFont',label:'调号字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'metaFont',label:'调号与速度字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'metaGap',label:'调号与速度间距',min:0,max:80,step:1,unit:'px',default:11},
       {key:'metaBottomGap',label:'调号下方间距',min:0,max:100,step:1,unit:'px',default:22}
     ]
@@ -68,6 +68,11 @@ export function normalizeFormat(raw) {
       const bounded=Math.min(field.max,Math.max(field.min,fallback));
       result[field.key]=Number(bounded.toFixed(2));
     }
+  }
+  // Upgrade previous saved layouts: tempo used to inherit 80% of the tonic
+  // font size. Preserve that appearance until the user edits tempoSize itself.
+  if(source.tempoSize===undefined && source.metaSize!==undefined){
+    result.tempoSize=Math.min(64,Math.max(14,Number((result.metaSize*.8).toFixed(2))));
   }
   return result;
 }
