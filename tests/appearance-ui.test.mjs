@@ -13,6 +13,7 @@ class FakeElement {
     this.classList={toggle:()=>{}};this.value='';this.textContent='';
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value)}
+  focus(){this.focused=true}
   append(...children){this.children.push(...children)}
   replaceChildren(...children){this.children=[...children]}
   addEventListener(type,listener){(this.listeners[type]??=[]).push(listener)}
@@ -31,7 +32,7 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit']){
+    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs'){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -60,7 +61,8 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,51);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,55);
+  assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
   const original=els.source.value;
@@ -137,4 +139,69 @@ test('saved SVG zoom preference is bounded independently from score formatting',
   const overflowing=boot({zoom:1000000});
   assert.equal(overflowing.state.zoom,300);
   assert.equal(overflowing.els.score.style.props['--preview-width'],'300%');
+});
+
+test('score metadata supports separate tonic and tempo type sizes and weights, including printing',()=>{
+  const {state,els}=boot({tempo:80});
+  const meta=els.score.children.find(el=>el.className==='score-meta');
+  assert.equal(meta.children[0].textContent,'1 = C');
+  assert.equal(meta.children[1].textContent,'♩ = 80');
+  const tonic=field(els,'metaSize');
+  tonic.value='48';tonic.dispatch('input');
+  assert.equal(state.format.metaSize,48);
+  assert.equal(els.score.style.props['--meta-size'],'48px');
+  assert.equal(els.score.style.props['--tempo-size'],'26px');
+  const tempo=field(els,'tempoSize','-value');
+  tempo.value='37';tempo.dispatch('change');
+  assert.equal(state.format.tempoSize,37);
+  assert.equal(els.score.style.props['--meta-size'],'48px');
+  assert.equal(els.score.style.props['--tempo-size'],'37px');
+  const weight=field(els,'tempoWeight');
+  weight.value='700';weight.dispatch('change');
+  assert.equal(els.score.style.props['--tempo-weight'],'700');
+  const css=read('styles.css');
+  assert.match(css,/\\.score-page \\.score-tonic\\{font-size:var\\(--meta-size,33px\\)/);
+  assert.match(css,/\\.score-page \\.score-tempo\\{font-size:var\\(--tempo-size,26px\\)/);
+  assert.match(css,/@media print\\{[\\s\\S]*?\\.score-page \\.score-tempo\\{font-size:var\\(--tempo-size,26px\\)!important/);
+  assert.match(css,/\\.format-panel\\{display:none!important\\}/);
+});
+
+test('appearance tabs are keyboard accessible and show only the selected settings group',()=>{
+  const {els}=boot();
+  const [first,second,last]=els.formatTabs.children;
+  const [firstPanel,secondPanel,lastPanel]=els.formatControls.children;
+  assert.equal(first.attrs.role,'tab');
+  assert.equal(first.attrs['aria-selected'],'true');
+  assert.equal(firstPanel.hidden,false);
+  assert.equal(secondPanel.hidden,true);
+  second.dispatch('click');
+  assert.equal(first.attrs['aria-selected'],'false');
+  assert.equal(second.attrs['aria-selected'],'true');
+  assert.equal(firstPanel.hidden,true);
+  assert.equal(secondPanel.hidden,false);
+  assert.equal(lastPanel.hidden,true);
+  let prevented=false;
+  second.dispatch('keydown',{key:'ArrowRight',preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);
+  assert.equal(lastPanel.hidden,false);
+  assert.equal(last.focused,true);
+  last.dispatch('keydown',{key:'Home',preventDefault(){}});
+  assert.equal(firstPanel.hidden,false);
+  assert.equal(first.focused,true);
+  assert.equal(last.attrs['aria-selected'],'false');
+  assert.equal(first.tabIndex,0);
+  assert.equal(second.tabIndex,-1);
+});
+
+test('appearance editor occupies a collapsed full-width section after the workspace',()=>{
+  const html=read('index.html'),css=read('styles.css');
+  assert.match(html,/<\\/section>\\s*<details class="format-panel" id="format-panel">/);
+  assert.doesNotMatch(html,/<details class="format-panel" id="format-panel" open/);
+  const editorStart=html.indexOf('<div class="editor-pane">');
+  const previewStart=html.indexOf('<div class="preview-pane">');
+  const formatStart=html.indexOf('<details class="format-panel"');
+  assert.ok(editorStart>=0 && editorStart<previewStart && previewStart<formatStart);
+  assert.match(html,/id="format-tabs" class="format-tabs" role="tablist"/);
+  assert.match(html,/id="preview-zoom"/);
+  assert.match(css,/\\.format-tabpanel\\[hidden\\]\\{display:none!important\\}/);
 });
