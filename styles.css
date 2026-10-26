@@ -83,7 +83,7 @@
   font-family:var(--meta-font,Arial,sans-serif);font-size:var(--meta-size,33px);
   gap:var(--meta-gap,11px);margin:0 0 var(--meta-bottom,22px)
 }
-.score-page .score-line{width:var(--line-render-width,100%);min-width:0;margin-bottom:var(--system-gap,17px);max-width:none}
+.score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:var(--system-gap,17px);max-width:none}
 .score-page .score-line .note-num{
   font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,43px);
   font-weight:var(--note-weight,700)
@@ -113,3 +113,17 @@
     margin-bottom:var(--system-gap,17px)!important
   }
 }
+
+
+/* SVG sizing uses the content box as its reference; the original viewBox remains
+   unchanged so zoom only affects display, not source geometry or playback. */
+.score-page{overflow-x:auto;min-width:0}
+.preview-zoom{margin:5px 0 17px;padding:12px;border:1px solid #dbe7e1;border-radius:10px;background:#f4f8f5}
+.preview-zoom-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:10px}
+.preview-zoom-head label{font-weight:700;color:#38584f}
+.preview-zoom-head output{color:#375f55;font-variant-numeric:tabular-nums;white-space:nowrap}
+.preview-zoom-actions{display:flex;align-items:center;gap:12px}
+.preview-zoom-actions input[type=range]{min-width:0;flex:1;accent-color:var(--accent)}
+.preview-zoom-actions .btn{padding:8px 10px}
+.preview-zoom p{margin:9px 0 0;color:var(--sub);line-height:1.6;font-size:11px}
+@media print{.score-page .score-line{width:100%!important;max-width:100%!important}}
