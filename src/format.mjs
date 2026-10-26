@@ -1,14 +1,17 @@
 // SanPu score-appearance configuration. Pure module, shared by the editor and tests.
 export const FORMAT_GROUPS = [
   {
-    title:'标题与调号', hint:'控制曲名、调号与速度标记的字体和留白。',
+    title:'标题与调号', hint:'曲名、调号 1 = C 与速度 ♩ = 80 可分别调整。',
     fields:[
       {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:65},
       {key:'titleWeight',label:'曲名字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗'],['900','极粗']],default:'800'},
       {key:'titleFont',label:'曲名字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'titleLetterSpacing',label:'曲名字符间距',min:0,max:16,step:1,unit:'px',default:1},
       {key:'titleBottomGap',label:'曲名下方间距',min:0,max:110,step:1,unit:'px',default:42},
-      {key:'metaSize',label:'调号字号',min:16,max:60,step:1,unit:'px',default:33},
+      {key:'metaSize',label:'调号 1 = C 字号',min:16,max:64,step:1,unit:'px',default:33},
+      {key:'metaWeight',label:'调号字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'400'},
+      {key:'tempoSize',label:'速度 ♩ = 80 字号',min:14,max:64,step:1,unit:'px',default:26},
+      {key:'tempoWeight',label:'速度标记字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'500'},
       {key:'metaFont',label:'调号字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'metaGap',label:'调号与速度间距',min:0,max:80,step:1,unit:'px',default:11},
       {key:'metaBottomGap',label:'调号下方间距',min:0,max:100,step:1,unit:'px',default:22}
@@ -71,12 +74,12 @@ export function normalizeFormat(raw) {
 export const FORMAT_PRESETS=Object.freeze({
   standard:DEFAULT_FORMAT,
   compact:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:51,titleBottomGap:22,metaSize:26,metaBottomGap:12,
+    ...DEFAULT_FORMAT,titleSize:51,titleBottomGap:22,metaSize:26,tempoSize:21,metaBottomGap:12,
     noteSize:36,lyricSize:28,noteSpacing:-10,dashSpacing:25,barSpacing:19,systemGap:5,
     previewPadding:24,minLineWidth:820,lyricOffset:0
   })),
   spacious:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:76,titleBottomGap:58,metaSize:38,metaBottomGap:36,
+    ...DEFAULT_FORMAT,titleSize:76,titleBottomGap:58,metaSize:38,tempoSize:32,metaBottomGap:36,
     noteSize:50,lyricSize:41,noteSpacing:24,dashSpacing:38,barSpacing:34,systemGap:45,
     previewPadding:65,minLineWidth:1200,lyricOffset:24
   }))
