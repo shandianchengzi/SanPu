@@ -35,38 +35,42 @@
         <label for="source" class="sr-only">JPW-ABC 源谱</label>
         <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>
         <div class="editor-foot"><span id="source-hint">歌词中的 <code>/</code> 表示延续上一字、跳过一个音符，而不是分句。</span><span id="saved" aria-live="polite">自动保存已开启</span></div>
-        <section class="format-panel" aria-labelledby="format-title">
-          <div class="format-head"><div><h3 id="format-title">谱面排版</h3><p>所有调整立即同步到右侧预览和 PDF。</p></div><span class="format-tag">实时预览</span></div>
-          <label class="tempo editor-tempo" for="tempo">演奏速度 <strong id="tempo-value">72</strong> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" /></label>
-          <div class="format-toolbar">
-            <label for="format-preset">排版预设</label>
-            <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom" disabled>自定义（已调整）</option></select>
-            <button type="button" class="btn secondary" id="format-reset">恢复默认</button>
-          </div>
-          <div class="preview-zoom" aria-label="SVG 预览缩放">
-            <div class="preview-zoom-head"><label for="preview-zoom">SVG 预览缩放</label><output id="preview-zoom-value" for="preview-zoom">适应宽度 · 100%</output></div>
-            <div class="preview-zoom-actions">
-              <input id="preview-zoom" type="range" min="50" max="300" step="10" value="100" aria-label="乐谱预览缩放百分比" />
-              <button type="button" class="btn secondary" id="zoom-fit">适应宽度</button>
-            </div>
-            <p>默认完整适应右侧宽度；放大后可横向滚动查看，不影响 PDF。</p>
-          </div>
-          <div id="format-controls" class="format-controls"></div>
-          <p class="format-footnote">排版设置仅保存在本机浏览器，不会修改 JPW-ABC 源文。PDF 页边距由网页生成的 @page 控制；打印对话框的自定义页边距可能覆盖该设置。</p>
-        </section>
         <details class="syntax-help"><summary>快速记谱说明 <span aria-hidden="true">＋</span></summary><div class="help-content"><p><code>3_</code> 半拍 · <code>3</code> 一拍 · <code>3-</code> 两拍 · <code>3--</code> 三拍 · <code>3.</code> 1.5 拍</p><p><code>7,</code> 低八度 · <code>1'</code> 高八度 · <code>0</code> 休止 · <code>|</code> 小节/分句 · <code>$(true)</code> 换行</p><p><code>.Words</code> 中的汉字逐音对齐，标点、空格不占音符；<code>/</code> 占一个音符位置，用于一字多音。<code>{词组}</code> 作为一个歌词单位。</p><p>散板模式允许任意小节长度。试听按照你写的音符时值演奏，不模拟歌手自由伸缩。</p></div></details>
       </div>
       <div class="preview-pane">
         <div class="pane-head"><div><h2>乐谱预览</h2><p>音符与歌词一一对应</p></div><span id="note-count" class="pane-tag">0 个音符</span></div>
-        <div class="playback">
+        <div class="preview-toolbar">
           <div class="play-controls"><button class="btn play" id="play-btn" type="button" aria-label="播放">▶ 播放</button><button class="btn secondary" id="stop-btn" type="button">■ 停止</button></div>
+          <label class="tempo compact-tempo" for="tempo">速度 <strong id="tempo-value">72</strong> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" /></label>
+          <div class="preview-tools" aria-label="预览操作">
+            <label class="compact-zoom" for="preview-zoom">缩放 <output id="preview-zoom-value" for="preview-zoom">100%</output></label>
+            <input id="preview-zoom" type="range" min="50" max="300" step="10" value="100" aria-label="乐谱预览缩放百分比" />
+            <button type="button" class="btn secondary" id="zoom-fit" title="完整显示谱面">适应</button>
+            <button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button>
+          </div>
         </div>
-        <div class="preview-tools"><button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button></div>
         <div id="score" class="score-page" aria-label="数字简谱预览"></div>
         <div id="warnings" class="warnings" role="status" aria-live="polite"></div>
         <p class="preview-note">提示：单击谱中音符可从该位置试听。PDF 通过浏览器打印对话框选择「另存为 PDF」生成，无水印。</p>
       </div>
     </section>
+    <details class="format-panel" id="format-panel">
+      <summary class="format-expand">
+        <span class="format-expand-main"><span class="format-icon" aria-hidden="true">⚙</span><strong>谱面样式</strong><span class="format-subtitle">字体、字号、间距与 PDF 页面设置</span></span>
+        <span class="format-expand-hint">点击展开 / 收起 <span aria-hidden="true">⌄</span></span>
+      </summary>
+      <div class="format-body">
+        <div class="format-toolbar">
+          <label for="format-preset">排版预设</label>
+          <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom" disabled>自定义（已调整）</option></select>
+          <button type="button" class="btn secondary" id="format-reset">恢复默认</button>
+          <span class="format-save-hint">修改即时生效 · 自动保存在本机</span>
+        </div>
+        <div id="format-tabs" class="format-tabs" role="tablist" aria-label="谱面样式分类"></div>
+        <div id="format-controls" class="format-controls"></div>
+        <p class="format-footnote">设置只调整显示，不修改原始 JPW-ABC；PDF 页边距可能受到打印对话框中的手动设置影响。</p>
+      </div>
+    </details>
   </main>
   <footer>散谱 SanPu · GPL-3.0 · 纯浏览器运行 · <a href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">GitHub</a></footer>
 </body>
