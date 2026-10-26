@@ -33,3 +33,19 @@ test('presets are distinct, recognized, and fonts are whitelisted',()=>{
   assert.equal(formatPresetId({...DEFAULT_FORMAT,noteSize:44}),'custom');
   assert.deepEqual(Object.keys(FONTS).sort(),['kai','sans','serif']);
 });
+
+test('tonic and tempo sizes are independent and old local settings keep their appearance',()=>{
+  assert.equal(DEFAULT_FORMAT.metaSize,33);
+  assert.equal(DEFAULT_FORMAT.tempoSize,26);
+  const newLayout=normalizeFormat({metaSize:52,tempoSize:24,tempoWeight:'700'});
+  assert.equal(newLayout.metaSize,52);
+  assert.equal(newLayout.tempoSize,24);
+  assert.equal(newLayout.tempoWeight,'700');
+  const oldLayout=normalizeFormat({metaSize:52});
+  assert.equal(oldLayout.metaSize,52);
+  assert.equal(oldLayout.tempoSize,41.6);
+  assert.equal(normalizeFormat({tempoSize:-100}).tempoSize,14);
+  assert.equal(normalizeFormat({tempoSize:10000}).tempoSize,64);
+  assert.equal(FORMAT_PRESETS.compact.tempoSize,21);
+  assert.equal(FORMAT_PRESETS.spacious.tempoSize,32);
+});
