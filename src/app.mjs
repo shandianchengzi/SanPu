@@ -1,4 +1,5 @@
 import {EXAMPLE, parseSong, noteFrequency} from './core.mjs';
+import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId} from './format.mjs';
 
 const $ = id => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -6,12 +7,12 @@ const STORAGE = 'sanpu.editor.v1';
 const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
-  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved')
+  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT} };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -19,6 +20,7 @@ function load() {
   try{settings=JSON.parse(localStorage.getItem(STORAGE)||'null');}catch{ /* corrupt storage */ }
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
+  state.format=normalizeFormat(settings?.format);
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
 }
@@ -28,7 +30,79 @@ function svg(tag,attrs={},text) {
   if(text!==undefined)el.textContent=String(text);
   return el;
 }
-// A bar is not a rhythmic constraint in free mode. Keep the recorded notes unchanged.
+// Only normalized numbers and whitelisted fonts are applied to the score.
+function applyAppearance(){
+  const f=state.format, style=els.score.style;
+  const sizes={
+    '--title-size':f.titleSize+'px','--title-weight':f.titleWeight,
+    '--title-font':FONTS[f.titleFont],'--title-spacing':f.titleLetterSpacing+'px',
+    '--title-bottom':f.titleBottomGap+'px','--meta-size':f.metaSize+'px',
+    '--meta-font':FONTS[f.metaFont],'--meta-gap':f.metaGap+'px',
+    '--meta-bottom':f.metaBottomGap+'px','--note-size':f.noteSize+'px',
+    '--note-weight':f.noteWeight,'--note-font':FONTS[f.noteFont],
+    '--accidental-size':f.accidentalSize+'px',
+    '--lyric-size':f.lyricSize+'px','--lyric-weight':f.lyricWeight,
+    '--lyric-font':FONTS[f.lyricFont],'--lyric-spacing':f.lyricLetterSpacing+'px',
+    '--bar-stroke':f.barStroke,'--rhythm-stroke':f.rhythmStroke,
+    '--system-gap':f.systemGap+'px','--preview-padding':f.previewPadding+'px'
+  };
+  for(const [name,value] of Object.entries(sizes))style.setProperty(name,value);
+  let paper=$('print-page-rules');
+  if(!paper){paper=document.createElement('style');paper.id='print-page-rules';document.head.append(paper);}
+  paper.textContent=`@page { size: A4; margin: ${f.printMarginY}mm ${f.printMarginX}mm; }`;
+}
+function syncAppearanceControls(){
+  for(const control of els.formatControls.querySelectorAll('[data-format-key]'))
+    control.value=String(state.format[control.dataset.formatKey]);
+  els.formatPreset.value=formatPresetId(state.format);
+}
+function updateAppearance(changes){
+  state.format=normalizeFormat({...state.format,...changes});
+  syncAppearanceControls();render();persist();
+}
+function buildAppearanceControls(){
+  for(const [index,group] of FORMAT_GROUPS.entries()){
+    const details=document.createElement('details');details.className='format-group';details.open=index===0;
+    const summary=document.createElement('summary');summary.textContent=group.title;details.append(summary);
+    const body=document.createElement('div');body.className='format-group-body';
+    const hint=document.createElement('p');hint.className='format-group-hint';hint.textContent=group.hint;body.append(hint);
+    for(const field of group.fields){
+      const box=document.createElement('div');box.className='format-field';
+      const label=document.createElement('label');label.textContent=field.label;label.htmlFor='format-'+field.key;box.append(label);
+      const controls=document.createElement('div');controls.className='format-field-controls';
+      if(field.choices){
+        const select=document.createElement('select');select.id=label.htmlFor;select.dataset.formatKey=field.key;
+        for(const [value,name] of field.choices){
+          const option=document.createElement('option');option.value=value;option.textContent=name;select.append(option);
+        }
+        select.addEventListener('change',()=>updateAppearance({[field.key]:select.value}));
+        controls.append(select);
+      }else{
+        const range=document.createElement('input');range.type='range';range.id=label.htmlFor;
+        range.min=String(field.min);range.max=String(field.max);range.step=String(field.step);
+        range.dataset.formatKey=field.key;
+        const number=document.createElement('input');number.type='number';
+        number.min=range.min;number.max=range.max;number.step=range.step;
+        number.id='format-'+field.key+'-value';number.dataset.formatKey=field.key;
+        number.setAttribute('aria-label',field.label+'的精确数值');
+        range.addEventListener('input',()=>updateAppearance({[field.key]:Number(range.value)}));
+        number.addEventListener('change',()=>updateAppearance({[field.key]:number.value}));
+        const unit=document.createElement('span');unit.className='format-unit';unit.textContent=field.unit;
+        controls.append(range,number,unit);
+      }
+      box.append(controls);body.append(box);
+    }
+    details.append(body);els.formatControls.append(details);
+  }
+  els.formatPreset.addEventListener('change',()=>{
+    const preset=FORMAT_PRESETS[els.formatPreset.value];
+    if(preset)updateAppearance(preset);
+  });
+  $('format-reset').addEventListener('click',()=>updateAppearance(DEFAULT_FORMAT));
+  syncAppearanceControls();
+}
+
+// A bar is a separator, not a rhythmic constraint in SanPu.
 const SCORE = {"pad":30,"note":65,"dash":29,"bar":24,"height":195};
 function estimateWidth(element,song) {
   if (element.kind==='bar') return SCORE.bar;
@@ -92,6 +166,7 @@ function drawSystem(elements,song,width) {
   return s;
 }
 function render() {
+  applyAppearance();
   const song=state.song;
   els.score.replaceChildren();
   els.noteCount.textContent=`${song.notes.length} 个音符`;
@@ -168,7 +243,7 @@ function readTextFile(file) {
   });
 }
 let saveTimer;
-load();state.song=parseSong(els.source.value);render();
+load();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
