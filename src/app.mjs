@@ -7,12 +7,13 @@ const STORAGE = 'sanpu.editor.v1';
 const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
-  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset')
+  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
+  zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT} };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -21,6 +22,7 @@ function load() {
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
   state.format=normalizeFormat(settings?.format);
+  state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
 }
@@ -29,6 +31,18 @@ function svg(tag,attrs={},text) {
   for(const [k,v] of Object.entries(attrs))el.setAttribute(k,String(v));
   if(text!==undefined)el.textContent=String(text);
   return el;
+}
+// Percent-based width keeps every SVG viewBox visible in the available preview width.
+// User zoom deliberately increases the SVG width; scrolling is enabled only when needed.
+function applyPreviewZoom(){
+  els.score.style.setProperty('--preview-width',state.zoom+'%');
+  els.zoom.value=String(state.zoom);
+  els.zoomValue.textContent=state.zoom===100?'适应宽度 · 100%':'缩放 · '+state.zoom+'%';
+}
+function changePreviewZoom(value){
+  state.zoom=Math.min(300,Math.max(50,Math.round(Number(value)||100)));
+  applyPreviewZoom();
+  persist();
 }
 // Only normalized numbers and whitelisted fonts are applied to the score.
 function applyAppearance(){
@@ -152,7 +166,6 @@ function drawSystem(elements,song,width){
   const lyricY=Math.max(164+lift+f.lyricOffset,bottom+f.lyricSize+9);
   const height=Math.max(195+lift,Math.ceil(lyricY+Math.max(31,f.lyricSize*.95)));
   const s=svg('svg',{viewBox:`0 0 ${width} ${height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
-  s.style.setProperty('--line-render-width',width+'px');
   let x=SCORE.pad;
   for(const e of elements){
     if(e.kind==='bar'){
@@ -196,6 +209,7 @@ function drawSystem(elements,song,width){
 }
 function render() {
   applyAppearance();
+  applyPreviewZoom();
   const song=state.song;
   els.score.replaceChildren();
   els.noteCount.textContent=`${song.notes.length} 个音符`;
@@ -281,6 +295,8 @@ $('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!c
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',stopAudio);
+els.zoom.addEventListener('input',ev=>changePreviewZoom(ev.target.value));
+els.zoomFit.addEventListener('click',()=>changePreviewZoom(100));
 els.tempo.addEventListener('input',ev=>{state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
 let resizeTimer;
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,120);});
