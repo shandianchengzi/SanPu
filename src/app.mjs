@@ -103,13 +103,19 @@ function buildAppearanceControls(){
 }
 
 // A bar is a separator, not a rhythmic constraint in SanPu.
-const SCORE = {"pad":30,"note":65,"dash":29,"bar":24,"height":195};
-function estimateWidth(element,song) {
-  if (element.kind==='bar') return SCORE.bar;
+const SCORE = {pad:30};
+function noteCellWidth(){
+  const f=state.format;
+  return Math.max(50,65+f.noteSpacing,f.noteSize+16,f.accidentalSize+28);
+}
+function estimateWidth(element,song){
+  const f=state.format;
+  if(element.kind==='bar')return f.barSpacing;
   const lyric=song.lyrics.get(element.id);
   const chars=Array.from(lyric?.text||'').length;
-  const dash=(element.suffix.match(/-/g)||[]).length;
-  return SCORE.note + dash*SCORE.dash + Math.max(0,chars-1)*29;
+  const dashes=(element.suffix.match(/-/g)||[]).length;
+  return Math.max(noteCellWidth()+dashes*f.dashSpacing,
+    noteCellWidth()+Math.max(0,chars-1)*(f.lyricSize*.93+f.lyricLetterSpacing));
 }
 function systems(song) {
   const lines=[];
@@ -127,37 +133,60 @@ function systems(song) {
 function lineWidth(elements,song) {
   return SCORE.pad*2+elements.reduce((width,element)=>width+estimateWidth(element,song),0);
 }
-function drawSystem(elements,song,width) {
-  const s=svg('svg',{viewBox:`0 0 ${width} ${SCORE.height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
-  const notes=elements.filter(e=>e.kind==='note');
-  const natural=lineWidth(elements,song);
-  const extra=Math.min(24,Math.max(0,(width-natural)/Math.max(1,notes.length)));
+function drawSystem(elements,song,width){
+  const f=state.format;
+  const notes=elements.filter(element=>element.kind==='note');
+  // Extra headroom for large numerals and up to three high-octave dots.
+  const lift=Math.max(0,Math.ceil(f.noteSize*.95+2*f.octaveDotSize+32-80));
+  const noteY=80+lift;
+  const underY=noteY+Math.max(12,Math.round(f.noteSize*.28));
+  const underStep=Math.max(8,Math.round(f.rhythmStroke*3));
+  const lowDotStart=n=>Math.max(noteY+f.noteSize*.77,
+    underY+Math.max(0,(n.suffix.match(/_/g)||[]).length-1)*underStep+19);
+  const bottom=notes.reduce((max,n)=>{
+    const under=(n.suffix.match(/_/g)||[]).length;
+    const underlineEnd=under?underY+(under-1)*underStep+f.rhythmStroke:noteY;
+    const lowerEnd=n.octave<0?lowDotStart(n)+(Math.min(-n.octave,3)-1)*9+f.octaveDotSize:noteY;
+    return Math.max(max,underlineEnd,lowerEnd);
+  },noteY);
+  const lyricY=Math.max(164+lift+f.lyricOffset,bottom+f.lyricSize+9);
+  const height=Math.max(195+lift,Math.ceil(lyricY+Math.max(31,f.lyricSize*.95)));
+  const s=svg('svg',{viewBox:`0 0 ${width} ${height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
+  s.style.setProperty('--line-render-width',width+'px');
   let x=SCORE.pad;
-  for(const e of elements) {
+  for(const e of elements){
     if(e.kind==='bar'){
       const barX=x+9;
-      s.append(svg('line',{x1:barX,x2:barX,y1:44,y2:115,class:'bar'}));
-      x+=SCORE.bar;
+      s.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
+      x+=f.barSpacing;
       continue;
     }
-    const n=e, w=estimateWidth(n,song)+extra, cx=x+SCORE.note/2;
-    const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button','aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击从此处播放`});
+    const n=e,w=estimateWidth(n,song),cx=x+noteCellWidth()/2;
+    const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button',
+      'aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击从此处播放`});
     const lyr=song.lyrics.get(n.id);
-    g.append(svg('rect',{x:x+1,y:15,width:w-2,height:171,rx:4,class:'note-bg'}));
-    if(n.accidental)g.append(svg('text',{x:cx-23,y:80,'text-anchor':'middle',class:'accidental'},n.accidental));
-    g.append(svg('text',{x:cx,y:80,class:'note-num','text-anchor':'middle'},n.degree));
+    g.append(svg('rect',{x:x+1,y:5,width:w-2,height:height-9,rx:4,class:'note-bg'}));
+    if(n.accidental)g.append(svg('text',{x:cx-f.noteSize*.54,y:noteY,'text-anchor':'middle',class:'accidental'},n.accidental));
+    g.append(svg('text',{x:cx,y:noteY,class:'note-num','text-anchor':'middle'},n.degree));
     if(n.octave>0){
-      for(let k=0;k<Math.min(n.octave,3);k++)g.append(svg('circle',{cx,cy:33-k*9,r:3.3,class:'octave'}));
+      for(let k=0;k<Math.min(n.octave,3);k++)
+        g.append(svg('circle',{cx,cy:noteY-f.noteSize*.95-7-k*(f.octaveDotSize*2+2),r:f.octaveDotSize,class:'octave'}));
     }else if(n.octave<0){
-      for(let k=0;k<Math.min(-n.octave,3);k++)g.append(svg('circle',{cx,cy:113+k*9,r:3.3,class:'octave'}));
+      for(let k=0;k<Math.min(-n.octave,3);k++)
+        g.append(svg('circle',{cx,cy:lowDotStart(n)+k*9,r:f.octaveDotSize,class:'octave'}));
     }
     const under=(n.suffix.match(/_/g)||[]).length;
-    for(let k=0;k<under;k++)g.append(svg('line',{x1:cx-18,x2:cx+18,y1:92+k*8,y2:92+k*8,class:'rhythm'}));
+    for(let k=0;k<under;k++)
+      g.append(svg('line',{x1:cx-18,x2:cx+18,y1:underY+k*underStep,y2:underY+k*underStep,class:'rhythm'}));
     const dots=(n.suffix.match(/\./g)||[]).length;
-    for(let k=0;k<dots;k++)g.append(svg('circle',{cx:cx+27+k*11,cy:72,r:3,class:'octave'}));
+    for(let k=0;k<dots;k++)
+      g.append(svg('circle',{cx:cx+f.noteSize*.63+k*11,cy:noteY-8,r:Math.min(4,f.octaveDotSize),class:'octave'}));
     const dashes=(n.suffix.match(/-/g)||[]).length;
-    for(let k=0;k<dashes;k++)g.append(svg('line',{x1:cx+25+k*SCORE.dash,x2:cx+44+k*SCORE.dash,y1:69,y2:69,class:'rhythm'}));
-    if(lyr?.text)g.append(svg('text',{x:cx,y:164,'text-anchor':'middle',class:'lyrics-text'},lyr.text));
+    for(let k=0;k<dashes;k++){
+      const x1=cx+f.noteSize*.58+k*f.dashSpacing;
+      g.append(svg('line',{x1,x2:x1+Math.min(19,f.dashSpacing-9),y1:noteY-11,y2:noteY-11,class:'rhythm'}));
+    }
+    if(lyr?.text)g.append(svg('text',{x:cx,y:lyricY,'text-anchor':'middle',class:'lyrics-text'},lyr.text));
     g.addEventListener('click',()=>playFrom(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();playFrom(n.id);}});
     s.append(g);
@@ -179,7 +208,7 @@ function render() {
   meta.append(tonic,tempo);
   els.score.append(title,meta);
   const lines=systems(song);
-  const width=Math.max(980,...lines.map(line=>lineWidth(line,song)));
+  const width=Math.max(state.format.minLineWidth,...lines.map(line=>lineWidth(line,song)));
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   for(const line of lines)els.score.append(drawSystem(line,song,width));
   els.warnings.replaceChildren();
