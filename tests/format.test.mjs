@@ -20,7 +20,7 @@ test('saved appearance is normalized without losing unrelated defaults',()=>{
   assert.equal(formatted.noteSpacing,16);
   assert.equal(formatted.metaSize,DEFAULT_FORMAT.metaSize);
   assert.equal(normalizeFormat({titleSize:99999}).titleSize,100);
-  assert.equal(normalizeFormat({noteSpacing:-999}).noteSpacing,-15);
+  assert.equal(normalizeFormat({noteSpacing:-999}).noteSpacing,-35);
   assert.equal(normalizeFormat({lyricSize:'bad'}).lyricSize,DEFAULT_FORMAT.lyricSize);
   assert.equal(normalizeFormat({noteFont:'malicious-value'}).noteFont,DEFAULT_FORMAT.noteFont);
   assert.equal(normalizeFormat(null).noteSize,DEFAULT_FORMAT.noteSize);
@@ -48,4 +48,31 @@ test('tonic and tempo sizes are independent and old local settings keep their ap
   assert.equal(normalizeFormat({tempoSize:10000}).tempoSize,64);
   assert.equal(FORMAT_PRESETS.compact.tempoSize,21);
   assert.equal(FORMAT_PRESETS.spacious.tempoSize,32);
+});
+
+test('signed spacing options accept and persist negative values',()=>{
+  const signed=['titleLetterSpacing','titleBottomGap','metaGap','metaBottomGap',
+    'lyricLetterSpacing','lyricOffset','noteSpacing','systemGap','lyricLineGap'];
+  const fields=Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field]));
+  for(const key of signed){
+    assert.ok(fields[key].min<0,`${key} should allow negative slider and number input`);
+    const value=fields[key].min+1;
+    assert.equal(normalizeFormat({[key]:String(value)})[key],value,key);
+    assert.equal(normalizeFormat({[key]:-99999})[key],fields[key].min,key);
+  }
+  const configured=normalizeFormat({systemGap:-22,lyricLineGap:-80,lyricOffset:-30,
+    metaGap:-20,titleBottomGap:-18,lyricLetterSpacing:-2});
+  assert.equal(configured.systemGap,-22);
+  assert.equal(configured.lyricLineGap,-80);
+  assert.equal(configured.lyricOffset,-30);
+  assert.equal(configured.metaGap,-20);
+  assert.equal(configured.titleBottomGap,-18);
+  assert.equal(configured.lyricLetterSpacing,-2);
+  assert.equal(DEFAULT_FORMAT.lyricLineGap,0);
+  assert.equal(normalizeFormat(null).lyricLineGap,0);
+  assert.ok(FORMAT_PRESETS.compact.lyricLineGap===0);
+  // Structural dimensions cannot be negative.
+  for(const key of ['noteSize','lyricSize','dashSpacing','barSpacing','printMarginX','printMarginY']){
+    assert.ok(fields[key].min>=0,key);
+  }
 });
