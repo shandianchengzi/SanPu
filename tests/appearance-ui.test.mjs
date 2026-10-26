@@ -31,7 +31,7 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn']){
+    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -107,4 +107,34 @@ test('reset restores standard preset without changing the input source',()=>{
   assert.equal(state.format.systemGap,17);
   assert.equal(els.formatPreset.value,'standard');
   assert.equal(els.source.value,before);
+});
+
+test('SVG preview fits to container by default and user zoom does not alter its viewBox',()=>{
+  const {state,els,document,localStorage}=boot();
+  const viewBox=scoreLine(els).attrs.viewBox;
+  assert.equal(state.zoom,100);
+  assert.equal(els.score.style.props['--preview-width'],'100%');
+  assert.equal(els.zoomValue.textContent,'适应宽度 · 100%');
+  els.zoom.dispatch('input',{target:{value:'180'}});
+  assert.equal(state.zoom,180);
+  assert.equal(els.score.style.props['--preview-width'],'180%');
+  assert.equal(scoreLine(els).attrs.viewBox,viewBox);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).zoom,180);
+  document.getElementById('zoom-fit').dispatch('click');
+  assert.equal(state.zoom,100);
+  assert.equal(els.score.style.props['--preview-width'],'100%');
+  const css=read('styles.css');
+  assert.match(css,/\.score-page \.score-line\{width:var\(--preview-width,100%\)/);
+  assert.match(css,/@media print\{\.score-page \.score-line\{width:100%!important/);
+  assert.doesNotMatch(css,/\.score-page \.score-line\{width:var\(--line-render-width/);
+});
+
+test('saved SVG zoom preference is bounded independently from score formatting',()=>{
+  const {state,els}=boot({zoom:240,format:{lyricSize:53}});
+  assert.equal(state.zoom,240);
+  assert.equal(els.score.style.props['--preview-width'],'240%');
+  assert.equal(state.format.lyricSize,53);
+  const overflowing=boot({zoom:1000000});
+  assert.equal(overflowing.state.zoom,300);
+  assert.equal(overflowing.els.score.style.props['--preview-width'],'300%');
 });
