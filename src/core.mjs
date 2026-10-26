@@ -1,0 +1,142 @@
+// SanPu core engine
+/** SanPu: small, lossless JPW-ABC reader for free-rhythm numbered notation. */
+export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
+.Title
+Title = 一生所爱
+KeyAndMeters = {1=C,3/4}
+WordsByAndMusicBy =
+.Voice
+3_ 2_ 3- | 5 3_ 2-  7,- | 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- |$(true)
+3_ 2_ 3- |5 6_ 3 2- 2_ 7,-  |3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,-  |$(true)
+.Words
+W1@1,1:
+
+{1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。
+相亲/ 竟不可/接近，或我应该相信是缘份
+`;
+const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
+const BARS = ['|:', ':|:', ':|', '||', '|]', '[|]', '|'];
+export function durationFromSuffix(s='') {
+  if (!s) return 1;
+  if (s.startsWith('-')) return 1 + s.length;
+  if (s.includes('_')) {
+    const n = (s.match(/_/g) || []).length;
+    const dots = (s.match(/\./g) || []).length;
+    return Math.pow(2, -n) * (2 - Math.pow(2, -dots));
+  }
+  if (s[0] === '.') return 2 - Math.pow(2, -s.length);
+  return 1;
+}
+function readVoice(body, warnings) {
+  const notes = [], elements = [], measures = new Map();
+  let measure = 1, noteIndex = 0, row = 0, p = 0;
+  const addRow = () => {
+    if (elements.length && elements.at(-1)?.kind !== 'break') { elements.push({kind:'break', row}); row++; }
+  };
+  while (p < body.length) {
+    const remain = body.slice(p);
+    if (remain.startsWith('//')) { const n = remain.indexOf('\n'); p += n < 0 ? remain.length : n; continue; }
+    const br = remain.match(/^\$\([^)]*\)|^\$/);
+    if (br) { addRow(); p += br[0].length; continue; }
+    if (/^\s/.test(remain)) { if (remain[0] === '\n' && elements.at(-1)?.kind !== 'break' && !remain.slice(0,remain.indexOf('\n')).trim()) { /* Explicit JP-Word $ controls row breaks. */ } p++; continue; }
+    const bar = BARS.find(b => remain.startsWith(b));
+    if (bar) {
+      const item = {kind:'bar', raw:bar, measure, row};
+      elements.push(item); measure++; noteIndex=0; p+=bar.length; continue;
+    }
+    const m = NOTE.exec(remain);
+    if (m && m[0]) {
+      const raw = m[0], suffix = m[4] || '';
+      const octave = [...m[3]].reduce((n,c)=>n+(c === "'" ? 1 : -1),0);
+      const note = {kind:'note', raw, degree:Number(m[2]), accidental:m[1], octave, suffix, beats:durationFromSuffix(suffix), measure, noteIndex:++noteIndex, row, id:notes.length};
+      notes.push(note); elements.push(note);
+      measures.set(measure,(measures.get(measure)||0)+note.beats);
+      p += raw.length; continue;
+    }
+    const unknown = remain.match(/^[^\s|$]+/)?.[0] || remain[0];
+    warnings.push(`未识别的谱面符号「${unknown.slice(0,20)}」：已跳过预览，原文仍被保留。`);
+    p += unknown.length;
+  }
+  return {notes,elements,measures};
+}
+function lyricItems(raw) {
+  const result=[]; let previous=null, prePunct='';
+  const push = text => { const item={text:prePunct+text, skip:false}; prePunct='';result.push(item); previous=item; };
+  const punctuation = '，。；！？：、,.!?;:”“‘’…';
+  for (let i=0; i<raw.length;) {
+    const ch=raw[i];
+    if (ch==='{' && raw.indexOf('}',i+1)!==-1) {
+      const end=raw.indexOf('}',i+1);
+      const inner=raw.slice(i+1,end);
+      const match=/^\d+\.\[(.*?)\]$/.exec(inner);
+      push(match ? match[1] : inner);i=end+1;continue;
+    }
+    if (ch==='/') {result.push({text:'',skip:true});i++;continue;}
+    if (/\s/.test(ch) || ch==='-' || ch==='(' || ch===')') {i++;continue;}
+    if (punctuation.includes(ch)) {
+      if (previous) previous.text+=ch;
+      else prePunct+=ch;
+      i++;continue;
+    }
+    if (/[A-Za-z]/.test(ch)) {
+      let j=i+1;while(j<raw.length && /[A-Za-z]/.test(raw[j])) j++;
+      push(raw.slice(i,j));i=j;continue;
+    }
+    const cp=raw.codePointAt(i);const glyph=String.fromCodePoint(cp);
+    push(glyph);i+=glyph.length;
+  }
+  return result;
+}
+function readWords(body, notes, warnings) {
+  const segments=[];
+  for (const line of body.split(/\r?\n/)) {
+    const m=/^\s*W(\d+)(?:-\d+)?(?:\([^)]*\))?(?:@(\d+),(\d+))?(?:\([^)]*\))?:\s*(.*)$/.exec(line);
+    if (m) segments.push({verse:Number(m[1]),measure:Number(m[2]||1),index:Number(m[3]||1),raw:m[4]});
+    else if (segments.length) segments.at(-1).raw += '\n'+line;
+  }
+  const lyrics=new Map();
+  for (const s of segments) {
+    if (s.verse!==1) continue;
+    const begin=notes.findIndex(n=>n.measure===s.measure && n.noteIndex===s.index);
+    if (begin<0) {warnings.push(`歌词起点 W${s.verse}@${s.measure},${s.index} 不对应任何音符。`); continue;}
+    const items=lyricItems(s.raw);
+    for (let i=0;i<items.length;i++) {
+      if (notes[begin+i]) lyrics.set(notes[begin+i].id,items[i]);
+      else {warnings.push('歌词比音符更多，末尾的歌词没有对应音符。');break;}
+    }
+  }
+  return {segments,lyrics};
+}
+export function parseSong(source) {
+  const raw=String(source ?? '');
+  const sections=new Map();let section='';
+  for (const line of raw.replace(/\r\n/g,'\n').split('\n')) {
+    const m=/^\s*\.(Title|Voice|Words|Layout|Repeat)\s*$/.exec(line);
+    if (m) {section=m[1]; if(!sections.has(section))sections.set(section,[]);continue;}
+    if (section) sections.get(section).push(line);
+  }
+  const warnings=[];
+  const titleBlock=(sections.get('Title')||[]).join('\n');
+  const title=/^Title\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim() || '未命名旋律';
+  const km=/^KeyAndMeters\s*=\s*\{\s*1\s*=\s*([^,}]+)(?:,\s*([^}]+))?\}/m.exec(titleBlock);
+  const key=km?.[1]?.trim() || 'C',meter=km?.[2]?.trim() || '';
+  const voice=readVoice((sections.get('Voice')||[]).join('\n'),warnings);
+  const words=readWords((sections.get('Words')||[]).join('\n'),voice.notes,warnings);
+  if (!sections.has('Voice')) warnings.push('缺少 .Voice 音符段。');
+  if (!voice.notes.length) warnings.push('未识别到可播放的音符。');
+  return {raw,title,key,meter,notes:voice.notes,elements:voice.elements,measures:voice.measures,lyrics:words.lyrics,segments:words.segments,warnings};
+}
+const MAJOR=[0,2,4,5,7,9,11];
+const ROOT={C:0,'#C':1,bD:1,D:2,'#D':3,bE:3,E:4,F:5,'#F':6,bG:6,G:7,'#G':8,bA:8,A:9,'#A':10,bB:10,B:11};
+export function noteFrequency(note,key='C') {
+  if (note.degree===0) return 0;
+  const semitone=(ROOT[key]??0)+MAJOR[note.degree-1]+note.octave*12+(note.accidental.includes('#')?1:0)+(note.accidental.includes('b')?-1:0);
+  const midi=60+semitone;
+  return 440 * Math.pow(2,(midi-69)/12);
+}
+export function beatReport(song) {
+  const m=/^(\d+)\s*\/\s*(\d+)$/.exec(song.meter);
+  if (!m) return [];
+  const target=Number(m[1])*4/Number(m[2]);
+  return [...song.measures].map(([index,beats])=>({index,beats,target,unequal:Math.abs(beats-target)>1e-6}));
+}

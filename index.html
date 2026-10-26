@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#183d3a" />
+  <meta name="description" content="散谱 SanPu：免费、开源的散板数字简谱编辑器，原样保留节奏，歌词逐音对位，浏览器试听与 PDF 导出。" />
+  <title>散谱 SanPu · 自由节奏简谱编辑器</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="module" src="./src/app.mjs"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand" aria-label="散谱 SanPu">
+      <span class="brand-icon" aria-hidden="true">♫</span>
+      <div><strong>散谱 <span>SanPu</span></strong><small>Free rhythm · Numbered notation</small></div>
+    </div>
+    <a class="repo-link" href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">开源仓库 <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <div class="intro">
+      <div><div class="eyebrow">SANPU · 自由节奏</div><h1>让旋律自由呼吸。</h1><p>不为了凑拍数改动你记录的音。输入简谱，歌词自动对位，立即试听，导出干净的 PDF。</p></div>
+      <div class="intro-pills"><span>不等长小节</span><span>歌词对位</span><span>本地保存</span></div>
+    </div>
+    <section class="workspace" aria-label="简谱工作区">
+      <div class="editor-pane">
+        <div class="pane-head"><div><h2>源谱编辑</h2><p>支持 JPW-ABC；改动实时更新右侧</p></div><span class="pane-tag">TEXT EDITOR</span></div>
+        <div class="actions editor-actions">
+          <button id="import-btn" class="btn secondary" type="button">↥ 导入文件</button>
+          <input id="file-input" hidden type="file" accept=".jpwabc,.txt,text/plain" />
+          <button id="save-btn" class="btn secondary" type="button">↓ 保存源码</button>
+          <button id="example-btn" class="btn quiet" type="button" title="覆盖当前编辑内容前会征求确认">加载示例</button>
+        </div>
+        <label for="source" class="sr-only">JPW-ABC 源谱</label>
+        <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>
+        <div class="editor-foot"><span id="source-hint">歌词中的 <code>/</code> 表示延续上一字、跳过一个音符，而不是分句。</span><span id="saved" aria-live="polite">自动保存已开启</span></div>
+        <details class="syntax-help"><summary>快速记谱说明 <span aria-hidden="true">＋</span></summary><div class="help-content"><p><code>3_</code> 半拍 · <code>3</code> 一拍 · <code>3-</code> 两拍 · <code>3--</code> 三拍 · <code>3.</code> 1.5 拍</p><p><code>7,</code> 低八度 · <code>1'</code> 高八度 · <code>0</code> 休止 · <code>|</code> 小节/分句 · <code>$(true)</code> 换行</p><p><code>.Words</code> 中的汉字逐音对齐，标点、空格不占音符；<code>/</code> 占一个音符位置，用于一字多音。<code>{词组}</code> 作为一个歌词单位。</p><p>散板模式允许任意小节长度。试听按照你写的音符时值演奏，不模拟歌手自由伸缩。</p></div></details>
+      </div>
+      <div class="preview-pane">
+        <div class="pane-head"><div><h2>乐谱预览</h2><p>音符与歌词一一对应</p></div><span id="note-count" class="pane-tag">0 个音符</span></div>
+        <div class="playback">
+          <div class="play-controls"><button class="btn play" id="play-btn" type="button" aria-label="播放">▶ 播放</button><button class="btn secondary" id="stop-btn" type="button">■ 停止</button></div>
+          <label class="tempo" for="tempo">速度 <strong id="tempo-value">72</strong> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" /></label>
+          <label class="mode"><input id="free-mode" type="checkbox" checked /> <span>散板模式</span></label>
+        </div>
+        <div class="preview-tools"><div id="meter-status" class="meter-status" aria-live="polite">散板 · 不强制校验小节拍数</div><button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button></div>
+        <div id="score" class="score-page" aria-label="数字简谱预览"></div>
+        <div id="warnings" class="warnings" role="status" aria-live="polite"></div>
+        <p class="preview-note">提示：单击谱中音符可从该位置试听。PDF 通过浏览器打印对话框选择「另存为 PDF」生成，无水印。</p>
+      </div>
+    </section>
+  </main>
+  <footer>散谱 SanPu · GPL-3.0 · 纯浏览器运行 · <a href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">GitHub</a></footer>
+</body>
+</html>

@@ -1,0 +1,83 @@
+# 散谱 · SanPu
+
+**旋律自由，不为凑拍子改谱。** 一个免费、开源、纯浏览器运行的散板数字简谱编辑器。无需注册、无需服务器、无需付费。
+
+🌐 **在线体验：** https://shandianchengzi.github.io/SanPu/
+
+## 功能
+
+- **散板 / 自由节奏：** 允许不等长小节，不校验总拍数，不自动改动音符时值。也能切换为普通拍号检查模式（仅提示）。
+- **数字简谱实时预览：** 支持 0–7、升降音、高低八度点、下划线减时、延长线、附点。
+- **歌词逐音对位：** `.Words` 中的 `/` 表示一个音符延续前面的歌词；空格和标点不占音符位置。
+- **试听：** 使用浏览器 Web Audio API 合成音符，支持调速、暂停、停止，点击某个音符即可从该处播放。
+- **导出 PDF：** 使用浏览器系统打印功能选择「另存为 PDF」，SVG 矢量简谱，无水印。
+- **导入 / 导出 JPW-ABC：** 支持 `.jpwabc`、`.txt`；兼容 UTF-8 和 UTF-16 字符编码；保存时保留编辑区中的原始音符、时值和歌词。
+- **浏览器本地自动保存：** 不上传服务器，关闭网页可继续编辑（仅限同一设备浏览器）；另有「保存源码」手动备份。
+- **响应式布局：** 桌面与手机均可使用。
+
+## 快速上手
+
+打开网站，默认会载入一份《一生所爱》的个人听写示例。左侧编辑 JPW-ABC 源文，右侧立即预览、试听。歌词与旋律的匹配遵循歌词跳音规则，而不是根据小节拍数分配。
+
+| 记法 | 含义 |
+|---|---|
+| `1`–`7`、`0` | 简谱音符和休止符 |
+| `3_`、`3__` | 八分音符、十六分音符 |
+| `3-`、`3--` | 两拍、三拍 |
+| `3.`、`3_.` | 附点四分音符、附点八分音符 |
+| `7,`、`1'` | 低音、高音 |
+| `|` | 小节线，可自由分句（散板模式不校验小节长度） |
+| `$(true)` | 分行 |
+| `.Words` 中的 `/` | 一字多音：当前音符不另起新歌词 |
+| `.Words` 中的 `{多字}` | 一组文字对应一个音符 |
+| `W1@1,1:` | 第一段歌词从第一小节第一个音符开始 |
+
+### PDF 导出
+
+点击「导出 PDF」，在浏览器打印对话框中选择 **另存为 PDF** 或 **Save as PDF** 即可。无需安装 PDF 库。
+
+### 支持范围
+
+第一版主要支持 **单声部简谱**、JPW-ABC 常见音符和 `.Words` 歌词结构。复杂反复记号、三连音、装饰音、多声部以及其它特殊控制指令可能不完整；遇到不识别的符号会提示，但不会自动覆写你的原始输入。试听使用严格按所记时值推算的合成音，不会尝试还原歌手的 Rubato 自由速度。
+
+## 本地运行
+
+使用任意静态 HTTP 服务器（页面使用原生 JavaScript ES Modules）：
+
+```bash
+python -m http.server 8000
+# 打开 http://localhost:8000
+```
+
+测试使用 Node.js 20+：
+
+```bash
+node --test tests/*.test.mjs
+```
+
+## GitHub Pages 自动部署
+
+工作流：`.github/workflows/pages.yml`。推送到 `main` 或手动运行 `workflow_dispatch` 会先运行解析测试，再通过官方 GitHub Pages Actions 发布静态网页。PR 只测试不部署。
+
+若首次启用 GitHub Pages，请在 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。无须 PAT 或额外 Secrets。
+
+## 项目结构
+
+```text
+index.html                   应用页面
+styles.css                   样式、打印版式
+favicon.svg                  图标
+src/core.mjs                 源码解析与歌词对位
+src/app.mjs                  SVG、试听、导入导出
+ tests/core.test.mjs         单元测试
+.github/workflows/pages.yml 自动测试与部署
+LICENSE                      GNU GPL v3
+```
+
+## 隐私与许可
+
+所有谱子默认只存储在当前浏览器 `localStorage`，不发送到任何第三方服务器。请定期下载源文件备份；清空浏览器缓存可能清除本地草稿。
+
+Copyright (C) 2026 SanPu contributors.
+
+Licensed under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`).
