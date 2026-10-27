@@ -28,6 +28,7 @@ export const FORMAT_GROUPS = [
       {key:'lyricWeight',label:'歌词字重',choices:[['300','细体'],['400','常规'],['500','中等'],['600','半粗'],['700','加粗']],default:'400'},
       {key:'lyricFont',label:'歌词字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'lyricLetterSpacing',label:'歌词字符间距',min:-10,max:12,step:1,unit:'px',default:0},
+      {key:'punctuationGap',label:'标点与歌词距离',min:-30,max:80,step:1,unit:'px',default:0},
       {key:'lyricOffset',label:'歌词与音符纵向间距',min:-70,max:110,step:1,unit:'px',default:0},
       {key:'octaveDotSize',label:'高低音点大小',min:2,max:6,step:.1,unit:'px',default:3.3},
       {key:'highOctaveDotOffset',label:'高音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:0},
