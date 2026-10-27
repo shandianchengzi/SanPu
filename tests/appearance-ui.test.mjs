@@ -491,7 +491,7 @@ test('punctuation placement uses the measured SVG lyric width where available',(
     const g=scoreLine(els).children.find(el=>el.className==='note-click');
     const main=g.children.find(el=>el.className==='lyrics-text');
     const mark=g.children.find(el=>el.className==='lyrics-text lyric-punctuation');
-    assert.equal(main.textContent,'你');
+    assert.equal(main.textContent,'天');
     assert.equal(Number(mark.attrs.x),Number(main.attrs.x)+112/2+14);
   }finally{
     if(original===undefined)delete FakeElement.prototype.getComputedTextLength;
