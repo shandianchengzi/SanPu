@@ -486,7 +486,7 @@ test('punctuation placement uses the measured SVG lyric width where available',(
     return this.className==='lyrics-text'?112:0;
   };
   try{
-    const source='.Voice\n1\n.Words\nW1@1,1:\n你好！';
+    const source='.Voice\n1\n.Words\nW1@1,1:\n天！';
     const {els}=boot({source,format:{punctuationGap:14}});
     const g=scoreLine(els).children.find(el=>el.className==='note-click');
     const main=g.children.find(el=>el.className==='lyrics-text');
