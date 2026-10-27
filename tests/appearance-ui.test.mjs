@@ -789,7 +789,7 @@ test('continuous mode measures note-on to next note-on, not mouse-up, and finali
   c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100,pointerId:1});
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2']);
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:200,pointerId:1});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1___','2'],'short hold is provisional');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1__','2'],'short hold is provisional');
   const oldTimer=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
   assert.ok(oldTimer);
   // One beat after first key-down, despite releasing early to move mouse.
@@ -797,12 +797,12 @@ test('continuous mode measures note-on to next note-on, not mouse-up, and finali
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2','2']);
   assert.equal(timers.has(oldTimer),false,'next onset cancels previous idle timeout');
   d4.dispatch('pointerup',{type:'pointerup',timeStamp:850,pointerId:2});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2__','2']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2_','2']);
   const idleId=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
   assert.ok(idleId);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
   fireTimer(idleId);
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2__','2']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2_','2']);
   assert.match(document.getElementById('piano-status').textContent,/末音/);
   assert.ok(els.source.value.includes(' | y40 2'));
   assert.ok(els.source.value.endsWith('.Words\nW1@1,1:\n甲乙'));
@@ -824,7 +824,7 @@ test('continuous mode survives overlapping holds and does not rewrite finalized 
   fireTimer(timeout);
   g.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
   g.dispatch('pointerup',{type:'pointerup',timeStamp:5250});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.','5__'],'next phrase cannot retime old last note');
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.','5_'],'next phrase cannot retime old last note');
 });
 test('continuous mode ignored during audition and preference transitions stop pending rewrites',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
@@ -837,12 +837,12 @@ test('continuous mode ignored during audition and preference transitions stop pe
   const c=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:300});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__.']);
   // Switch off before another event; first note keeps its held duration.
   mode.checked=false;mode.dispatch('change');
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:1200});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__.','1']);
   const audition=document.getElementById('piano-audition');
   audition.checked=true;audition.dispatch('change');
   const before=els.source.value;
@@ -859,7 +859,7 @@ test('new onset after idle threshold does not retroactively expand final note ev
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:225});
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1___','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
   c.dispatch('pointerup',{type:'pointerup',timeStamp:5500});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1___','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
 });
