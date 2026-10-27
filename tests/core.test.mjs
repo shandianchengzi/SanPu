@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -235,4 +235,39 @@ test('JPW-ABC title metadata provides independent song attribution defaults',()=
   assert.equal(legacy.composer,'');
   assert.equal(legacy.singer,'');
   assert.equal(parseSong('.Title\nTranscriber = \n.Voice\n1').transcriber,'');
+});
+
+test('parenthesized ABC phrasing forms slurs without changing beats or source offsets',()=>{
+  const input='.Title\nTitle = Slurs\n.Voice\n(1_ 2_ 3) | (4 (5 6) 7) $(true)\n(1 2) 3';
+  const song=parseSong(input);
+  assert.deepEqual(song.notes.map(n=>n.raw),['1_','2_','3','4','5','6','7','1','2','3']);
+  assert.deepEqual(song.slurs,[{startId:0,endId:2},{startId:4,endId:5},{startId:3,endId:6},{startId:7,endId:8}]);
+  assert.equal(song.notes[0].beats,.5);
+  assert.equal(song.notes[1].beats,.5);
+  assert.equal(song.notes[2].beats,1);
+  assert.deepEqual(song.warnings,[]);
+  assert.equal(noteSourceCaret(input,2),input.indexOf('3)')+1);
+  assert.equal(song.raw,input);
+});
+test('invalid slur delimiters warn without dropping recognized notes',()=>{
+  const missingEnd=parseSong('.Voice\n(1 2');
+  assert.equal(missingEnd.notes.length,2);
+  assert.match(missingEnd.warnings.join(''),/闭括号/);
+  const single=parseSong('.Voice\n(1) 2');
+  assert.equal(single.notes.length,2);
+  assert.match(single.warnings.join(''),/至少需要两个/);
+  const missingStart=parseSong('.Voice\n1 2)');
+  assert.equal(missingStart.notes.length,2);
+  assert.match(missingStart.warnings.join(''),/开括号/);
+});
+test('transcriber update preserves source and permits an explicitly blank credit',()=>{
+  const base='.Title\r\nTitle = 宋\r\nKeyAndMeters = {1=C,3/4}\r\n.Voice\r\n1 2';
+  const named=updateTranscriber(base,'王小明');
+  assert.equal(parseSong(named).transcriber,'王小明');
+  assert.ok(named.includes('KeyAndMeters = {1=C,3/4}\r\n'));
+  const blank=updateTranscriber(named,'');
+  assert.equal(parseSong(blank).transcriber,'');
+  assert.equal((blank.match(/Transcriber =/g)||[]).length,1);
+  assert.equal(updateTranscriber(blank,'另一位'),named.replace('王小明','另一位'));
+  assert.equal(updateTranscriber('.Voice\n1','no-title'),null);
 });

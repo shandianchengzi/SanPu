@@ -46,7 +46,7 @@ export function durationFromSuffix(s='') {
   return 1;
 }
 function readVoice(body, warnings) {
-  const notes = [], elements = [], measures = new Map();
+  const notes = [], elements = [], measures = new Map(), slurs = [], slurStack = [];
   let measure = 1, noteIndex = 0, row = 0, p = 0;
   const addRow = () => {
     if (elements.length && elements.at(-1)?.kind !== 'break') { elements.push({kind:'break', row}); row++; }
@@ -57,6 +57,20 @@ function readVoice(body, warnings) {
     const br = remain.match(/^\$\([^)]*\)|^\$/);
     if (br) { addRow(); p += br[0].length; continue; }
     if (/^\s/.test(remain)) { if (remain[0] === '\n' && elements.at(-1)?.kind !== 'break' && !remain.slice(0,remain.indexOf('\n')).trim()) { /* Explicit JP-Word $ controls row breaks. */ } p++; continue; }
+    // ABC-style slurs are phrasing markers, not part of note duration.
+    // The '$(' line-break directive is processed above, before '('.
+    if(remain[0]==='('){
+      slurStack.push({start:notes.length,offset:p});
+      p++;continue;
+    }
+    if(remain[0]===')'){
+      const open=slurStack.pop();
+      if(!open)warnings.push('圆滑线缺少开括号「(」。');
+      else if(notes.length-open.start<2)
+        warnings.push('圆滑线至少需要两个音符。');
+      else slurs.push({startId:open.start,endId:notes.length-1});
+      p++;continue;
+    }
     const bar = BARS.find(b => remain.startsWith(b));
     if (bar) {
       const item = {kind:'bar', raw:bar, measure, row};
@@ -85,7 +99,8 @@ function readVoice(body, warnings) {
     warnings.push(`未识别的谱面符号「${unknown.slice(0,20)}」：已跳过预览，原文仍被保留。`);
     p += unknown.length;
   }
-  return {notes,elements,measures};
+  for(const unclosed of slurStack)warnings.push('圆滑线缺少闭括号「)」。');
+  return {notes,elements,measures,slurs};
 }
 // Split display-only punctuation from a lyric without changing its stored text or
 // its note-to-lyric correspondence. Opening quotation marks remain to the left;
@@ -166,7 +181,7 @@ export function parseSong(source) {
   const km=/^KeyAndMeters\s*=\s*\{\s*1\s*=\s*([^,}]+)(?:,\s*([^}]+))?\}/m.exec(titleBlock);
   const key=km?.[1]?.trim() || 'C',meter=km?.[2]?.trim() || '';
   // Attribution belongs to the song source, independently of UI preferences.
-  const transcriberLine=/^Transcriber\s*=\s*(.*)$/m.exec(titleBlock);
+  const transcriberLine=/^Transcriber[ \t]*=[ \t]*([^\r\n]*)$/m.exec(titleBlock);
   const transcriber=transcriberLine?transcriberLine[1].trim():'shandianchengzi';
   const composer=/^WordsByAndMusicBy\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim()||'';
   const singer=/^Singer\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim()||'';
@@ -174,7 +189,7 @@ export function parseSong(source) {
   const words=readWords((sections.get('Words')||[]).join('\n'),voice.notes,warnings);
   if (!sections.has('Voice')) warnings.push('缺少 .Voice 音符段。');
   if (!voice.notes.length) warnings.push('未识别到可播放的音符。');
-  return {raw,title,key,meter,transcriber,composer,singer,notes:voice.notes,elements:voice.elements,measures:voice.measures,lyrics:words.lyrics,segments:words.segments,warnings};
+  return {raw,title,key,meter,transcriber,composer,singer,notes:voice.notes,elements:voice.elements,measures:voice.measures,slurs:voice.slurs,lyrics:words.lyrics,segments:words.segments,warnings};
 }
 const MAJOR=[0,2,4,5,7,9,11];
 const ROOT={C:0,'#C':1,bD:1,D:2,'#D':3,bE:3,E:4,F:5,'#F':6,bG:6,G:7,'#G':8,bA:8,A:9,'#A':10,bB:10,B:11};
@@ -279,4 +294,20 @@ export function noteSourceCaret(source,noteId){
   const end=headings[voiceIndex+1]?.index??text.length;
   const note=readVoice(text.slice(begin,end),[]).notes[noteId];
   return note?begin+note.sourceEnd:null;
+}
+
+/** Updates or adds the .Title attribution without changing other score tokens. */
+export function updateTranscriber(source,value){
+  const text=String(source??'');
+  const name=String(value??'').replace(/[\r\n]+/g,' ').trim();
+  const heading=/^[ \t]*\.Title[ \t]*\r?$/m.exec(text);
+  if(!heading)return null;
+  const line=/^([ \t]*Transcriber[ \t]*=[ \t]*)[^\r\n]*/m;
+  const titleEnd=text.search(/^[ \t]*\.(Voice|Words|Layout|Repeat)[ \t]*\r?$/m);
+  const end=titleEnd>=0?titleEnd:text.length;
+  const start=heading.index+heading[0].length;
+  const header=text.slice(start,end);
+  if(line.test(header))return text.slice(0,start)+header.replace(line,'$1'+name)+text.slice(end);
+  const newline=text.includes('\r\n')?'\r\n':'\n';
+  return text.slice(0,end)+'Transcriber = '+name+newline+text.slice(end);
 }
