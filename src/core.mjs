@@ -48,15 +48,17 @@ export function durationFromSuffix(s='') {
 }
 function readVoice(body, warnings) {
   const notes = [], elements = [], measures = new Map(), slurs = [], slurStack = [];
-  let measure = 1, noteIndex = 0, row = 0, p = 0;
-  const addRow = () => {
-    if (elements.length && elements.at(-1)?.kind !== 'break') { elements.push({kind:'break', row}); row++; }
+  let measure = 1, noteIndex = 0, row = 0, p = 0, barIndex=0, breakIndex=0;
+  const addRow = (start,end) => {
+    if (elements.length && elements.at(-1)?.kind !== 'break') {
+      elements.push({kind:'break',row,index:breakIndex++,sourceStart:start,sourceEnd:end});row++;
+    }
   };
   while (p < body.length) {
     const remain = body.slice(p);
     if (remain.startsWith('//')) { const n = remain.indexOf('\n'); p += n < 0 ? remain.length : n; continue; }
     const br = remain.match(/^\$\([^)]*\)|^\$/);
-    if (br) { addRow(); p += br[0].length; continue; }
+    if (br) { addRow(p,p+br[0].length); p += br[0].length; continue; }
     if (/^\s/.test(remain)) { if (remain[0] === '\n' && elements.at(-1)?.kind !== 'break' && !remain.slice(0,remain.indexOf('\n')).trim()) { /* Explicit JP-Word $ controls row breaks. */ } p++; continue; }
     // ABC-style slurs are phrasing markers, not part of note duration.
     // The '$(' line-break directive is processed above, before '('.
@@ -74,7 +76,7 @@ function readVoice(body, warnings) {
     }
     const bar = BARS.find(b => remain.startsWith(b));
     if (bar) {
-      const item = {kind:'bar', raw:bar, measure, row};
+      const item = {kind:'bar', raw:bar, measure, row,index:barIndex++,sourceStart:p,sourceEnd:p+bar.length};
       elements.push(item); measure++; noteIndex=0; p+=bar.length; continue;
     }
     const spacer = SPACER.exec(remain);
@@ -240,10 +242,35 @@ export function pianoDurationSuffix(holdMs,tempo=72){
     if(Math.abs(option[0]-beats)<Math.abs(nearest[0]-beats))nearest=option;
   return nearest[1];
 }
+/** Exact positions of editable .Voice elements in the source, including bars. */
+export function voiceEditItems(source){
+  const text=String(source??'');
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
+  const vi=headings.findIndex(h=>h[1]==='Voice');
+  if(vi<0)return [];
+  const start=headings[vi].index+headings[vi][0].length;
+  const end=headings[vi+1]?.index??text.length;
+  return readVoice(text.slice(start,end),[]).elements
+    .filter(e=>e.kind==='note'||e.kind==='bar'||e.kind==='break')
+    .map(e=>({kind:e.kind,index:e.kind==='note'?e.id:e.index,
+      from:start+e.sourceStart,to:start+e.sourceEnd,
+      raw:text.slice(start+e.sourceStart,start+e.sourceEnd)}));
+}
+export function deleteVoiceItem(source,kind,index){
+  if(!['note','bar','break'].includes(kind)||!Number.isInteger(index)||index<0)return null;
+  const text=String(source??''),items=voiceEditItems(text);
+  const selected=items.find(e=>e.kind===kind&&e.index===index);
+  if(!selected)return null;
+  const previous=items.filter(e=>e.to<=selected.from).at(-1)??null;
+  return {source:text.slice(0,selected.from)+text.slice(selected.to),
+    caret:selected.from,removed:selected,
+    previous:previous?{kind:previous.kind,index:previous.index}:null};
+}
+
 /** Insert by parsed note index, not by matching raw note text, preserving the
  * exact lyrics, bars, empty layout spacers, source line endings and spacing.
  */
-export function insertPianoNote(source,token,afterId=-1,caret=-1){
+export function insertPianoNote(source,token,afterId=-1,caret=-1,preferCaret=false){
   const text=String(source??'');
   if(!/^(?:0|(?:#{0,2}|b{0,2})[1-7][,']*)(?:_+\.*|\.+_+|-+|\.+)?$/.test(token))return null;
   const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
@@ -258,6 +285,12 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
   if(!chosen&&Number.isInteger(caret)&&caret>begin&&caret<=end)
     chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
   if(!chosen)chosen=notes.at(-1)??null;
+  if(preferCaret&&Number.isInteger(caret)&&caret>=begin&&caret<=end){
+    const earlier=notes.filter(n=>n.sourceEnd<=caret-begin);
+    const inserted=' '+token+' ';
+    return {source:text.slice(0,caret)+inserted+text.slice(caret),
+      noteId:earlier.length,caret:caret+inserted.length};
+  }
   let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
   // Keyboard-entered bars/line breaks live *after* the selected note.
   // Keep subsequent piano notes after those markers, never before them.
@@ -274,7 +307,7 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
  * The result is placed within .Voice (never .Words or metadata), retaining
  * existing notes and all surrounding source bytes unchanged.
  */
-export function insertPianoMarker(source,marker,afterId=-1,caret=-1){
+export function insertPianoMarker(source,marker,afterId=-1,caret=-1,preferCaret=false){
   if(marker!=='|'&&marker!=='$(true)')return null;
   const text=String(source??'');
   const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
@@ -288,7 +321,8 @@ export function insertPianoMarker(source,marker,afterId=-1,caret=-1){
     chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
   if(!chosen)chosen=notes.at(-1)??null;
   let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
-  if(Number.isInteger(caret)&&caret>=at&&caret<=end&&
+  if(preferCaret&&Number.isInteger(caret)&&caret>=begin&&caret<=end)at=caret;
+  if(!preferCaret&&Number.isInteger(caret)&&caret>=at&&caret<=end&&
     (!chosen||notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
     /^(?:\s|\|+|\$\([^)]*\))*$/.test(text.slice(at,caret)))at=caret;
   const newline=text.includes('\r\n')?'\r\n':'\n';
