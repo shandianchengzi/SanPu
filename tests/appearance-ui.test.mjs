@@ -1234,7 +1234,7 @@ test('three physical piano keyboard rows cover all 36 keys, with source editing 
   mode.checked=true;mode.dispatch('change');
   assert.equal(els.source.disabled,true);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,true);
-  assert.match(els.pianoStatus.textContent,/C3～B5 共 36 个音/);
+  assert.match(els.pianoStatus.textContent,/36 个琴键/);
   // The checkbox can remain focused; the first note must still work.
   const firstFocused=send('keydown','KeyQ',180,{target:mode});
   assert.equal(firstFocused.prevented,true);
@@ -1277,7 +1277,7 @@ test('SVG renders the mapped pitches in real staggered QWERTY physical keyboard 
   const x=group=>Number(group.children[0].attrs.x);
   const y=group=>Number(group.children[0].attrs.y);
   assert.equal(figure().tag,'svg');
-  assert.equal(figure().attrs.viewBox,'0 0 1199 392');
+  assert.equal(figure().attrs.viewBox,'0 0 1199 472');
   assert.equal(mapped().length,36,'all 36 keys remain represented');
   assert.ok(unused().length>=8,'unbound keyboard keys remain visibly in place');
   // The keyboard must be physically ordered, not sorted by rising MIDI pitch.

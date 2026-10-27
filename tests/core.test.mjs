@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,insertPianoMarker} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -340,4 +340,56 @@ test('batch shift rejects invalid numbers and out-of-range notes atomically',()=
   assert.equal(original.includes('1 2 3'),true,'input source must remain intact');
   const flat=transposeSongSemitones('.Voice\nb3 #4 7,',-1);
   assert.deepEqual(parseSong(flat.source).notes.map(n=>n.raw),['2','4','b7,']);
+});
+
+test('rest zero supports the same piano duration and source edits as pitched notes',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1\n.Words\nW1@1,1:\n你';
+  const inserted=insertPianoNote(source,'0-',0);
+  assert.ok(inserted);
+  assert.deepEqual(parseSong(inserted.source).notes.map(n=>n.raw),['1','0-']);
+  assert.equal(noteFrequency(parseSong(inserted.source).notes[1]),0);
+  const fixed=revisePianoNoteDuration(inserted.source,1,'0-','_.');
+  assert.ok(fixed);
+  assert.deepEqual(parseSong(fixed.source).notes.map(n=>n.raw),['1','0_.']);
+  assert.equal(parseSong(fixed.source).notes[1].beats,.75);
+  assert.equal(revisePianoNoteDuration(fixed.source,1,'0-','_'),null);
+  assert.equal(insertPianoNote(source,'#0'),null);
+  assert.equal(insertPianoNote(source,'0,'),null);
+  assert.equal(fixed.source.split('.Words')[1],source.split('.Words')[1]);
+});
+
+test('bar and new-system keyboard markers preserve source and precede the next piano note',()=>{
+  const original='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 2\n.Words\nW1@1,1:\n天地';
+  const bar=insertPianoMarker(original,'|',1);
+  assert.ok(bar);
+  const newline=insertPianoMarker(bar.source,'$(true)',1,bar.caret);
+  assert.ok(newline);
+  const next=insertPianoNote(newline.source,'0_',1,newline.caret);
+  assert.ok(next);
+  const song=parseSong(next.source);
+  assert.deepEqual(song.notes.map(n=>n.raw),['1','2','0_']);
+  assert.equal(song.notes[2].row,1);
+  assert.equal(song.notes[2].measure,2);
+  assert.match(next.source,/2\s*\|\s*\$\(true\)\s*0_/);
+  assert.equal(next.source.split('.Words')[1],original.split('.Words')[1]);
+  assert.equal(song.warnings.length,0);
+});
+
+test('repeated markers before the first note preserve CRLF and stay inside Voice',()=>{
+  const original='.Title\r\nTitle = Empty\r\n.Voice\r\n.Words\r\nW1@1,1:\r\n';
+  const bar=insertPianoMarker(original,'|');
+  assert.ok(bar);
+  const br=insertPianoMarker(bar.source,'$(true)',-1,bar.caret);
+  assert.ok(br);
+  const note=insertPianoNote(br.source,'1',-1,br.caret);
+  assert.ok(note);
+  const song=parseSong(note.source);
+  assert.deepEqual(song.notes.map(n=>n.raw),['1']);
+  assert.equal(song.notes[0].row,1);
+  assert.equal(song.notes[0].measure,2);
+  assert.match(note.source,/\|\s*\$\(true\)\s*1/);
+  assert.equal(note.source.split('.Words')[1],original.split('.Words')[1]);
+  assert.ok(note.source.includes('\r\n'));
+  assert.equal(insertPianoMarker(original,'*'),null);
+  assert.equal(insertPianoMarker('.Title\nTitle = A','|'),null);
 });
