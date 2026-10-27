@@ -172,7 +172,7 @@ test('score metadata supports separate tonic and tempo type sizes and weights, i
   assert.equal(meta.children[0].children[0].textContent,'1 = G');
   assert.equal(meta.children[0].children[1].textContent,'♩ = 80');
   assert.equal(meta.children[0].children[2].textContent,'记谱人：shandianchengzi');
-  assert.equal(meta.children[1].children.length,0);
+  assert.deepEqual(meta.children[1].children.map(el=>el.textContent),['词曲作者：唐书琛（词）／卢冠廷（曲）','演唱者：周深（原唱：卢冠廷、莫文蔚）']);
   const tonic=field(els,'metaSize');
   tonic.value='48';tonic.dispatch('input');
   assert.equal(state.format.metaSize,48);
