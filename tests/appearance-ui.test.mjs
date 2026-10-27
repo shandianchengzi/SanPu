@@ -10,7 +10,7 @@ class FakeElement {
   constructor(tag){
     this.tag=tag;this.children=[];this.attrs={};this.listeners={};this.dataset={};
     this.style={props:{},setProperty:(key,value)=>{this.style.props[key]=String(value)}};
-    this.classList={toggle:()=>{}};this.value='';this.textContent='';
+    this.classes=new Set();this.classList={toggle:(name,on)=>{if(on??!this.classes.has(name))this.classes.add(name);else this.classes.delete(name);},contains:name=>this.classes.has(name)};this.value='';this.textContent='';
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value)}
   focus(){this.focused=true}
@@ -40,20 +40,25 @@ function boot(saved,allowOverwrite=false){
     'play-btn','stop-btn','mp3-btn','mp3-status','saved','transcriber-input','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
-     'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-status']){
+     'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-keyboard-mode','piano-keyboard-diagram','piano-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
-  const head=new FakeElement('head');
+  const head=new FakeElement('head'),documentEvents={};
   const document={
     head,body:new FakeElement('body'),createElement:tag=>new FakeElement(tag),createElementNS:(ns,tag)=>new FakeElement(tag),
-    getElementById:id=>id==='print-page-rules'?head.children.find(el=>el.id===id)??null:ids[id]??null
+    getElementById:id=>id==='print-page-rules'?head.children.find(el=>el.id===id)??null:ids[id]??null,
+    addEventListener:(type,cb)=>{(documentEvents[type]??=[]).push(cb);},
+    dispatch:(type,event={})=>{for(const cb of documentEvents[type]??[])cb(event);}
   };
   const localStorage={
     data:saved?{'sanpu.editor.v1':JSON.stringify(saved)}:{},
     getItem(key){return this.data[key]??null},
     setItem(key,value){this.data[key]=value}
   };
-  const window={addEventListener(){},print(){window.printed=true}};
+  const windowEvents={};
+  const window={addEventListener(type,cb){(windowEvents[type]??=[]).push(cb);},
+    dispatch(type,event={}){for(const cb of windowEvents[type]??[])cb(event);},
+    print(){window.printed=true}};
   const code=[stripped(read('src/core.mjs')),stripped(read('src/format.mjs')),
     stripped(read('src/timbres.mjs')),stripped(read('src/mp3.mjs')),stripped(read('src/app.mjs')),
     'return {state,els,refresh,render};'].join('\n');
@@ -1194,4 +1199,93 @@ test('extension dash distance adjusts only the dash start, supports signed value
   assert.equal(Number(firstLine(notes()[0]).attrs.x1)-numeral(notes()[0]),base-12);
   assert.equal(state.format.dashNoteGap,-12);
   assert.equal(els.source.value,source);
+});
+
+test('computer keyboard mode is opt-in, remembers selection and animates corresponding piano keys',()=>{
+  const {state,document,localStorage,window}=boot({source:'.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1'});
+  const mode=document.getElementById('piano-keyboard-mode');
+  const piano=document.getElementById('piano-keys');
+  const c3=piano.children.find(key=>key.dataset.midi==='48');
+  const send=(type,code,stamp,more={})=>{
+    const event={code,key:code.slice(-1).toLowerCase(),timeStamp:stamp,
+      preventDefault(){event.prevented=true},...more};
+    document.dispatch(type,event);return event;
+  };
+  assert.equal(mode.checked,false);
+  assert.equal(state.keyboardMode,false);
+  send('keydown','KeyQ',100);
+  assert.equal(c3.classList.contains('is-pressed'),false,'not active before opting in');
+  mode.checked=true;mode.dispatch('change');
+  assert.equal(localStorage.data['sanpu.editor.v1']!==undefined,true);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,true);
+  const press=send('keydown','KeyQ',250);
+  assert.equal(press.prevented,true);
+  assert.equal(c3.classList.contains('is-pressed'),true);
+  send('keydown','KeyQ',300,{repeat:true});
+  assert.equal(c3.classList.contains('is-pressed'),true,'repeat should not retrigger');
+  send('keyup','KeyQ',600);
+  assert.equal(c3.classList.contains('is-pressed'),false);
+  const last=piano.children.find(key=>key.dataset.midi==='72');
+  send('keydown','KeyN',650);
+  assert.equal(last.classList.contains('is-pressed'),true,'N maps to C5');
+  window.dispatch('blur');
+  assert.equal(last.classList.contains('is-pressed'),false);
+  send('keydown','KeyM',700);
+  assert.equal(piano.children.every(key=>!key.classList.contains('is-pressed')),true,'M is unbound');
+  mode.checked=false;mode.dispatch('change');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,false);
+  send('keydown','KeyQ',800);
+  assert.equal(c3.classList.contains('is-pressed'),false);
+  assert.equal(boot({keyboardMode:true}).state.keyboardMode,true);
+  assert.equal(boot({keyboardMode:false}).state.keyboardMode,false);
+});
+
+test('dynamic SVG keymap contains 25 chromatic keys, and follows key signature and transpose',()=>{
+  const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n1';
+  const {document,els,state,refresh}=boot({source,keyboardMode:true});
+  const figure=()=>document.getElementById('piano-keyboard-diagram').children[0];
+  const keys=()=>figure().children.filter(group=>group.className?.startsWith('keyboard-map-cell'));
+  const q=()=>keys().find(group=>group.attrs['data-key']==='q');
+  const n=()=>keys().find(group=>group.attrs['data-key']==='n');
+  assert.equal(figure().tag,'svg');
+  assert.equal(figure().attrs.viewBox,'0 0 1010 297');
+  assert.equal(keys().length,25);
+  assert.equal(keys()[0].attrs['data-midi'],'48');
+  assert.equal(n().attrs['data-midi'],'72');
+  assert.equal(keys().some(group=>group.attrs['data-key']==='m'),false);
+  assert.equal(q().children[1].textContent,'Q');
+  assert.equal(q().children[2].textContent,'C3 → G3');
+  assert.equal(q().children[3].textContent,'简谱 1,');
+  const transpose=document.getElementById('piano-transpose');
+  transpose.checked=false;transpose.dispatch('change');
+  assert.equal(q().children[2].textContent,'C3');
+  assert.notEqual(q().children[3].textContent,'简谱 1,');
+  transpose.checked=true;transpose.dispatch('change');
+  els.source.value=source.replace('1=G','1=D');refresh();
+  assert.equal(state.song.key,'D');
+  assert.equal(q().children[2].textContent,'C3 → D3');
+  assert.equal(q().children[3].textContent,'简谱 1,,');
+  assert.match(read('index.html'),/id="piano-keyboard-diagram"/);
+  assert.match(read('styles.css'),/\.keyboard-map-svg/);
+});
+
+test('keyboard note recording reuses piano key timing, but typing and shortcuts do not play',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,els,state}=boot({source,keyboardMode:true,pianoAudition:false,
+    pianoContinuous:false,pianoTranspose:false,tempo:120});
+  const c3=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='48');
+  const input=els.source;input.tag='textarea';
+  document.dispatch('keydown',{code:'KeyQ',key:'q',timeStamp:100,target:input});
+  assert.equal(c3.classList.contains('is-pressed'),false);
+  document.dispatch('keydown',{code:'KeyQ',key:'q',timeStamp:200,ctrlKey:true});
+  assert.equal(c3.classList.contains('is-pressed'),false);
+  const event={code:'KeyQ',key:'q',timeStamp:500,preventDefault(){}};
+  document.dispatch('keydown',event);
+  assert.equal(c3.classList.contains('is-pressed'),true);
+  document.dispatch('keyup',{code:'KeyQ',key:'q',timeStamp:1000,target:input,preventDefault(){}});
+  assert.equal(c3.classList.contains('is-pressed'),false);
+  assert.equal(state.song.notes.length,2);
+  assert.notEqual(els.source.value,source);
+  assert.equal(state.song.notes[1].beats,1);
+  assert.equal(state.keyboardMode,true);
 });
