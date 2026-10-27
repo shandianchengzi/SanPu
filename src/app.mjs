@@ -861,7 +861,7 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
           const up=p.y>=108,stemX=cx+(up?9:-9);
           const stemEnd=p.y+(up?-44:44);
           g.append(svg('line',{x1:stemX,x2:stemX,y1:p.y,y2:stemEnd,class:'alt-stem'}));
-          const flags=n.beats<=.25?2:n.beats<1?1:0;
+          const flags=n.beats<=.125?3:n.beats<=.375?2:n.beats<1?1:0;
           for(let k=0;k<flags;k++)
             g.append(svg('path',{d:'M '+stemX+' '+(stemEnd+k*(up?9:-9))+
               ' Q '+(stemX+16)+' '+(stemEnd+(up?14:-14)+k*(up?9:-9))+
