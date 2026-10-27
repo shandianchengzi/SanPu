@@ -791,17 +791,17 @@ test('continuous mode measures note-on to next note-on, not mouse-up, and finali
   assert.equal(document.getElementById('piano-continuous').checked,true);
   state.cursorNoteId=0;
   c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100,pointerId:1});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1-','2']);
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:200,pointerId:1});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1__','2'],'short hold is provisional');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1-','2'],'mouse-up retains provisional two-beat note');
   const oldTimer=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
   assert.ok(oldTimer);
   // One beat after first key-down, despite releasing early to move mouse.
   d4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600,pointerId:2});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2','2']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2-','2']);
   assert.equal(timers.has(oldTimer),false,'next onset cancels previous idle timeout');
   d4.dispatch('pointerup',{type:'pointerup',timeStamp:850,pointerId:2});
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2_','2']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2-','2']);
   const idleId=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
   assert.ok(idleId);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
@@ -819,16 +819,17 @@ test('continuous mode survives overlapping holds and does not rewrite finalized 
   state.cursorNoteId=0;
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   e.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:1100});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3-']);
   c.dispatch('pointerup',{type:'pointerup',timeStamp:1300});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3'],'late release must not overwrite inter-onset duration');
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3-'],'late release must not overwrite inter-onset duration');
   e.dispatch('pointerup',{type:'pointerup',timeStamp:1500});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3-']);
   const timeout=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
   fireTimer(timeout);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.']);
   g.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
   g.dispatch('pointerup',{type:'pointerup',timeStamp:5250});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.','5_'],'next phrase cannot retime old last note');
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.','5-'],'next phrase cannot retime old last note');
 });
 test('continuous mode ignored during audition and preference transitions stop pending rewrites',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
@@ -841,12 +842,12 @@ test('continuous mode ignored during audition and preference transitions stop pe
   const c=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:300});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__.']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-']);
   // Switch off before another event; first note keeps its held duration.
   mode.checked=false;mode.dispatch('change');
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:1200});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__.','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','1']);
   const audition=document.getElementById('piano-audition');
   audition.checked=true;audition.dispatch('change');
   const before=els.source.value;
@@ -863,9 +864,9 @@ test('new onset after idle threshold does not retroactively expand final note ev
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   c.dispatch('pointerup',{type:'pointerup',timeStamp:225});
   c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1-']);
   c.dispatch('pointerup',{type:'pointerup',timeStamp:5500});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1-']);
 });
 
 test('piano sounds on key-down even with audition unchecked, and records only once on release',async()=>{
@@ -913,13 +914,13 @@ test('continuous piano recording also sounds immediately on each successive key-
   c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
   await Promise.resolve();await Promise.resolve();
   assert.equal(frequencies.length,1);
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1-']);
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:150});
   e4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600});
   await Promise.resolve();await Promise.resolve();
   assert.equal(frequencies.length,2,'next key-down sounds and updates previous duration');
   assert.ok(Math.abs(frequencies[1]-440*Math.pow(2,(64-69)/12))<1e-8);
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','3']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','3-']);
   e4.dispatch('pointerup',{type:'pointerup',timeStamp:850});
   assert.equal(state.song.notes.length,3);
 });
@@ -942,4 +943,53 @@ test('click-only piano activation produces audio and a note in record mode',asyn
   await Promise.resolve();await Promise.resolve();
   assert.equal(sounds,1);
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+});
+
+test('clicking a score note in recording mode pauses and focuses editor after the raw token',()=>{
+  const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n3,_ y40 3,_ | #4,... $(true)\n3,_\n.Words\nW1@1,1:\n甲乙丙丁';
+  const {state,els}=boot({source,pianoAudition:false});
+  let stopped=0;
+  state.playing=true;state.audio={currentTime:1};
+  state.nodes=[{stop(){stopped++;}}];
+  const notes=els.score.querySelectorAll('.note-click');
+  assert.equal(notes.length,4);
+  notes[2].dispatch('click');
+  assert.equal(stopped,1,'currently sounding notes must stop');
+  assert.equal(state.playing,false);
+  assert.equal(els.play.textContent,'▶ 继续');
+  assert.equal(state.cursorNoteId,2);
+  assert.equal(state.active,2);
+  assert.equal(els.source.focused,true);
+  assert.equal(els.source.selectionStart,source.indexOf('#4,...')+6);
+  assert.equal(els.source.selectionEnd,els.source.selectionStart);
+  let prevented=0;
+  notes[1].dispatch('keydown',{key:'Enter',preventDefault(){prevented++;}});
+  assert.equal(prevented,1);
+  assert.equal(state.cursorNoteId,1);
+  assert.equal(els.source.selectionStart,source.indexOf('3,_',source.indexOf('y40'))+3);
+  assert.equal(els.source.value,source);
+});
+test('clicking score note in audition mode continues playing from selected note and focuses source',async()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 | 3';
+  const {state,els}=boot({source,pianoAudition:true});
+  let oscillators=0;
+  state.audio={
+    currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){
+      oscillators++;
+      return {frequency:{setValueAtTime(){}},setPeriodicWave(){},
+        connect(){},start(){},stop(){},disconnect(){}};
+    },
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  els.score.querySelectorAll('.note-click')[1].dispatch('click');
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(state.cursorNoteId,1);
+  assert.equal(els.source.focused,true);
+  assert.equal(els.source.selectionStart,source.indexOf('2 |')+1);
+  assert.equal(state.playing,true);
+  assert.ok(oscillators>0);
+  els.stop.dispatch('click');
 });

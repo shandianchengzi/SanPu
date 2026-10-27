@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -204,4 +204,15 @@ test('continuous mode backpatches only a generated note suffix',()=>{
   const same=revisePianoNoteDuration(source,0,'1_','_');
   assert.equal(same.source,source);
   assert.equal(same.delta,0);
+});
+
+test('score note caret resolves exact token after repeated notes, CRLF and spacers',()=>{
+  const src='.Title\r\nKeyAndMeters = {1=G,3/4}\r\n.Voice\r\n3,_ y40 3,_ | #4,... $(true)\r\n3,_\r\n.Words\r\nW1@1,1:\r\n好/好好';
+  const offsets=[src.indexOf('3,_')+3,src.indexOf('3,_',src.indexOf('y40'))+3,
+    src.indexOf('#4,...')+6,src.lastIndexOf('3,_')+3];
+  assert.deepEqual(offsets.map((_,i)=>noteSourceCaret(src,i)),offsets);
+  assert.equal(noteSourceCaret(src,4),null);
+  assert.equal(noteSourceCaret(src,-1),null);
+  assert.equal(noteSourceCaret(src,1.2),null);
+  assert.equal(noteSourceCaret('.Title\nTitle = no voice',0),null);
 });
