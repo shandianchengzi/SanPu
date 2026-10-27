@@ -62,7 +62,7 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,61);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,63);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
