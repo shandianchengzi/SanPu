@@ -229,3 +229,46 @@ test('extension dash offset is an independent signed and portable style',()=>{
   const format=normalizeFormat({dashNoteGap:24,dashSpacing:38});
   assert.deepEqual(importStyle(exportStyle(format)),format);
 });
+
+test('user supplied 36-field standard is preserved and its 7 newer fields are inherited',()=>{
+  const userStyle={
+    titleSize:38,titleWeight:'800',titleFont:'sans',titleLetterSpacing:6,titleBottomGap:19,
+    metaSize:21,metaWeight:'400',tempoSize:21,tempoWeight:'500',metaFont:'serif',
+    metaGap:9,metaBottomGap:-1,noteSize:50,noteWeight:'700',noteFont:'sans',
+    accidentalSize:23,lyricSize:51,lyricWeight:'400',lyricFont:'kai',
+    lyricLetterSpacing:-4,punctuationGap:2,lyricOffset:3,octaveDotSize:3.9,
+    highOctaveDotOffset:0,lowOctaveDotOffset:-13,rhythmStroke:2.35,barStroke:2.9,
+    noteSpacing:0,dashSpacing:29,barSpacing:24,systemGap:-5,lyricLineGap:0,
+    minLineWidth:980,previewPadding:48,printMarginX:15,printMarginY:8
+  };
+  assert.equal(Object.keys(userStyle).length,36);
+  for(const [key,value] of Object.entries(userStyle))
+    assert.equal(DEFAULT_FORMAT[key],value,'user style '+key);
+  assert.equal(Object.keys(DEFAULT_FORMAT).length,43);
+  assert.deepEqual(importStyle(JSON.stringify({
+    type:STYLE_FILE_TYPE,version:1,settings:userStyle
+  })),DEFAULT_FORMAT);
+});
+
+test('density presets adapt credit glyph and line sizes without changing typography choices',()=>{
+  const standard=FORMAT_PRESETS.standard;
+  const compact=FORMAT_PRESETS.compact,spacious=FORMAT_PRESETS.spacious;
+  for(const key of ['titleSize','metaSize','tempoSize','transcriberSize','creditSize',
+    'noteSize','accidentalSize','lyricSize','octaveDotSize','rhythmStroke','barStroke',
+    'dashSpacing','barSpacing','previewPadding','minLineWidth']){
+    assert.ok(compact[key]<standard[key],'compact: '+key);
+    assert.ok(spacious[key]>standard[key],'spacious: '+key);
+  }
+  for(const key of ['titleFont','metaFont','noteFont','lyricFont',
+    'transcriberFont','creditFont','accidentalGap','durationDotGap','dashNoteGap',
+    'lowOctaveDotOffset','highOctaveDotOffset','punctuationGap','printMarginX','printMarginY']){
+    assert.equal(compact[key],standard[key],'compact keeps '+key);
+    assert.equal(spacious[key],standard[key],'spacious keeps '+key);
+  }
+  assert.equal(compact.transcriberSize,16);
+  assert.equal(spacious.transcriberSize,22);
+  assert.equal(compact.creditSize,16);
+  assert.equal(spacious.creditSize,22);
+  assert.equal(formatPresetId(compact),'compact');
+  assert.equal(formatPresetId(spacious),'spacious');
+});
