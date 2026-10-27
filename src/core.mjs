@@ -10,6 +10,7 @@ WordsByAndMusicBy =
 1_ 7,_ 6,_ 5,_ 6, #4,- | 5, 6,_ 7,. y y10| y y y y15 1_ 7,_ 6,_ 5,_ 6, #4,... y y y y | 3, 2,_ 3,-         | $(true)
 3_ 2_ 3- | 5 3_ 2  7,-    y y y y y y y40| y y y y35 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
 3_ 2_ 3- |5 6_ 3 2- 2_ 7,-| y y y y35 3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,- |$(true)
+6,. 6,_ 1. y30 | 7,__ 1__ 7,__ 6,__ 7,_ 5,_ 5,__ 6,__ 7,- |  y  1__. #1__ b3- | y 5 #4- | y  7,  3-- y5 |$(true)
            
 .Words
 
@@ -22,7 +23,7 @@ W1@1,1:
 // Entries are separate from the editor state: adding another example only
 // requires appending an id/title/source entry here.
 export const EXAMPLES = Object.freeze([
-  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=G · 散板 · 四行完整示例',source:EXAMPLE})
+  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=G · 散板 · 五行旋律',source:EXAMPLE})
 ]);
 const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
@@ -163,11 +164,16 @@ export function parseSong(source) {
   const title=/^Title\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim() || '未命名旋律';
   const km=/^KeyAndMeters\s*=\s*\{\s*1\s*=\s*([^,}]+)(?:,\s*([^}]+))?\}/m.exec(titleBlock);
   const key=km?.[1]?.trim() || 'C',meter=km?.[2]?.trim() || '';
+  // Attribution belongs to the song source, independently of UI preferences.
+  const transcriberLine=/^Transcriber\s*=\s*(.*)$/m.exec(titleBlock);
+  const transcriber=transcriberLine?transcriberLine[1].trim():'shandianchengzi';
+  const composer=/^WordsByAndMusicBy\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim()||'';
+  const singer=/^Singer\s*=\s*(.*)$/m.exec(titleBlock)?.[1]?.trim()||'';
   const voice=readVoice((sections.get('Voice')||[]).join('\n'),warnings);
   const words=readWords((sections.get('Words')||[]).join('\n'),voice.notes,warnings);
   if (!sections.has('Voice')) warnings.push('缺少 .Voice 音符段。');
   if (!voice.notes.length) warnings.push('未识别到可播放的音符。');
-  return {raw,title,key,meter,notes:voice.notes,elements:voice.elements,measures:voice.measures,lyrics:words.lyrics,segments:words.segments,warnings};
+  return {raw,title,key,meter,transcriber,composer,singer,notes:voice.notes,elements:voice.elements,measures:voice.measures,lyrics:words.lyrics,segments:words.segments,warnings};
 }
 const MAJOR=[0,2,4,5,7,9,11];
 const ROOT={C:0,'#C':1,bD:1,D:2,'#D':3,bE:3,E:4,F:5,'#F':6,bG:6,G:7,'#G':8,bA:8,A:9,'#A':10,bB:10,B:11};

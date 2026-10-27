@@ -15,9 +15,12 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.title,'一生所爱');
   assert.equal(song.key,'G');
   assert.equal(song.meter,'3/4');
-  assert.equal(song.notes.length,71);
-  assert.equal(song.elements.filter(e=>e.kind==='bar').length,16);
-  assert.equal(song.elements.filter(e=>e.kind==='break').length,4);
+  assert.equal(song.transcriber,'shandianchengzi');
+  assert.equal(song.composer,'');
+  assert.equal(song.singer,'');
+  assert.equal(song.notes.length,90);
+  assert.equal(song.elements.filter(e=>e.kind==='bar').length,21);
+  assert.equal(song.elements.filter(e=>e.kind==='break').length,5);
   assert.deepEqual(song.notes.slice(0,4).map(n=>n.raw),['3,_','3,','#4,_','#4,']);
   assert.deepEqual(song.notes.slice(0,3).map(n=>n.beats),[.5,1,.5]);
   assert.equal(song.lyrics.get(0).text,'从');
@@ -27,8 +30,10 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.lyrics.get(70).text,'份。');
   assert.equal(song.lyrics.size,71);
   assert.equal(song.warnings.length,0);
-  assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.raw),
+  const spacerMarks=song.elements.filter(e=>e.kind==='spacer').map(e=>e.raw);
+  assert.deepEqual(spacerMarks.slice(0,26),
     ['y','y10','y','y','y','y15','y','y','y','y','y','y','y','y','y','y','y40','y','y','y','y35','y30','y','y','y','y35']);
+  assert.deepEqual(spacerMarks.slice(26),['y30','y','y','y','y5']);
   assert.ok(EXAMPLE.includes('从前，现在,过去了再不来，红红落叶，长埋尘土里。'));
   assert.ok(EXAMPLE.includes('开始终结总是没变改，天边的你飘泊白云外。'));
   assert.ok(EXAMPLE.includes('{1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。'));
@@ -36,6 +41,8 @@ test('user supplied score parses without changing source',()=>{
   assert.ok(EXAMPLE.includes('5 3_ 2  7,-    y y y y y y y40|'));
   assert.ok(EXAMPLE.includes('#4,... y y y y | 3, 2,_ 3,-'));
   assert.equal(song.notes[9].raw,'3,--');
+  assert.ok(EXAMPLE.includes('6,. 6,_ 1. y30 | 7,__ 1__ 7,__ 6,__ 7,_ 5,_ 5,__ 6,__ 7,-'));
+  assert.ok(EXAMPLE.includes('1__. #1__ b3- | y 5 #4- | y  7,  3-- y5 |$(true)'));
   assert.equal(EXAMPLES[0].source,EXAMPLE);
   assert.equal(EXAMPLES[0].title,song.title);
 });
@@ -215,4 +222,19 @@ test('score note caret resolves exact token after repeated notes, CRLF and space
   assert.equal(noteSourceCaret(src,-1),null);
   assert.equal(noteSourceCaret(src,1.2),null);
   assert.equal(noteSourceCaret('.Title\nTitle = no voice',0),null);
+});
+
+test('JPW-ABC title metadata provides independent song attribution defaults',()=>{
+  const src='.Title\nTitle = Test\nKeyAndMeters = {1=G,3/4}\nWordsByAndMusicBy = 李甲\nTranscriber = 王乙\nSinger = 张丙\n.Voice\n1';
+  const song=parseSong(src);
+  assert.equal(song.transcriber,'王乙');
+  assert.equal(song.composer,'李甲');
+  assert.equal(song.singer,'张丙');
+  assert.equal(song.raw,src);
+  assert.deepEqual(song.warnings,[]);
+  const legacy=parseSong('.Title\nTitle = Old\n.Voice\n1');
+  assert.equal(legacy.transcriber,'shandianchengzi');
+  assert.equal(legacy.composer,'');
+  assert.equal(legacy.singer,'');
+  assert.equal(parseSong('.Title\nTranscriber = \n.Voice\n1').transcriber,'');
 });

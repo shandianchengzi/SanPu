@@ -1,7 +1,7 @@
 // SanPu score-appearance configuration. Pure module, shared by the editor and tests.
 export const FORMAT_GROUPS = [
   {
-    title:'标题与调号', hint:'曲名、调号 1 = C 与速度 ♩ = 80 可分别调整；字间距和上下留白可为负。',
+    title:'标题与调号', hint:'曲名、调号、速度、记谱人和作者署名可独立调整；记谱人位于左侧，词曲作者及演唱者右对齐。',
     fields:[
       {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:38},
       {key:'titleWeight',label:'曲名字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗'],['900','极粗']],default:'800'},
@@ -12,6 +12,10 @@ export const FORMAT_GROUPS = [
       {key:'metaWeight',label:'调号字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'400'},
       {key:'tempoSize',label:'速度 ♩ = 80 字号',min:14,max:64,step:1,unit:'px',default:21},
       {key:'tempoWeight',label:'速度标记字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'500'},
+      {key:'transcriberSize',label:'记谱人字号',min:12,max:52,step:1,unit:'px',default:18},
+      {key:'transcriberFont',label:'记谱人字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
+      {key:'creditSize',label:'词曲作者与演唱者字号',min:12,max:52,step:1,unit:'px',default:18},
+      {key:'creditFont',label:'词曲作者与演唱者字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'metaFont',label:'调号与速度字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'serif'},
       {key:'metaGap',label:'调号与速度间距',min:-50,max:80,step:1,unit:'px',default:9},
       {key:'metaBottomGap',label:'调号下方间距',min:-70,max:100,step:1,unit:'px',default:-1}

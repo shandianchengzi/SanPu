@@ -86,10 +86,10 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,67);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,71);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
-  assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
+  assert.equal(els.score.children.find(el=>el.className==='score-meta').children[0].children[1].textContent,'♩ = 72');
   const original=els.source.value;
   const slider=field(els,'lyricSize');slider.value='55';slider.dispatch('input');
   assert.equal(state.format.lyricSize,55);
@@ -104,7 +104,7 @@ test('full appearance editor renders and updates score and persisted settings',(
   margin.value='27';margin.dispatch('change');
   assert.match(head.children.find(el=>el.id==='print-page-rules').textContent,/27mm/);
   els.tempo.dispatch('input',{target:{value:'112'}});
-  assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 112');
+  assert.equal(els.score.children.find(el=>el.className==='score-meta').children[0].children[1].textContent,'♩ = 112');
   assert.equal(window.printed,undefined);
 });
 
@@ -169,8 +169,10 @@ test('saved SVG zoom preference is bounded independently from score formatting',
 test('score metadata supports separate tonic and tempo type sizes and weights, including printing',()=>{
   const {state,els}=boot({tempo:80});
   const meta=els.score.children.find(el=>el.className==='score-meta');
-  assert.equal(meta.children[0].textContent,'1 = G');
-  assert.equal(meta.children[1].textContent,'♩ = 80');
+  assert.equal(meta.children[0].children[0].textContent,'1 = G');
+  assert.equal(meta.children[0].children[1].textContent,'♩ = 80');
+  assert.equal(meta.children[0].children[2].textContent,'记谱人：shandianchengzi');
+  assert.equal(meta.children[1].children.length,0);
   const tonic=field(els,'metaSize');
   tonic.value='48';tonic.dispatch('input');
   assert.equal(state.format.metaSize,48);
@@ -670,7 +672,7 @@ test('example library initializes with the provided score, preserving previously
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=G,3\/4\}/);
   assert.ok(initial.els.source.value.includes('y y y y y y y40|'));
   assert.ok(initial.els.source.value.includes('从前，现在,过去了再不来'));
-  assert.equal(initial.state.song.notes.length,71);
+  assert.equal(initial.state.song.notes.length,90);
   assert.equal(initial.state.song.warnings.length,0);
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
@@ -682,7 +684,7 @@ test('example library initializes with the provided score, preserving previously
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
   assert.equal(approved.state.song.key,'G');
-  assert.equal(approved.state.song.notes.length,71);
+  assert.equal(approved.state.song.notes.length,90);
 });
 
 test('piano keyboard and saved audition mode',()=>{
@@ -1042,4 +1044,56 @@ test('accidental and augmentation-dot gaps move markers separately and reserve h
   assert.equal(numeral(restored.els.score.children.find(el=>el.className==='score-line').children.find(el=>el.className==='note-click')) -
     Number(restored.els.score.children.find(el=>el.className==='score-line').children.find(el=>el.className==='note-click').children.find(el=>el.className==='accidental').attrs.x),
     baseAccDistance+19);
+});
+
+test('credits are aligned on tonic row, editable per-song and typographically independent',()=>{
+  const src='.Title\nTitle = 样例\nKeyAndMeters = {1=A,4/4}\nWordsByAndMusicBy = 作者甲\nTranscriber = 用户乙\nSinger = 歌手丙\n.Voice\n1 2';
+  const {els,state,localStorage}=boot({source:src});
+  const meta=els.score.children.find(e=>e.className==='score-meta');
+  assert.equal(meta.children[0].className,'score-meta-left');
+  assert.deepEqual(meta.children[0].children.map(e=>e.textContent),
+    ['1 = A','♩ = 72','记谱人：用户乙']);
+  assert.equal(meta.children[1].className,'score-meta-right');
+  assert.deepEqual(meta.children[1].children.map(e=>e.textContent),
+    ['词曲作者：作者甲','演唱者：歌手丙']);
+  const size=field(els,'transcriberSize');
+  size.value='29';size.dispatch('input');
+  const font=field(els,'transcriberFont');
+  font.value='kai';font.dispatch('change');
+  const right=field(els,'creditSize','-value');
+  right.value='23';right.dispatch('change');
+  assert.equal(state.format.transcriberSize,29);
+  assert.equal(state.format.transcriberFont,'kai');
+  assert.equal(state.format.creditSize,23);
+  assert.equal(els.score.style.props['--transcriber-size'],'29px');
+  assert.equal(els.score.style.props['--credit-size'],'23px');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.transcriberFont,'kai');
+  assert.equal(els.source.value,src);
+  const css=read('styles.css');
+  assert.match(css,/\.score-page \.score-meta-right\{display:flex;flex-direction:column;align-items:flex-end/);
+  assert.match(css,/\.score-page \.score-transcriber\{/);
+  assert.match(css,/@media print\{[\s\S]*?\.score-page \.score-transcriber\{/);
+});
+test('BPM digit field accepts typing, clamps limits and synchronizes audio, slider and score',()=>{
+  const {els,state,document,localStorage}=boot({tempo:72});
+  const number=document.getElementById('tempo-value');
+  assert.equal(number.value,'72');
+  number.value='135';number.dispatch('change',{target:number});
+  assert.equal(state.tempo,135);
+  assert.equal(els.tempo.value,'135');
+  assert.equal(number.value,'135');
+  assert.equal(els.score.children.find(e=>e.className==='score-meta').children[0].children[1].textContent,'♩ = 135');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).tempo,135);
+  number.value='999';number.dispatch('change',{target:number});
+  assert.equal(state.tempo,180);
+  assert.equal(number.value,'180');
+  number.value='-1';number.dispatch('change',{target:number});
+  assert.equal(state.tempo,35);
+  number.value='';number.dispatch('change',{target:number});
+  assert.equal(state.tempo,35);
+  assert.equal(number.value,'35');
+  els.tempo.value='90';els.tempo.dispatch('input',{target:els.tempo});
+  assert.equal(number.value,'90');
+  assert.equal(state.tempo,90);
+  assert.match(read('index.html'),/id="tempo-value" type="number"/);
 });

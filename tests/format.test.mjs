@@ -117,7 +117,7 @@ test('punctuation gap defaults to zero, accepts signed spacing and is independen
 
 test('portable score-style export roundtrips all appearance fields without song or playback data',()=>{
   const custom=normalizeFormat({
-    ...DEFAULT_FORMAT,lyricSize:52,noteSpacing:-32,punctuationGap:-15,
+    ...DEFAULT_FORMAT,transcriberSize:31,transcriberFont:'kai',creditSize:28,creditFont:'serif',lyricSize:52,noteSpacing:-32,punctuationGap:-15,
     highOctaveDotOffset:37,lowOctaveDotOffset:-21,printMarginX:25
   });
   const json=exportStyle(custom);
@@ -197,4 +197,23 @@ test('accidental and duration-dot spacing are signed, independent and portable',
   }));
   assert.equal(legacy.accidentalGap,0);
   assert.equal(legacy.durationDotGap,0);
+});
+
+test('transcriber and author credit styles are bounded, independent and portable',()=>{
+  const fields=Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field]));
+  assert.equal(DEFAULT_FORMAT.transcriberSize,18);
+  assert.equal(DEFAULT_FORMAT.creditSize,18);
+  for(const key of ['transcriberSize','creditSize']){
+    assert.equal(fields[key].min,12);
+    assert.equal(fields[key].max,52);
+    assert.equal(normalizeFormat({[key]:-10})[key],12);
+    assert.equal(normalizeFormat({[key]:1000})[key],52);
+  }
+  const cfg=normalizeFormat({transcriberSize:28,creditSize:33,transcriberFont:'serif',creditFont:'kai'});
+  assert.equal(cfg.transcriberSize,28);
+  assert.equal(cfg.creditSize,33);
+  assert.equal(cfg.transcriberFont,'serif');
+  assert.equal(cfg.creditFont,'kai');
+  assert.deepEqual(importStyle(exportStyle(cfg)),cfg);
+  assert.equal(normalizeFormat({transcriberFont:'invalid'}).transcriberFont,'sans');
 });

@@ -33,7 +33,7 @@ function load() {
   state.pianoContinuous=settings?.pianoContinuous===true;
   els.pianoContinuous.checked=state.pianoContinuous;
   els.tempo.value=String(state.tempo);
-  els.tempoValue.textContent=String(state.tempo);
+  els.tempoValue.value=String(state.tempo);
 }
 function svg(tag,attrs={},text) {
   const el=document.createElementNS(SVG_NS,tag);
@@ -309,6 +309,8 @@ function applyAppearance(){
     '--title-bottom':f.titleBottomGap+'px','--meta-size':f.metaSize+'px',
     '--meta-font':FONTS[f.metaFont],'--meta-weight':f.metaWeight,
     '--tempo-size':f.tempoSize+'px','--tempo-weight':f.tempoWeight,
+    '--transcriber-size':f.transcriberSize+'px','--transcriber-font':FONTS[f.transcriberFont],
+    '--credit-size':f.creditSize+'px','--credit-font':FONTS[f.creditFont],
     '--meta-gap':f.metaGap+'px',
     '--meta-bottom':f.metaBottomGap+'px','--note-size':f.noteSize+'px',
     '--note-weight':f.noteWeight,'--note-font':FONTS[f.noteFont],
@@ -563,11 +565,27 @@ function render() {
   els.noteCount.textContent=`${song.notes.length} 个音符`;
   const title=document.createElement('h2');title.className='score-title';title.textContent=song.title;
   const meta=document.createElement('div');meta.className='score-meta';
+  const left=document.createElement('div');left.className='score-meta-left';
   const tonic=document.createElement('span');tonic.className='score-tonic';tonic.textContent=`1 = ${song.key}`;
   const tempo=document.createElement('span');tempo.className='score-tempo';
   tempo.textContent=`♩ = ${state.tempo}`;
   tempo.setAttribute('aria-label',`四分音符每分钟 ${state.tempo} 拍`);
-  meta.append(tonic,tempo);
+  left.append(tonic,tempo);
+  if(song.transcriber){
+    const transcriber=document.createElement('span');transcriber.className='score-transcriber';
+    transcriber.textContent='记谱人：'+song.transcriber;
+    left.append(transcriber);
+  }
+  const right=document.createElement('div');right.className='score-meta-right';
+  if(song.composer){
+    const credit=document.createElement('span');credit.className='score-credit';
+    credit.textContent='词曲作者：'+song.composer;right.append(credit);
+  }
+  if(song.singer){
+    const singer=document.createElement('span');singer.className='score-singer';
+    singer.textContent='演唱者：'+song.singer;right.append(singer);
+  }
+  meta.append(left,right);
   els.score.append(title,meta);
   const lines=systems(song);
   const width=Math.max(state.format.minLineWidth,...lines.map(line=>lineWidth(line,song)));
@@ -716,7 +734,21 @@ els.stop.addEventListener('click',()=>{clearPianoSequence();stopAudio();});
 els.timbre.addEventListener('change',ev=>changeTimbre(ev.target.value));
 els.zoom.addEventListener('input',ev=>changePreviewZoom(ev.target.value));
 els.zoomFit.addEventListener('click',()=>changePreviewZoom(100));
-els.tempo.addEventListener('input',ev=>{clearPianoSequence();state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
+function changeTempo(value){
+  const parsed=Number(value);
+  const next=String(value).trim()===''||!Number.isFinite(parsed)?
+    state.tempo:Math.min(180,Math.max(35,Math.round(parsed)));
+  els.tempo.value=String(next);
+  els.tempoValue.value=String(next);
+  if(next===state.tempo)return;
+  clearPianoSequence();
+  state.tempo=next;
+  render();
+  if(state.playing){const id=state.active;playFrom(Math.max(id,0));}
+  persist();
+}
+els.tempo.addEventListener('input',ev=>changeTempo(ev.target.value));
+els.tempoValue.addEventListener('change',ev=>changeTempo(ev.target.value));
 let resizeTimer;
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,120);});
 window.addEventListener('beforeprint',()=>{render();});

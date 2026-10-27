@@ -233,3 +233,34 @@ main{padding-top:23px}
 .piano-black:hover,.piano-black.is-pressed{background:#33735f}
 .piano-key:focus-visible{outline:3px solid #1b8974;z-index:3}
 @media print{.piano-panel{display:none!important}}
+
+// Two-sided attribution on the tonic/tempo baseline below the song title.
+.score-page .score-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.score-page .score-meta-left{display:flex;align-items:baseline;flex-wrap:wrap;min-width:0}
+.score-page .score-meta-right{display:flex;flex-direction:column;align-items:flex-end;min-width:0;margin-left:auto;text-align:right}
+.score-page .score-transcriber{
+  font-family:var(--transcriber-font,Arial,sans-serif);
+  font-size:var(--transcriber-size,18px);
+  font-weight:400;margin-left:var(--meta-gap,9px);white-space:nowrap
+}
+.score-page .score-credit,.score-page .score-singer{
+  font-family:var(--credit-font,Arial,sans-serif);
+  font-size:var(--credit-size,18px);font-weight:400;
+  letter-spacing:0;overflow-wrap:anywhere
+}
+.tempo #tempo-value{width:52px;min-width:52px;padding:3px 4px;border:1px solid #cbdad3;
+  border-radius:6px;background:#fff;color:#173f37;font:inherit;font-size:12px;
+  font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.tempo #tempo-value:focus{outline:2px solid #8fc6b3;outline-offset:1px}
+@media print{
+  .score-page .score-transcriber{
+    font-family:var(--transcriber-font,Arial,sans-serif)!important;
+    font-size:var(--transcriber-size,18px)!important
+  }
+  .score-page .score-credit,.score-page .score-singer{
+    font-family:var(--credit-font,Arial,sans-serif)!important;
+    font-size:var(--credit-size,18px)!important
+  }
+  .score-page .score-meta{display:flex!important;justify-content:space-between!important}
+  .score-page .score-meta-right{margin-left:auto!important;text-align:right!important}
+}
