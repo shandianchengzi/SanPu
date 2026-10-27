@@ -1833,3 +1833,48 @@ test('immutable pre-multi-score numbered rendering and CSS baseline',()=>{
   assert.equal(fnv32(baseline),'351f9ede','original numbered-notation CSS must stay byte-identical');
   assert.equal(sheet.slice(0,30806),baseline);
 });
+
+test('jianpu bar hitboxes remain paint-invisible and within bar cells at extreme sizes',()=>{
+  const source=['.Title','KeyAndMeters = {1=C,3/4}', '.Voice',
+    "1 | 7' $(true)",'3, | 4'].join(String.fromCharCode(10));
+  for(const format of [
+    {noteSize:50,lyricSize:51,barSpacing:24,lyricOffset:3},
+    {noteSize:24,lyricSize:14,barSpacing:16,lyricOffset:-70,systemGap:-100},
+    {noteSize:80,lyricSize:65,barSpacing:90,lyricOffset:110,systemGap:120,
+      highOctaveDotOffset:80,lowOctaveDotOffset:80}
+  ]){
+    const {state,els,document}=boot({source,format,scoreType:'jianpu',
+      keyboardMode:true,pianoAudition:false});
+    const systems=els.score.children.filter(node=>node.className==='score-line');
+    assert.equal(systems.length,2);
+    for(const system of systems){
+      const line=system.children.find(node=>node.className==='bar');
+      const group=system.children.find(node=>node.className==='bar-click');
+      assert.ok(line && group,'each original SVG bar has a separate hitbox');
+      const rect=group.children[0];
+      assert.equal(rect.tag,'rect');
+      assert.equal(rect.attrs.fill,'transparent',
+        'SVG fallback alone must render nothing without loading CSS');
+      assert.equal(rect.attrs.stroke,'none');
+      assert.equal(rect.attrs.x,String(Number(line.attrs.x1)-8));
+      assert.equal(rect.attrs.width,String(state.format.barSpacing-2));
+      const cellLeft=Number(line.attrs.x1)-9;
+      const cellRight=cellLeft+state.format.barSpacing;
+      const targetLeft=Number(rect.attrs.x),targetRight=targetLeft+Number(rect.attrs.width);
+      assert.ok(targetLeft>cellLeft && targetRight<cellRight,
+        'hitbox must not obscure preceding or following note targets');
+      assert.equal(rect.attrs.y,String(Math.min(Number(line.attrs.y1),Number(line.attrs.y2))-9));
+      assert.equal(rect.attrs.height,String(Math.abs(Number(line.attrs.y2)-Number(line.attrs.y1))+18));
+      assert.ok(Number(rect.attrs.y)>=0);
+      assert.equal(group.children.length,1,'no duplicated visible barlines');
+    }
+    systems[0].children.find(node=>node.className==='bar-click').dispatch('click');
+    assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+    document.dispatch('keydown',{code:'Backspace',timeStamp:100,
+      preventDefault(){}});
+    assert.deepEqual(state.song.notes.map(n=>n.raw),['1',"7'",'3,','4']);
+    assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,1);
+  }
+  const css=read('styles.css');
+  assert.match(css,/\.score-page \.score-line \.bar-click \.bar-hit\s*\{[^}]*fill:transparent!important;[^}]*stroke:none!important/s);
+});

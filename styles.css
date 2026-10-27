@@ -343,12 +343,17 @@ main{padding-top:23px}
 .keyboard-map-command.is-pressed rect{fill:#8ed5b4;stroke:#246f53;stroke-width:2.6}
 
 
-@media print{.score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}.score-page .score-line .bar-click.active .bar{stroke:#000!important}.score-type-picker{display:none!important}}
-
-
+/* The interactive SVG overlay must be paint-invisible at all times.
+   Without this rule, an SVG rect defaults to opaque black and covers the
+   original numbered-notation glyphs even if the renderer is unchanged. */
+.score-page .score-line .bar-click{cursor:pointer}
+.score-page .score-line .bar-click .bar-hit{
+  fill:transparent!important;
+  stroke:none!important;
+  pointer-events:all
+}
 @media print{
-  .score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}
-  .score-page .score-line .bar-click.active .bar{stroke:#000!important}
+  .score-page .score-line .bar-click{pointer-events:none}
   .score-type-picker{display:none!important}
 }
 

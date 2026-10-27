@@ -1043,12 +1043,17 @@ function addJianpuBarSelectionTargets(svgNode,elements){
     const originalX=Number(attr(line,'x1'));
     const originalTop=Number(attr(line,'y1'));
     const originalBottom=Number(attr(line,'y2'));
-    const rectWidth=Math.max(14,state.format.barSpacing);
+    // drawSystem allocates a full barSpacing cell and puts its line 9 units
+    // from the cell's left edge. Keep the transparent target INSIDE this
+    // cell, so even wide bar spacing cannot cover adjacent note hitboxes.
+    const hitX=originalX-8;
+    const hitWidth=state.format.barSpacing-2;
     const hit=svg('g',{class:'bar-click','data-bar-id':item.index,
       tabindex:0,role:'button','aria-label':'选中第 '+item.measure+' 小节的小节线'});
-    hit.append(svg('rect',{x:originalX-rectWidth/2,
-      y:Math.min(originalTop,originalBottom)-9,width:rectWidth,
-      height:Math.abs(originalBottom-originalTop)+18,class:'bar-hit'}));
+    hit.append(svg('rect',{x:hitX,
+      y:Math.min(originalTop,originalBottom)-9,width:hitWidth,
+      height:Math.abs(originalBottom-originalTop)+18,
+      class:'bar-hit',fill:'transparent',stroke:'none'}));
     hit.addEventListener('click',()=>selectScoreBar(item.index));
     hit.addEventListener('keydown',ev=>{
       if(ev.key==='Enter'||ev.key===' '){
