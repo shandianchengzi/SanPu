@@ -1266,27 +1266,48 @@ test('three physical piano keyboard rows cover all 36 keys, with source editing 
   assert.equal(boot({keyboardMode:false}).els.source.disabled,false);
 });
 
-test('SVG keymap matches C3 C4 C5 keyboard rows and updates notes when key or transpose changes',()=>{
+test('SVG renders the mapped pitches in real staggered QWERTY physical keyboard positions',()=>{
   const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n1';
   const {document,els,state,refresh}=boot({source,keyboardMode:true});
   const figure=()=>document.getElementById('piano-keyboard-diagram').children[0];
-  const cells=()=>figure().children.filter(group=>group.className?.startsWith('keyboard-map-cell'));
-  const named=letter=>cells().find(group=>group.attrs['data-key']===letter);
+  const mapped=()=>figure().children.filter(group=>group.className?.startsWith('keyboard-map-cell'));
+  const unused=()=>figure().children.filter(group=>group.className==='keyboard-map-unused');
+  const named=letter=>mapped().find(group=>group.attrs['data-key']===letter);
+  const unbound=letter=>unused().find(group=>group.attrs['data-key']===letter);
+  const x=group=>Number(group.children[0].attrs.x);
+  const y=group=>Number(group.children[0].attrs.y);
   assert.equal(figure().tag,'svg');
-  assert.equal(figure().attrs.viewBox,'0 0 1220 297');
-  assert.equal(cells().length,36);
-  const keys='q2w3er5t6y7uzsxdcvgbhnjm,l.;/i9o0p-[';
-  assert.equal(cells().map(g=>g.attrs['data-key']).join(''),keys);
+  assert.equal(figure().attrs.viewBox,'0 0 1199 392');
+  assert.equal(mapped().length,36,'all 36 keys remain represented');
+  assert.ok(unused().length>=8,'unbound keyboard keys remain visibly in place');
+  // The keyboard must be physically ordered, not sorted by rising MIDI pitch.
+  assert.equal(mapped().slice(0,7).map(group=>group.attrs['data-key']).join(''),'2356790');
+  assert.equal(mapped().map(g=>g.attrs['data-midi']).length,36);
+  assert.deepEqual(mapped().map(g=>Number(g.attrs['data-midi'])).sort((a,b)=>a-b),
+    Array.from({length:36},(_,i)=>48+i));
   assert.equal(named('q').attrs['data-midi'],'48');
-  assert.equal(named('u').attrs['data-midi'],'59');
   assert.equal(named('z').attrs['data-midi'],'60');
-  assert.equal(named('m').attrs['data-midi'],'71');
   assert.equal(named(',').attrs['data-midi'],'72');
-  assert.equal(named('9').attrs['data-midi'],'78');
-  assert.equal(named('0').attrs['data-midi'],'80');
-  assert.equal(named('-').attrs['data-midi'],'82');
   assert.equal(named('[').attrs['data-midi'],'83');
-  assert.equal(named('q').children[1].textContent,'q');
+  assert.equal(named('9').attrs['data-midi'],'78');
+  assert.ok(unbound('1'),'digit row shows unused 1 key');
+  assert.ok(unbound('a'),'ASDF row shows unused A key');
+  assert.ok(unbound('=')&&unbound(']'),'unused punctuation keycaps remain visible');
+  assert.ok(unbound('Tab')&&unbound('Backspace')&&unbound('Shift'));
+  assert.equal(y(named('2')),50);
+  assert.equal(y(named('q')),130);
+  assert.equal(y(named('s')),210);
+  assert.equal(y(named('z')),290);
+  // Standard keyboard row stagger: number < QWERTY < ASDF < ZXCV.
+  assert.ok(x(unbound('1'))<x(named('q')));
+  assert.ok(x(named('q'))<x(unbound('a')));
+  assert.ok(x(unbound('a'))<x(named('z')));
+  // Physical neighbors stay neighbors, even if note values are far apart.
+  assert.equal(x(named('3'))-x(named('2')),77);
+  assert.equal(x(named('w'))-x(named('q')),77);
+  assert.equal(x(named('x'))-x(named('z')),77);
+  assert.ok(x(named('9'))>x(named('i')),'digit 9 is farther right than I');
+  assert.equal(named('q').children[1].textContent,'Q');
   assert.equal(named('q').children[2].textContent,'C3 → G3');
   assert.equal(named('q').children[3].textContent,'简谱 1,');
   const transpose=document.getElementById('piano-transpose');
@@ -1298,10 +1319,28 @@ test('SVG keymap matches C3 C4 C5 keyboard rows and updates notes when key or tr
   assert.equal(state.song.key,'D');
   assert.equal(named('q').children[2].textContent,'C3 → D3');
   assert.equal(named('q').children[3].textContent,'简谱 1,');
-  assert.match(read('index.html'),/id="piano-keyboard-diagram"/);
-  assert.match(read('styles.css'),/\.keyboard-map-svg/);
+  assert.match(read('index.html'),/真实电脑键盘/);
+  assert.match(read('styles.css'),/\.keyboard-map-unused/);
 });
 
+test('SVG piano keycap highlight follows keyboard down/up and mouse piano key presses',()=>{
+  const {document,els}=boot({keyboardMode:true});
+  const getSvgKey=code=>document.getElementById('piano-keyboard-diagram').children[0].children
+    .find(item=>item.className?.startsWith('keyboard-map-cell')&&item.attrs['data-key']===code);
+  const key=getSvgKey('q');
+  const physical=els.pianoKeys.children.find(k=>k.dataset.midi==='48');
+  assert.equal(key.classList.contains('is-pressed'),false);
+  document.dispatch('keydown',{code:'KeyQ',timeStamp:100,preventDefault(){}});
+  assert.equal(physical.classList.contains('is-pressed'),true);
+  assert.equal(key.classList.contains('is-pressed'),true);
+  document.dispatch('keyup',{code:'KeyQ',timeStamp:230,preventDefault(){}});
+  assert.equal(physical.classList.contains('is-pressed'),false);
+  assert.equal(key.classList.contains('is-pressed'),false);
+  physical.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:400});
+  assert.equal(key.classList.contains('is-pressed'),true);
+  physical.dispatch('pointerup',{type:'pointerup',timeStamp:550});
+  assert.equal(key.classList.contains('is-pressed'),false);
+});
 test('computer piano keys record notes while text fields and shortcuts do not trigger sound',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
   const {document,els,state}=boot({source,keyboardMode:true,pianoAudition:false,
