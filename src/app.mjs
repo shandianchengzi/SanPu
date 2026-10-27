@@ -77,9 +77,10 @@ function loadSelectedExample(){
   els.source.value=example.source;
   refresh();
 }
-// Three physical keyboard rows with exactly twelve chromatic semitones each.
+// Follow the supplied 11-key C5 layout exactly; '[' supplements the final B5
+// so every existing 36-key on-screen piano key remains playable.
 const PIANO_FIRST=48;
-const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-']);
+const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-[']);
 const KEYBOARD_LAYOUT=KEYBOARD_ROWS.join('');
 const PIANO_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
 const KEYBOARD_LAST=PIANO_LAST;
