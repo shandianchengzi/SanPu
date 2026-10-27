@@ -1733,7 +1733,7 @@ test('keyboard shortcuts resume after switching score type without select focus 
   assert.equal(enter.prevented,true);assert.equal(enter.stopped,true);
   assert.equal(state.song.elements.filter(x=>x.kind==='break').length,1);
   document.dispatch('keyup',{code:'Enter',timeStamp:780,preventDefault(){},stopPropagation(){}});
-  assert.match(els.source.value,/1\s*\|\s*\$\(true)/);
+  assert.match(els.source.value,/1\s*\|\s*\$\(true\)/);
   assert.match(read('src/app.mjs'),/document\.addEventListener\('keydown',keyboardDown,true\)/);
   assert.match(read('src/app.mjs'),/document\.addEventListener\('keyup',keyboardUp,true\)/);
 });
