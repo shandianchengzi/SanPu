@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, insertPianoMarker} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -9,18 +9,18 @@ const STORAGE = 'sanpu.editor.v1';
 const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'), transcriber:$('transcriber-input'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
-  play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
+  play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),scoreType:$('score-type'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
   return value===null||value===undefined||String(value).trim()===''||!Number.isSafeInteger(n)||n<-1?0:n;
 }
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode,loopCount:state.loopCount}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode,loopCount:state.loopCount,scoreType:state.scoreType}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -30,6 +30,8 @@ function load() {
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
   state.loopCount=normalizeLoopCount(settings?.loopCount);
   els.loopCount.value=String(state.loopCount);
+  state.scoreType=['jianpu','staff','guitar'].includes(settings?.scoreType)?settings.scoreType:'jianpu';
+  els.scoreType.value=state.scoreType;
   state.format=normalizeFormat(settings?.format);
   state.timbre=normalizeTimbre(settings?.timbre);
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
@@ -267,12 +269,13 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   if(!degree)return;
   const token=degree+pianoDurationSuffix(heldMs,state.tempo);
   const anchor=recordedAnchor??(state.playing&&state.active>=0?state.active:state.cursorNoteId);
-  const result=insertPianoNote(els.source.value,token,anchor,els.source.selectionStart);
+  const result=insertPianoNote(els.source.value,token,anchor,els.source.selectionStart,['bar','break'].includes(state.selectedItem?.kind));
   if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再录入音符。';return;}
   stopAudio();
   els.source.value=result.source;
   els.source.selectionStart=els.source.selectionEnd=result.caret;
   state.cursorNoteId=result.noteId;
+  state.selectedItem={kind:'note',index:result.noteId};
   state.song=parseSong(els.source.value);
   render();highlight(result.noteId);
   persist();
@@ -410,7 +413,7 @@ function isEditingTarget(target){
 // All keyboard-mode recording uses the same note anchor and source caret,
 // including silent rests and structural separators.
 function insertKeyboardMarker(marker){
-  const result=insertPianoMarker(els.source.value,marker,state.cursorNoteId,els.source.selectionStart);
+  const result=insertPianoMarker(els.source.value,marker,state.cursorNoteId,els.source.selectionStart,['bar','break'].includes(state.selectedItem?.kind));
   if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再划分小节或换行。';return;}
   clearTimeout(saveTimer);
   stopAudio();
@@ -418,6 +421,10 @@ function insertKeyboardMarker(marker){
   els.source.selectionStart=els.source.selectionEnd=result.caret;
   state.cursorNoteId=result.noteId;
   state.song=parseSong(els.source.value);
+  const markerKind=marker==='|'?'bar':'break';
+  const found=voiceEditItems(els.source.value).find(e=>e.kind===markerKind&&
+    e.from>=result.caret-(marker==='|'?3:10)&&e.to<=result.caret);
+  state.selectedItem=found?{kind:found.kind,index:found.index}:null;
   render();
   if(result.noteId>=0)highlight(result.noteId);
   persist();
