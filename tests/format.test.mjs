@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {FORMAT_FIELDS,DEFAULT_FORMAT,FORMAT_PRESETS,FONTS,normalizeFormat,formatPresetId} from '../src/format.mjs';
+import {FORMAT_FIELDS,DEFAULT_FORMAT,FORMAT_PRESETS,FONTS,normalizeFormat,formatPresetId,exportStyle,importStyle,STYLE_FILE_TYPE,STYLE_FILE_VERSION} from '../src/format.mjs';
 
 test('appearance options have unique keys and usable values',()=>{
   const keys=FORMAT_FIELDS.map(f=>f.key);
@@ -112,4 +112,44 @@ test('punctuation gap defaults to zero, accepts signed spacing and is independen
   assert.equal(f.lyricLetterSpacing,-3);
   assert.equal(f.punctuationGap,23);
   assert.equal(normalizeFormat({lyricSize:52}).punctuationGap,0);
+});
+
+test('portable score-style export roundtrips all appearance fields without song or playback data',()=>{
+  const custom=normalizeFormat({
+    ...DEFAULT_FORMAT,lyricSize:52,noteSpacing:-32,punctuationGap:-15,
+    highOctaveDotOffset:37,lowOctaveDotOffset:-21,printMarginX:25
+  });
+  const json=exportStyle(custom);
+  const data=JSON.parse(json);
+  assert.equal(data.type,STYLE_FILE_TYPE);
+  assert.equal(data.version,STYLE_FILE_VERSION);
+  assert.deepEqual(Object.keys(data).sort(),['settings','type','version']);
+  assert.deepEqual(Object.keys(data.settings).sort(),FORMAT_FIELDS.map(f=>f.key).sort());
+  assert.deepEqual(importStyle(json),custom);
+  assert.equal(data.settings.punctuationGap,-15);
+  assert.equal(data.settings.lowOctaveDotOffset,-21);
+  assert.ok(!json.includes('"source"'));
+  assert.ok(!json.includes('"tempo"'));
+  assert.ok(!json.includes('"timbre"'));
+  assert.ok(!json.includes('"zoom"'));
+  assert.ok(json.endsWith('\n'));
+});
+
+test('style imports validate file format, version, settings, and clamp unknown values',()=>{
+  assert.throws(()=>importStyle('not json'),/有效的 JSON/);
+  assert.throws(()=>importStyle('[]'),/不是 SanPu/);
+  assert.throws(()=>importStyle(JSON.stringify({type:'other',version:1,settings:{noteSize:33}})),/不是 SanPu/);
+  assert.throws(()=>importStyle(JSON.stringify({type:STYLE_FILE_TYPE,version:999,settings:{noteSize:33}})),/不支持/);
+  assert.throws(()=>importStyle(JSON.stringify({type:STYLE_FILE_TYPE,version:1,settings:[]})),/settings/);
+  assert.throws(()=>importStyle(JSON.stringify({type:STYLE_FILE_TYPE,version:1,settings:{foreign:3}})),/可识别/);
+  const imported=importStyle(JSON.stringify({
+    type:STYLE_FILE_TYPE,version:1,
+    settings:{noteSize:10000,lyricLineGap:-999,lyricFont:'invalid',foreign:'ignore'}
+  }));
+  assert.equal(imported.noteSize,80);
+  assert.equal(imported.lyricLineGap,-160);
+  assert.equal(imported.lyricFont,DEFAULT_FORMAT.lyricFont);
+  assert.equal(Object.keys(imported).length,FORMAT_FIELDS.length);
+  assert.equal('foreign' in imported,false);
+  assert.equal(imported.punctuationGap,0,'legacy styles receive missing defaults');
 });
