@@ -1477,3 +1477,101 @@ test('batch edit can update score programmatically when keyboard mode disables m
   assert.equal(user.els.source.disabled,true);
   assert.deepEqual(user.state.song.notes.map(n=>n.raw),['#1','b3']);
 });
+
+test('Space and Enter in keyboard mode divide a measure and add a new system',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1\n.Words\nW1@1,1:\n你';
+  const {document,els,state}=boot({source,keyboardMode:true,pianoAudition:false,
+    pianoContinuous:false,pianoTranspose:false,tempo:120});
+  const press=(code,time,span=60)=>{
+    const keydown={code,timeStamp:time,preventDefault(){keydown.prevented=true}};
+    document.dispatch('keydown',keydown);
+    const keyup={code,timeStamp:time+span,preventDefault(){keyup.prevented=true}};
+    document.dispatch('keyup',keyup);
+    return {keydown,keyup};
+  };
+  const space=press('Space',100);
+  assert.equal(space.keydown.prevented,true);
+  assert.equal(space.keyup.prevented,true);
+  assert.equal(state.song.elements.filter(x=>x.kind==='bar').length,1);
+  const enter=press('Enter',200);
+  assert.equal(enter.keydown.prevented,true);
+  assert.equal(enter.keyup.prevented,true);
+  assert.equal(state.song.elements.filter(x=>x.kind==='break').length,1);
+  press('KeyQ',300,500);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1,']);
+  assert.equal(state.song.notes[1].measure,2);
+  assert.equal(state.song.notes[1].row,1);
+  assert.match(els.source.value,/1\s+\|\s+\$\(true\)\s+1,/);
+  assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
+  assert.equal(state.song.warnings.length,0);
+  assert.equal(els.source.disabled,true);
+});
+
+test('Backquote and logical middle dot insert a silent timed rest',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,state,els}=boot({source,keyboardMode:true,pianoAudition:true,
+    pianoContinuous:false,tempo:120});
+  const getRestKey=()=>document.getElementById('piano-keyboard-diagram').children[0].children
+    .find(el=>el.attrs['data-key']===String.fromCharCode(96));
+  const firstDown={code:'Backquote',key:'·',timeStamp:100,preventDefault(){firstDown.prevented=true}};
+  document.dispatch('keydown',firstDown);
+  assert.equal(firstDown.prevented,true);
+  assert.equal(getRestKey().classList.contains('is-pressed'),true);
+  assert.equal(state.song.notes.length,1,'ordinary rest is inserted on key release');
+  const firstUp={code:'Backquote',key:'·',timeStamp:1100,preventDefault(){firstUp.prevented=true}};
+  document.dispatch('keyup',firstUp);
+  assert.equal(firstUp.prevented,true);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','0-']);
+  assert.equal(state.song.notes[1].beats,2);
+  assert.equal(getRestKey().classList.contains('is-pressed'),false);
+  // Keyboards and IMEs that report a centered dot as the logical key work too.
+  document.dispatch('keydown',{key:'·',timeStamp:1200,preventDefault(){}});
+  document.dispatch('keyup',{key:'·',timeStamp:1450,preventDefault(){}});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','0-','0_']);
+  assert.match(els.source.value,/0-\s+0_/);
+});
+
+test('rest and pitched notes share continuous onset-interval rhythm and final held-duration logic',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,els,state,timers,fireTimer}=boot({source,keyboardMode:true,
+    pianoAudition:false,pianoContinuous:true,pianoTranspose:false,tempo:120});
+  const down=(code,time)=>document.dispatch('keydown',{code,timeStamp:time,preventDefault(){}});
+  const up=(code,time)=>document.dispatch('keyup',{code,timeStamp:time,preventDefault(){}});
+  down('Backquote',100);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','0-']);
+  const restSVG=()=>document.getElementById('piano-keyboard-diagram').children[0].children
+    .find(el=>el.attrs['data-key']===String.fromCharCode(96));
+  assert.equal(restSVG().classList.contains('is-pressed'),true);
+  up('Backquote',190);
+  assert.equal(restSVG().classList.contains('is-pressed'),false);
+  down('KeyQ',600);
+  assert.equal(state.song.notes[1].raw,'0');
+  assert.equal(state.song.notes[1].beats,1);
+  assert.equal(state.song.notes[2].raw,'1,-');
+  up('KeyQ',720);
+  const pending=[...timers.keys()].at(-1);
+  assert.ok(pending!==undefined);
+  fireTimer(pending);
+  assert.equal(state.song.notes[2].raw,'1,__');
+});
+
+test('keyboard shortcut modifiers, repeat, edit targets and disabled keyboard mode do not insert markers',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,els,state,window}=boot({source,keyboardMode:true,pianoContinuous:false});
+  const src=els.source;src.tag='textarea';
+  const send=(code,more={})=>document.dispatch('keydown',{code,timeStamp:100,preventDefault(){},...more});
+  send('Space',{target:src});
+  send('Enter',{target:src});
+  send('Backquote',{target:src});
+  send('Space',{ctrlKey:true});
+  send('Enter',{altKey:true});
+  send('Backquote',{metaKey:true});
+  send('Space',{repeat:true});
+  send('Backquote',{isComposing:true});
+  assert.equal(els.source.value,source);
+  window.dispatch('blur');
+  els.keyboardMode.checked=false;els.keyboardMode.dispatch('change');
+  send('Space');send('Enter');send('Backquote');
+  assert.equal(els.source.value,source);
+  assert.equal(state.song.notes.length,1);
+});
