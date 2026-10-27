@@ -765,8 +765,14 @@ function drawSystem(elements,song,width){
       continue;
     }
     if(e.kind==='bar'){
-      const barX=x+9;
-      s.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
+      const barX=x+9,barId=e.index;
+      const bar=svg('g',{class:'bar-click','data-bar-id':barId,tabindex:0,role:'button',
+        'aria-label':'第 '+e.measure+' 小节后的小节线，可点击选中'});
+      bar.append(svg('rect',{x,y:noteY-45,width:Math.max(16,f.barSpacing),height:lyricY-noteY+5,class:'bar-hit'}));
+      bar.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
+      bar.addEventListener('click',()=>selectScoreBar(barId));
+      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreBar(barId);}});
+      s.append(bar);
       x+=f.barSpacing;
       continue;
     }
@@ -895,7 +901,7 @@ function render() {
   highlight(state.active);
 }
 function refresh() {
-  clearPianoSequence();stopAudio();state.cursorNoteId=-1;state.song=parseSong(els.source.value);
+  clearPianoSequence();stopAudio();state.cursorNoteId=-1;state.selectedItem=null;state.song=parseSong(els.source.value);
   render();persist();
 }
 function buildSchedule(){const schedule=songSchedule(state.song,state.tempo);state.schedule=schedule.timeline;state.total=schedule.total;}
@@ -903,6 +909,8 @@ function clearNodes(){for(const voice of state.nodes)voice.stop();state.nodes=[]
 function highlight(id) {
   state.active=id;
   for(const g of els.score.querySelectorAll('.note-click'))g.classList.toggle('active',Number(g.dataset.noteId)===id);
+  for(const g of els.score.querySelectorAll('.bar-click'))
+    g.classList.toggle('active',state.selectedItem?.kind==='bar'&&Number(g.dataset.barId)===state.selectedItem.index);
 }
 function stopAudio(){cancelAnimationFrame(state.frame);clearNodes();state.playing=false;state.position=0;state.loopsDone=0;highlight(-1);els.play.textContent='▶ 播放';}
 function scheduleAudioPass(position=0){
@@ -948,6 +956,7 @@ async function runPlayback() {
 }
 function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
+  state.selectedItem={kind:'note',index:id};
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
@@ -966,6 +975,17 @@ function selectScoreNote(id){
   els.source.focus();
   if(typeof els.source.setSelectionRange==='function')els.source.setSelectionRange(caret,caret);
   else els.source.selectionStart=els.source.selectionEnd=caret;
+}
+function selectScoreBar(index){
+  const item=voiceEditItems(els.source.value).find(e=>e.kind==='bar'&&e.index===index);
+  if(!item)return;
+  clearPianoSequence();stopAudio();
+  state.selectedItem={kind:'bar',index};
+  const previous=voiceEditItems(els.source.value).filter(e=>e.kind==='note'&&e.to<=item.from).at(-1);
+  state.cursorNoteId=previous?.index??-1;
+  els.source.selectionStart=els.source.selectionEnd=item.to;
+  highlight(-1);
+  els.pianoStatus.textContent='已选中小节线：按退格删除，或从此处录入';
 }
 function download(name,bytes,type) {
   const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');
