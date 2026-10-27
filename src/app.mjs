@@ -345,7 +345,10 @@ function keyboardEventCode(ev){
 function isEditingTarget(target){
   if(!target)return false;
   const tag=String(target.tagName||target.tag||'').toLowerCase();
-  return tag==='textarea'||tag==='input'||tag==='select'||target.isContentEditable===true||
+  // The keyboard-mode checkbox retains focus after activation. Allow piano
+  // shortcuts while a checkbox/radio/button is focused, but not text editing.
+  if(tag==='input')return !['checkbox','radio','button','submit','reset'].includes(String(target.type||'').toLowerCase());
+  return tag==='textarea'||tag==='select'||target.isContentEditable===true||
     !!target.closest?.('[contenteditable="true"]');
 }
 function keyboardDown(ev){
@@ -847,7 +850,7 @@ els.keyboardMode.addEventListener('change',()=>{
   releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
   els.source.disabled=state.keyboardMode;
   if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
-  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：按指定的三行键位弹奏 C3～C6 共 37 个音，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
+  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：按指定的三行键位弹奏 C3～B5 共 36 个音，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{

@@ -1230,9 +1230,17 @@ test('three physical piano keyboard rows cover all 36 keys, with source editing 
   assert.equal(els.source.disabled,false);
   send('keydown','KeyQ',100);
   assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
+  mode.tag='input';mode.type='checkbox';
   mode.checked=true;mode.dispatch('change');
   assert.equal(els.source.disabled,true);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,true);
+  assert.match(els.pianoStatus.textContent,/C3～B5 共 36 个音/);
+  // The checkbox can remain focused; the first note must still work.
+  const firstFocused=send('keydown','KeyQ',180,{target:mode});
+  assert.equal(firstFocused.prevented,true);
+  assert.equal(pianoKey(0).classList.contains('is-pressed'),true);
+  send('keyup','KeyQ',210,{target:mode});
+  assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
   for(let i=0;i<keys.length;i++){
     const code=codeFor(keys[i]);
     const event=send('keydown',code,250+i*1200);
