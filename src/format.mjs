@@ -114,19 +114,22 @@ export function importStyle(text){
   // Ignore unknown future keys; normalize missing, out-of-range or invalid values.
   return normalizeFormat(settings);
 }
+// Standard matches the supplied 36-field style; newer fields keep their
+// existing defaults. Alternate presets derive dimensions from this baseline.
+const scalePreset=(key,ratio)=>Number((DEFAULT_FORMAT[key]*ratio).toFixed(2));
 export const FORMAT_PRESETS=Object.freeze({
   standard:DEFAULT_FORMAT,
   compact:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:34,titleBottomGap:12,metaSize:18,tempoSize:18,
-    metaGap:6,metaBottomGap:-8,noteSize:44,lyricSize:45,lyricOffset:0,
-    noteSpacing:-8,dashSpacing:25,barSpacing:20,systemGap:-15,
-    previewPadding:32,minLineWidth:820
+    ...DEFAULT_FORMAT,transcriberSize:16,creditSize:16,accidentalSize:20,octaveDotSize:3.5,rhythmStroke:2.1,barStroke:2.5,titleSize:scalePreset('titleSize',34/38),titleBottomGap:scalePreset('titleBottomGap',12/19),metaSize:scalePreset('metaSize',18/21),tempoSize:scalePreset('tempoSize',18/21),
+    metaGap:scalePreset('metaGap',6/9),metaBottomGap:-8,noteSize:scalePreset('noteSize',44/50),lyricSize:scalePreset('lyricSize',45/51),lyricOffset:0,
+    noteSpacing:-8,dashSpacing:scalePreset('dashSpacing',25/29),barSpacing:scalePreset('barSpacing',20/24),systemGap:-15,
+    previewPadding:scalePreset('previewPadding',32/48),minLineWidth:scalePreset('minLineWidth',820/980)
   })),
   spacious:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:46,titleBottomGap:29,metaSize:25,tempoSize:25,
-    metaGap:15,metaBottomGap:10,noteSize:57,lyricSize:57,lyricOffset:15,
-    noteSpacing:16,dashSpacing:38,barSpacing:32,systemGap:22,
-    previewPadding:62,minLineWidth:1200
+    ...DEFAULT_FORMAT,transcriberSize:22,creditSize:22,accidentalSize:27,octaveDotSize:4.4,rhythmStroke:2.7,barStroke:3.3,titleSize:scalePreset('titleSize',46/38),titleBottomGap:scalePreset('titleBottomGap',29/19),metaSize:scalePreset('metaSize',25/21),tempoSize:scalePreset('tempoSize',25/21),
+    metaGap:scalePreset('metaGap',15/9),metaBottomGap:10,noteSize:scalePreset('noteSize',57/50),lyricSize:scalePreset('lyricSize',57/51),lyricOffset:15,
+    noteSpacing:16,dashSpacing:scalePreset('dashSpacing',38/29),barSpacing:scalePreset('barSpacing',32/24),systemGap:22,
+    previewPadding:scalePreset('previewPadding',62/48),minLineWidth:scalePreset('minLineWidth',1200/980)
   }))
 });
 export function formatPresetId(format){
