@@ -174,3 +174,8 @@ main{padding-top:23px}
 @media print{
   .preview-toolbar{display:none!important}
 }
+
+/* Style file actions share the existing compact appearance toolbar. */
+.style-transfer-status{font-size:11px;color:var(--accent-dark);line-height:1.5;max-width:260px}
+@media(max-width:610px){.style-transfer-status{flex-basis:100%;max-width:none}}
+@media print{.style-transfer-status{display:none!important}}
