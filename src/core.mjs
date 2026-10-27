@@ -245,7 +245,7 @@ export function pianoDurationSuffix(holdMs,tempo=72){
  */
 export function insertPianoNote(source,token,afterId=-1,caret=-1){
   const text=String(source??'');
-  if(!/^(?:#{0,2}|b{0,2})[1-7][,']*(?:_+\.*|\.+_+|-+|\.+)?$/.test(token))return null;
+  if(!/^(?:0|(?:#{0,2}|b{0,2})[1-7][,']*)(?:_+\.*|\.+_+|-+|\.+)?$/.test(token))return null;
   const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
   const voiceIndex=headings.findIndex(h=>h[1]==='Voice');
   if(voiceIndex<0)return null;
@@ -258,11 +258,43 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
   if(!chosen&&Number.isInteger(caret)&&caret>begin&&caret<=end)
     chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
   if(!chosen)chosen=notes.at(-1)??null;
-  const at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
+  let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
+  // Keyboard-entered bars/line breaks live *after* the selected note.
+  // Keep subsequent piano notes after those markers, never before them.
+  if(chosen&&Number.isInteger(caret)&&caret>=at&&caret<=end&&
+    (notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
+    /^(?:\s|\|+|\$\([^)]*\))*$/.test(text.slice(at,caret)))at=caret;
   // A newly created .Voice must keep the following .Words/.Title header on its own line.
   const inserted=chosen?' '+token+' ':token+(text.slice(at).startsWith('.')?'\n':' ');
   return {source:text.slice(0,at)+inserted+text.slice(at),
     noteId:chosen?chosen.id+1:0,caret:at+inserted.length};
+}
+
+/** Insert a bar or explicit line break at the piano recording position.
+ * The result is placed within .Voice (never .Words or metadata), retaining
+ * existing notes and all surrounding source bytes unchanged.
+ */
+export function insertPianoMarker(source,marker,afterId=-1,caret=-1){
+  if(marker!=='|'&&marker!=='$(true)')return null;
+  const text=String(source??'');
+  const headings=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const index=headings.findIndex(h=>h[1]==='Voice');
+  if(index<0)return null;
+  const begin=headings[index].index+headings[index][0].length;
+  const end=headings[index+1]?.index??text.length;
+  const voice=text.slice(begin,end),notes=readVoice(voice,[]).notes;
+  let chosen=Number.isInteger(afterId)&&afterId>=0?notes[afterId]:null;
+  if(!chosen&&Number.isInteger(caret)&&caret>begin&&caret<=end)
+    chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
+  if(!chosen)chosen=notes.at(-1)??null;
+  let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\\r?\\n/)?.[0].length??0);
+  if(Number.isInteger(caret)&&caret>=at&&caret<=end&&
+    (!chosen||notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
+    /^(?:\\s|\\|+|\\$\\([^)]*\\))*$/.test(text.slice(at,caret)))at=caret;
+  const newline=text.includes('\\r\\n')?'\\r\\n':'\\n';
+  const inserted=marker==='|'?' | ': ' $(true)'+newline;
+  return {source:text.slice(0,at)+inserted+text.slice(at),
+    caret:at+inserted.length,noteId:chosen?chosen.id:-1,marker};
 }
 
 // Rewrite only the duration marker of a piano-inserted note. A guard against
@@ -276,7 +308,7 @@ export function revisePianoNoteDuration(source,noteId,expectedRaw,suffix){
   const end=headings[index+1]?.index??text.length;
   const note=readVoice(text.slice(begin,end),[]).notes[noteId];
   if(!note||note.raw!==expectedRaw)return null;
-  const pitch=/^([#b]{0,2}[1-7][,']*)/.exec(note.raw)?.[1];
+  const pitch=/^(0|[#b]{0,2}[1-7][,']*)/.exec(note.raw)?.[1];
   if(!pitch||!PIANO_BEATS.some(option=>option[1]===suffix))return null;
   const raw=pitch+suffix;
   const from=begin+note.sourceStart,to=begin+note.sourceEnd;

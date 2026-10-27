@@ -291,7 +291,7 @@ main{padding-top:23px}
 .keyboard-help h3{font-size:13px;font-weight:650;color:#315d53;margin:0 0 4px}
 .keyboard-help p{margin:0 0 8px}
 .keyboard-diagram-scroll{width:100%;overflow-x:auto;scrollbar-width:thin}
-.keyboard-map-svg{display:block;width:1199px;max-width:none;height:392px;background:#f5faf7;
+ .keyboard-map-svg{display:block;width:1199px;max-width:none;height:472px;background:#f5faf7;
   border:1px solid #dce8e1;border-radius:9px}
 .keyboard-map-heading{font:600 15px "Microsoft YaHei",sans-serif;fill:#345b50}
 .keyboard-map-caption{font:11px "Microsoft YaHei",sans-serif;fill:#60776e}
@@ -335,3 +335,9 @@ main{padding-top:23px}
 .batch-editor-controls #batch-status{font-size:11px;color:#44675d;flex-basis:100%}
 .batch-editor p{font-size:11px;color:#557168;margin:7px 0 0;line-height:1.6}
 @media print{.batch-editor{display:none!important}}
+
+.keyboard-map-command rect{fill:#d4e9e0;stroke:#7ba996;stroke-width:1.5}
+.keyboard-map-command text{pointer-events:none;fill:#205546}
+.keyboard-map-command-letter{font:700 14px ui-monospace,monospace}
+.keyboard-map-command-notation{font:11px "Microsoft YaHei",sans-serif}
+.keyboard-map-command.is-pressed rect{fill:#8ed5b4;stroke:#246f53;stroke-width:2.6}

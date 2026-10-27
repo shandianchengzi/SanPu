@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, insertPianoMarker} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -87,13 +87,15 @@ const PHYSICAL_KEY_ROWS=Object.freeze([
   [['`',1],...Array.from('1234567890-=').map(k=>[k,1]),['Backspace',2]],
   [['Tab',1.5],...Array.from('qwertyuiop[]\\').map(k=>[k,1])],
   [['Caps',1.75],...Array.from("asdfghjkl;'").map(k=>[k,1]),['Enter',2.25]],
-  [['Shift',2.25],...Array.from('zxcvbnm,./').map(k=>[k,1]),['Shift',2.75]]
+  [['Shift',2.25],...Array.from('zxcvbnm,./').map(k=>[k,1]),['Shift',2.75]],
+  [['Ctrl',1.5],['Win',1.25],['Alt',1.25],['Space',5.5],['Alt',1.25],['Fn',1],['Ctrl',1.5]]
 ]);
 const PIANO_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
 const KEYBOARD_LAST=PIANO_LAST;
 const keyboardDownByMidi=new Map(),keyboardUpByMidi=new Map(),keyboardCancelByMidi=new Map();
 const activeKeyboardKeys=new Map();
 const keyboardMapCells=new Map();
+const keyboardSpecialCells=new Map();
 
 const PIANO_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const PIANO_BLACK=new Set([1,3,6,8,10]);
@@ -122,7 +124,7 @@ function renderPianoKeyboardDiagram(){
   // Extra computer keys are displayed in grey rather than repositioning the
   // user's deliberately ergonomic pitch assignments.
   const unit=77,gap=5,pad=22,top=50,rowStep=80,keyHeight=66;
-  const width=15*unit+pad*2,height=392;
+  const width=15*unit+pad*2,height=472;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
     'aria-label':'真实 QWERTY 键盘布局，36 个 C3 到 B5 的映射键；随谱面调号和移调更新'});
@@ -131,6 +133,7 @@ function renderPianoKeyboardDiagram(){
   graphic.append(svg('text',{x:pad,y:26,class:'keyboard-map-heading'},
     '标准 QWERTY 键盘 · 按实际位置排列'));
   keyboardMapCells.clear();
+  keyboardSpecialCells.clear();
   for(const [rowIndex,row] of PHYSICAL_KEY_ROWS.entries()){
     let x=pad;
     const y=top+rowIndex*rowStep;
@@ -138,11 +141,12 @@ function renderPianoKeyboardDiagram(){
       const w=units*unit-gap;
       const position=KEYBOARD_LAYOUT.indexOf(key);
       const mapped=position>=0;
+      const command=key==='`'||key==='Enter'||key==='Space';
       const midi=mapped?PIANO_FIRST+position:null;
       const black=mapped&&PIANO_BLACK.has(midi%12);
       const group=svg('g',{class:mapped?
         'keyboard-map-cell keyboard-map-'+(black?'black':'white')+' keyboard-map-octave-'+(Math.floor(midi/12)-1):
-        'keyboard-map-unused',
+        command?'keyboard-map-command':'keyboard-map-unused',
         'data-key':key,
         ...(mapped?{'data-midi':midi}:{})});
       group.append(svg('rect',{x,y,width:w,height:keyHeight,rx:7}));
@@ -161,6 +165,14 @@ function renderPianoKeyboardDiagram(){
         // Preserve the pressed visual when an active note triggers a rerender.
         const pianoKey=Array.from(els.pianoKeys.children).find(k=>Number(k.dataset.midi)===midi);
         group.classList.toggle('is-pressed',pianoKey?.classList.contains('is-pressed')===true);
+      }else if(command){
+        const display=key==='`'?'·':key==='Enter'?'Enter ↵':'Space';
+        const notation=key==='`'?'休止符 0':key==='Enter'?'换行 $(true)':'小节线 |';
+        group.append(svg('text',{x:x+w/2,y:y+27,'text-anchor':'middle',
+          class:'keyboard-map-command-letter'},display));
+        group.append(svg('text',{x:x+w/2,y:y+48,'text-anchor':'middle',
+          class:'keyboard-map-command-notation'},notation));
+        keyboardSpecialCells.set(key,group);
       }else{
         group.append(svg('text',{x:x+w/2,y:y+39,'text-anchor':'middle',
           class:'keyboard-map-unused-label'},key));
@@ -170,11 +182,14 @@ function renderPianoKeyboardDiagram(){
     }
   }
   graphic.append(svg('text',{x:pad,y:height-13,class:'keyboard-map-caption'},
-    '有音符的键显示其实际音高与简谱；灰色键未绑定。按下对应按键时会与钢琴同步高亮。'));
+    '空格划小节 · 回车换行 · 左上角 · 键输入按时值计量的休止符 0；其余灰色键未绑定。'));
   host.replaceChildren(graphic);
 }
 function highlightKeyboardMap(midi,pressed){
   keyboardMapCells.get(midi)?.classList.toggle('is-pressed',pressed);
+}
+function highlightKeyboardSpecial(key,pressed){
+  keyboardSpecialCells.get(key)?.classList.toggle('is-pressed',pressed);
 }
 async function auditionPiano(midi){
   const soundMidi=pianoSoundMidi(midi);
@@ -246,8 +261,9 @@ function armPianoIdle(pending){
   },threshold);
 }
 function insertFromPiano(midi,heldMs,recordedAnchor=null){
-  const soundMidi=pianoSoundMidi(midi);
-  const degree=soundMidi===null?null:pianoToNotation(soundMidi,state.song.key);
+  const rest=midi===null;
+  const soundMidi=rest?null:pianoSoundMidi(midi);
+  const degree=rest?'0':soundMidi===null?null:pianoToNotation(soundMidi,state.song.key);
   if(!degree)return;
   const token=degree+pianoDurationSuffix(heldMs,state.tempo);
   const anchor=recordedAnchor??(state.playing&&state.active>=0?state.active:state.cursorNoteId);
@@ -260,7 +276,7 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   state.song=parseSong(els.source.value);
   render();highlight(result.noteId);
   persist();
-  els.pianoStatus.textContent=pianoLabel(midi)+' → '+pianoLabel(soundMidi)+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
+  els.pianoStatus.textContent=(rest?'休止符':pianoLabel(midi)+' → '+pianoLabel(soundMidi))+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
   return {noteId:result.noteId,raw:token};
 }
 function buildPiano(){
@@ -370,6 +386,9 @@ function buildPiano(){
   }
 }
 function keyboardEventCode(ev){
+  if(ev.code==='Space'||ev.key===' ')return 'Space';
+  if(ev.code==='Enter'||ev.code==='NumpadEnter'||ev.key==='Enter')return 'Enter';
+  if(ev.code==='Backquote'||['·','`','~'].includes(ev.key))return '`';
   if(typeof ev.code==='string'&&/^Key[A-Z]$/.test(ev.code))return ev.code.slice(3).toLowerCase();
   if(typeof ev.code==='string'&&/^(Digit|Numpad)[0-9]$/.test(ev.code))return ev.code.at(-1);
   const physical={Comma:',',Period:'.',Semicolon:';',Slash:'/',Minus:'-',
@@ -388,29 +407,111 @@ function isEditingTarget(target){
   return tag==='textarea'||tag==='select'||target.isContentEditable===true||
     !!target.closest?.('[contenteditable="true"]');
 }
+// All keyboard-mode recording uses the same note anchor and source caret,
+// including silent rests and structural separators.
+function insertKeyboardMarker(marker){
+  const result=insertPianoMarker(els.source.value,marker,state.cursorNoteId,els.source.selectionStart);
+  if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再划分小节或换行。';return;}
+  clearTimeout(saveTimer);
+  stopAudio();
+  els.source.value=result.source;
+  els.source.selectionStart=els.source.selectionEnd=result.caret;
+  state.cursorNoteId=result.noteId;
+  state.song=parseSong(els.source.value);
+  render();
+  if(result.noteId>=0)highlight(result.noteId);
+  persist();
+  els.pianoStatus.textContent=marker==='|'?'已插入小节线 |':'已插入换行标记 $(true)';
+}
+let restPress=null;
+function restKeyDown(ev){
+  if(restPress)return;
+  const time=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
+  const anchor=state.playing&&state.active>=0?state.active:state.cursorNoteId;
+  const continuous=state.pianoContinuous;
+  const tempo=state.tempo;
+  restPress={start:time,anchor,continuous,tempo,pending:null};
+  highlightKeyboardSpecial('`',true);
+  if(continuous){
+    closePianoInterval(time);
+    const inserted=insertFromPiano(null,120000/tempo,anchor);
+    if(inserted){
+      pianoPending={...inserted,startedAt:time,releasedAt:null,heldMs:null,tempo};
+      restPress.pending=pianoPending;
+    }
+  }
+  els.pianoStatus.textContent='休止符 0 · 按住决定时值，不发声';
+}
+function restKeyUp(ev){
+  if(!restPress)return;
+  const press=restPress;
+  restPress=null;
+  highlightKeyboardSpecial('`',false);
+  const time=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
+  const held=Math.max(0,time-press.start);
+  if(press.continuous){
+    if(press.pending&&pianoPending===press.pending){
+      press.pending.releasedAt=time;
+      press.pending.heldMs=held;
+      armPianoIdle(press.pending);
+      els.pianoStatus.textContent='休止符 0 · 等待下一次按键决定持续拍数';
+    }
+  }else insertFromPiano(null,held,press.anchor);
+}
+function cancelRestPress(){
+  if(restPress?.pending===pianoPending)clearPianoSequence();
+  restPress=null;
+  highlightKeyboardSpecial('`',false);
+}
 function keyboardDown(ev){
   if(!state.keyboardMode||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
-  const letter=keyboardEventCode(ev),position=KEYBOARD_LAYOUT.indexOf(letter);
-  if(position<0||PIANO_FIRST+position>KEYBOARD_LAST||activeKeyboardKeys.has(letter))return;
+  const key=keyboardEventCode(ev);
+  if(key==='Space'||key==='Enter'){
+    ev.preventDefault?.();
+    // A layout token has no duration; the previous interval still ends
+    // at the next pitched/rest onset, not at the separator.
+    insertKeyboardMarker(key==='Space'?'|':'$(true)');
+    highlightKeyboardSpecial(key,true);
+    return;
+  }
+  if(key==='`'){
+    if(restPress)return;
+    ev.preventDefault?.();
+    restKeyDown(ev);
+    return;
+  }
+  const position=KEYBOARD_LAYOUT.indexOf(key);
+  if(position<0||PIANO_FIRST+position>KEYBOARD_LAST||activeKeyboardKeys.has(key))return;
   const midi=PIANO_FIRST+position;
   const down=keyboardDownByMidi.get(midi);
   if(!down)return;
   ev.preventDefault?.();
-  activeKeyboardKeys.set(letter,midi);
+  activeKeyboardKeys.set(key,midi);
   down({type:'computer-keydown',timeStamp:ev.timeStamp});
 }
 function keyboardUp(ev){
-  const letter=keyboardEventCode(ev);
-  if(!activeKeyboardKeys.has(letter))return;
-  const midi=activeKeyboardKeys.get(letter);
-  activeKeyboardKeys.delete(letter);
+  const key=keyboardEventCode(ev);
+  if(key==='Space'||key==='Enter'){
+    if(state.keyboardMode){ev.preventDefault?.();highlightKeyboardSpecial(key,false);}
+    return;
+  }
+  if(key==='`'){
+    if(restPress){ev.preventDefault?.();restKeyUp(ev);}
+    return;
+  }
+  if(!activeKeyboardKeys.has(key))return;
+  const midi=activeKeyboardKeys.get(key);
+  activeKeyboardKeys.delete(key);
   ev.preventDefault?.();
   keyboardUpByMidi.get(midi)?.({type:'computer-keyup',timeStamp:ev.timeStamp});
 }
 function releaseComputerKeys(){
   for(const midi of activeKeyboardKeys.values())keyboardCancelByMidi.get(midi)?.();
   activeKeyboardKeys.clear();
+  cancelRestPress();
+  highlightKeyboardSpecial('Space',false);
+  highlightKeyboardSpecial('Enter',false);
 }
 
 function changeTimbre(value){
@@ -887,7 +988,7 @@ els.keyboardMode.addEventListener('change',()=>{
   releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
   els.source.disabled=state.keyboardMode;
   if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
-  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：按指定的三行键位弹奏 C3～B5 共 36 个音，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
+  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：36 个琴键；空格分小节、回车换行、· 记休止符；源码框禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{
