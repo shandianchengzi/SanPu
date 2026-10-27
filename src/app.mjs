@@ -80,11 +80,11 @@ async function auditionPiano(midi){
     start:now,end:now+.65,timbre:'piano'});
   if(!voice)els.pianoStatus.textContent='琴键未能发声。';
 }
-function insertFromPiano(midi,heldMs){
+function insertFromPiano(midi,heldMs,recordedAnchor=null){
   const degree=pianoToNotation(midi,state.song.key);
   if(!degree)return;
   const token=degree+pianoDurationSuffix(heldMs,state.tempo);
-  const anchor=state.playing&&state.active>=0?state.active:state.cursorNoteId;
+  const anchor=recordedAnchor??(state.playing&&state.active>=0?state.active:state.cursorNoteId);
   const result=insertPianoNote(els.source.value,token,anchor,els.source.selectionStart);
   if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再录入音符。';return;}
   stopAudio();
@@ -114,15 +114,17 @@ function buildPiano(){
         caption.textContent=label;caption.className='piano-key-name';key.append(caption);
       }
     }
-    let pressedAt=null,ignoreClick=false;
+    let pressedAt=null,ignoreClick=false,pressedAnchor=null,pressedAudition=true;
     const down=ev=>{
       if(ev.type==='pointerdown'&&ev.button!==0)return;
       if(ev.repeat||pressedAt!==null)return;
       pressedAt=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
+      pressedAnchor=state.playing&&state.active>=0?state.active:state.cursorNoteId;
+      pressedAudition=state.pianoAudition;
       key.classList.toggle('is-pressed',true);
       if(ev.type==='pointerdown'&&key.setPointerCapture&&ev.pointerId!==undefined)
         key.setPointerCapture(ev.pointerId);
-      if(state.pianoAudition){
+      if(pressedAudition){
         els.pianoStatus.textContent=label+' · '+(pianoToNotation(midi,state.song.key)||'?')+' · 试听';
         auditionPiano(midi);
       }
@@ -133,16 +135,21 @@ function buildPiano(){
       const duration=Math.max(0,stamp-pressedAt);
       pressedAt=null;key.classList.toggle('is-pressed',false);
       ignoreClick=true;
-      if(!state.pianoAudition)insertFromPiano(midi,duration);
+      if(!pressedAudition)insertFromPiano(midi,duration,pressedAnchor);
     };
     const cancel=()=>{pressedAt=null;key.classList.toggle('is-pressed',false);ignoreClick=true;};
     key.addEventListener('pointerdown',down);
     key.addEventListener('pointerup',up);
     key.addEventListener('pointercancel',cancel);
     key.addEventListener('keydown',ev=>{
-      if(ev.key===' '||ev.key==='Enter'){if(ev.repeat)return;down(ev);}
+      if(ev.key===' '||ev.key==='Enter'){
+        ev.preventDefault?.();
+        if(!ev.repeat)down(ev);
+      }
     });
-    key.addEventListener('keyup',ev=>{if(ev.key===' '||ev.key==='Enter')up(ev);});
+    key.addEventListener('keyup',ev=>{
+      if(ev.key===' '||ev.key==='Enter'){ev.preventDefault?.();up(ev);}
+    });
     // Screen readers may generate a click without pointer/keyboard events.
     key.addEventListener('click',()=>{
       if(ignoreClick){ignoreClick=false;return;}

@@ -711,3 +711,16 @@ test('piano inserts after selected note and subsequent notes, with duration',()=
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
   assert.match(document.getElementById('piano-status').textContent,/已插入/);
 });
+
+test('keyboard activation inserts exactly once at keyup and respects pressed duration',()=>{
+  const src='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,document}=boot({source:src,pianoAudition:false});
+  const key=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
+  let suppressed=0;
+  key.dispatch('keydown',{type:'keydown',key:'Enter',timeStamp:100,preventDefault(){suppressed++;}});
+  key.dispatch('keydown',{type:'keydown',key:'Enter',repeat:true,timeStamp:200,preventDefault(){suppressed++;}});
+  key.dispatch('keyup',{type:'keyup',key:'Enter',timeStamp:850,preventDefault(){suppressed++;}});
+  key.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+  assert.equal(suppressed,3);
+});

@@ -222,7 +222,8 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
     chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
   if(!chosen)chosen=notes.at(-1)??null;
   const at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
-  const inserted=chosen?' '+token+' ':token+' ';
+  // A newly created .Voice must keep the following .Words/.Title header on its own line.
+  const inserted=chosen?' '+token+' ':token+(text.slice(at).startsWith('.')?'\n':' ');
   return {source:text.slice(0,at)+inserted+text.slice(at),
     noteId:chosen?chosen.id+1:0,caret:at+inserted.length};
 }

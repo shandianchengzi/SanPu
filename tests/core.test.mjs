@@ -153,6 +153,8 @@ test('piano insertion uses exact note span, preserving source and lyrics',()=>{
   assert.equal(insertPianoNote('.Title\nTitle = test','1'),null);
   const empty=insertPianoNote('.Voice\n.Words\nW1@1,1:\n','2');
   assert.equal(parseSong(empty.source).notes[0].raw,'2');
+  assert.ok(empty.source.includes('.Voice\n2\n.Words'));
+  assert.equal(parseSong(empty.source).warnings.length,0);
   const crlf=insertPianoNote('.Voice\r\n1 2\r\n.Words\r\nW1@1,1:','3',0);
   assert.ok(crlf.source.includes('1 3  2\r\n.Words'));
 });
