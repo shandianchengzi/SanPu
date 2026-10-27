@@ -638,7 +638,7 @@ test('layout-only y spacers align barlines across SVG rows without touching note
   const plain='.Title\nTitle = 空位测试\n.Voice\n1 2 | 3 4 $(true)\n1 | 3 4\n.Words\nW1@1,1:\n天地玄黄宇宙洪';
   const noGap=boot({source:plain});
   const lines=app=>app.els.score.children.filter(el=>el.className==='score-line');
-  const firstBar=el=>Number(el.children.find(x=>x.className==='bar-click').children.find(g=>g.className==='bar').attrs.x1);
+  const firstBar=el=>Number(el.children.find(x=>x.className==='bar').attrs.x1);
   const correction=firstBar(lines(noGap)[0])-firstBar(lines(noGap)[1]);
   const spaced=plain.replace('1 | 3 4',`1 y${correction} | 3 4`);
   const withGap=boot({source:spaced});
@@ -1752,4 +1752,61 @@ test('custom lyrics sizing stays under the original appearance configuration on 
   assert.equal(els.score.style.props['--lyric-size'],original);
   sel.value='jianpu';sel.dispatch('change');
   assert.equal(els.score.style.props['--lyric-size'],original);
+});
+
+test('numbered notation retains original direct SVG barlines; hitboxes are a separate invisible layer',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2 $(true)\n3 | 4';
+  const {els}=boot({source,scoreType:'jianpu'});
+  const systems=els.score.children.filter(n=>n.className==='score-line');
+  assert.equal(systems.length,2);
+  for(const line of systems){
+    const bars=line.children.filter(n=>n.className==='bar');
+    const overlay=line.children.filter(n=>n.className==='bar-click');
+    assert.equal(bars.length,1);
+    assert.equal(overlay.length,1);
+    assert.equal(bars[0].tag,'line');
+    assert.equal(overlay[0].tag,'g');
+    assert.ok(overlay[0].children.every(n=>n.className==='bar-hit'),
+      'hitboxes contain no visible replica of the original barline');
+    assert.equal(overlay[0].children[0].tag,'rect');
+    assert.ok(line.children.indexOf(bars[0])<line.children.indexOf(overlay[0]));
+  }
+  const css=read('styles.css');
+  assert.match(css,/\.score-page \.score-line \.note-num/);
+  assert.match(css,/\.score-page \.score-line \.lyrics-text/);
+  assert.match(css,/\.score-page \.score-line \.bar\{stroke-width:var\(--bar-stroke/);
+  assert.match(read('src/app.mjs'),/if\(state\.scoreType==='jianpu'\)addJianpuBarSelectionTargets/);
+});
+
+test('custom numbered-notation typography remains identical through score-type switching',()=>{
+  const source='.Title\nTitle = Test\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 | 2';
+  const format={titleSize:38,titleWeight:'800',noteSize:50,noteWeight:'700',
+    noteFont:'sans',lyricSize:51,lyricWeight:'400',lyricFont:'kai',
+    lyricLetterSpacing:-4,barSpacing:24,barStroke:2.9,minLineWidth:980};
+  const {els,state,document}=boot({source,format,scoreType:'jianpu'});
+  const getVariables=()=>JSON.stringify(els.score.style.props);
+  const initial=getVariables();
+  assert.equal(state.format.lyricSize,51);
+  assert.equal(state.format.noteSize,50);
+  assert.equal(els.score.style.props['--lyric-size'],'51px');
+  assert.equal(els.score.style.props['--note-size'],'50px');
+  const svgBefore=els.score.children.find(x=>x.className==='score-line');
+  const baselineNote=svgBefore.children.find(x=>x.className==='note-click').children
+    .find(x=>x.className==='note-num');
+  const baselinePosition=JSON.stringify(baselineNote.attrs);
+  const baselineBar=svgBefore.children.find(x=>x.className==='bar');
+  const baselineBarPosition=JSON.stringify(baselineBar.attrs);
+  const type=document.getElementById('score-type');
+  for(const value of ['staff','guitar','jianpu']){
+    type.value=value;type.dispatch('change');
+    assert.equal(getVariables(),initial,'custom appearance variables remain unchanged');
+    assert.equal(state.format.lyricSize,51);
+  }
+  const after=els.score.children.find(x=>x.className==='score-line');
+  const laterNote=after.children.find(x=>x.className==='note-click').children
+    .find(x=>x.className==='note-num');
+  const laterBar=after.children.find(x=>x.className==='bar');
+  assert.equal(JSON.stringify(laterNote.attrs),baselinePosition);
+  assert.equal(JSON.stringify(laterBar.attrs),baselineBarPosition);
+  assert.equal(els.source.value,source);
 });

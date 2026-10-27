@@ -961,14 +961,8 @@ function drawSystem(elements,song,width){
       continue;
     }
     if(e.kind==='bar'){
-      const barX=x+9,barId=e.index;
-      const bar=svg('g',{class:'bar-click','data-bar-id':barId,tabindex:0,role:'button',
-        'aria-label':'第 '+e.measure+' 小节后的小节线，可点击选中'});
-      bar.append(svg('rect',{x,y:noteY-45,width:Math.max(16,f.barSpacing),height:lyricY-noteY+5,class:'bar-hit'}));
-      bar.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
-      bar.addEventListener('click',()=>selectScoreBar(barId));
-      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();ev.stopPropagation?.();selectScoreBar(barId);}});
-      s.append(bar);
+      const barX=x+9;
+      s.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
       x+=f.barSpacing;
       continue;
     }
@@ -1030,6 +1024,32 @@ function drawSystem(elements,song,width){
   s.punctuationPairs=punctuationPairs;
   return s;
 }
+// Do not modify drawSystem: numbered notation is the original baseline renderer,
+// including its direct bar <line> children, dimensions, and styles.
+// Interactive hit targets are appended separately and are invisible until hovered
+// or selected. Thus the default numbered score paints the same SVG as before.
+function addJianpuBarSelectionTargets(svgNode,elements,song){
+  let x=SCORE.pad;
+  for(const item of elements){
+    if(item.kind==='bar'){
+      const width=state.format.barSpacing;
+      const bar=svg('g',{class:'bar-click','data-bar-id':item.index,
+        tabindex:0,role:'button',
+        'aria-label':'选中第 '+item.measure+' 小节的小节线'});
+      bar.append(svg('rect',{x:x+1,y:25,width:Math.max(12,width-2),
+        height:105,class:'bar-hit'}));
+      bar.addEventListener('click',()=>selectScoreBar(item.index));
+      bar.addEventListener('keydown',ev=>{
+        if(ev.key==='Enter'||ev.key===' '){
+          ev.preventDefault();ev.stopPropagation?.();selectScoreBar(item.index);
+        }
+      });
+      svgNode.append(bar);
+    }
+    x+=estimateWidth(item,song);
+  }
+}
+
 // Once a line is in the DOM, use the browser's actual text width (rather than a
 // fixed CJK character estimate) so punctuation sits to the right of the body
 // without shifting its existing text-anchor under the note.
@@ -1088,6 +1108,7 @@ function render() {
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   for(const line of lines){
     const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
+    if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line,song);
     els.score.append(system);
     positionPunctuation(system);
   }
