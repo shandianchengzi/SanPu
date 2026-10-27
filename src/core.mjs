@@ -293,7 +293,7 @@ export function transposeSongSemitones(source,semitones){
   const text=String(source??'');
   if(!Number.isSafeInteger(semitones))
     throw new Error('音程必须是整数半音数。');
-  const heading=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const heading=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
   const voiceAt=heading.findIndex(h=>h[1]==='Voice');
   if(voiceAt<0)throw new Error('缺少 .Voice 音符段。');
   const offset=heading[voiceAt].index+heading[voiceAt][0].length;

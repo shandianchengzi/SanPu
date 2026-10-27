@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -296,4 +296,45 @@ test('legato scheduler groups continuously sounding notes but never bridges rest
   const resumed=groupPlaybackEvents(timeline, .75);
   assert.deepEqual(resumed[0].map(ev=>ev.id),[1,2]);
   assert.equal(resumed[0][0].start,.75);
+});
+
+test('batch semitone transposition preserves rhythm, rests, slurs, source layout and lyrics',()=>{
+  const original='.Title\r\nTitle = Test\r\nKeyAndMeters = {1=G,3/4}\r\n.Voice\r\n(3,_ #4,.) 0 y15 | 1 7, 1_ $(true)\r\n(5__ 6.) 7,2\r\n.Words\r\nW1@1,1:\r\n歌词/不变';
+  const before=parseSong(original);
+  const moved=transposeSongSemitones(original,2);
+  const after=parseSong(moved.source);
+  assert.equal(moved.count,before.notes.filter(n=>n.degree!==0).length);
+  assert.equal(moved.total,before.notes.length);
+  assert.equal(after.notes.length,before.notes.length);
+  assert.deepEqual(after.notes.map(n=>n.beats),before.notes.map(n=>n.beats));
+  assert.deepEqual(after.slurs,before.slurs);
+  assert.deepEqual(after.elements.filter(e=>e.kind!=='note').map(e=>e.raw),
+    before.elements.filter(e=>e.kind!=='note').map(e=>e.raw));
+  const phrase=s=>s.slice(s.indexOf('.Words'));
+  assert.equal(phrase(moved.source),phrase(original));
+  assert.match(moved.source,/\r\n/,'line ending is preserved');
+  for(let i=0;i<before.notes.length;i++){
+    const b=before.notes[i],a=after.notes[i];
+    if(b.degree===0)assert.equal(a.raw,b.raw);
+    else assert.ok(Math.abs(noteFrequency(a,'G')/noteFrequency(b,'G')-Math.pow(2,2/12))<1e-10,i);
+    assert.equal(a.suffix,b.suffix,'duration marker must remain unchanged');
+  }
+  const back=transposeSongSemitones(moved.source,-2);
+  const final=parseSong(back.source);
+  for(let i=0;i<before.notes.length;i++)
+    assert.ok(Math.abs(noteFrequency(final.notes[i],'G')-noteFrequency(before.notes[i],'G'))<1e-9);
+  assert.equal(transposeSongSemitones(original,0).source,original);
+});
+
+test('batch shift rejects invalid numbers and out-of-range notes atomically',()=>{
+  const original='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 3\n.Words\nW1@1,1:\n你好吗';
+  for(const invalid of [NaN,1.2,Infinity,'2',null])
+    assert.throws(()=>transposeSongSemitones(original,invalid),/整数/);
+  assert.throws(()=>transposeSongSemitones(original,90),/超出支持音域/);
+  assert.throws(()=>transposeSongSemitones(original,-100),/超出支持音域/);
+  assert.throws(()=>transposeSongSemitones('.Title\nTitle = no music',2),/Voice/);
+  assert.throws(()=>transposeSongSemitones('.Voice\n y15',2),/没有可移调/);
+  assert.equal(original.includes('1 2 3'),true,'input source must remain intact');
+  const flat=transposeSongSemitones('.Voice\nb3 #4 7,',-1);
+  assert.deepEqual(parseSong(flat.source).notes.map(n=>n.raw),['2','#4','b7,']);
 });

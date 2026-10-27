@@ -1380,3 +1380,44 @@ test('finite and infinite loop playback restart on the audio timeline, pause ret
   assert.equal(f.state.playing,false);
   assert.equal(f.state.loopsDone,0);
 });
+
+test('batch edit applies signed semitone shift only after explicit confirmation',()=>{
+  const source='.Title\nTitle = A\nKeyAndMeters = {1=C,3/4}\n.Voice\n(1_ 2_ 3) y25 | 0 7,\n.Words\nW1@1,1:\n唱/歌曲';
+  const abandoned=boot({source},false);
+  const b=abandoned.document.getElementById('batch-shift'),apply=abandoned.document.getElementById('batch-apply');
+  assert.equal(b.value,'');
+  assert.match(read('index.html'),/id="batch-shift"[^>]*value="0"/);
+  b.value='2';apply.dispatch('click');
+  assert.equal(abandoned.els.source.value,source);
+  assert.match(abandoned.document.getElementById('batch-status').textContent,/已取消/);
+  const accepted=boot({source},true);
+  const input=accepted.document.getElementById('batch-shift'),btn=accepted.document.getElementById('batch-apply');
+  input.value='-1';btn.dispatch('click');
+  assert.notEqual(accepted.els.source.value,source);
+  assert.equal(accepted.state.song.notes.length,5);
+  assert.equal(accepted.state.song.notes[3].raw,'0');
+  assert.equal(accepted.state.song.slurs.length,1);
+  assert.equal(accepted.els.source.value.split('.Words')[1],source.split('.Words')[1]);
+  assert.equal(JSON.parse(accepted.localStorage.data['sanpu.editor.v1']).source,accepted.els.source.value);
+  assert.equal(accepted.confirmations.length,1);
+  const saved=accepted.els.source.value;
+  input.value='0';btn.dispatch('click');
+  assert.equal(accepted.els.source.value,saved);
+  input.value='1.5';btn.dispatch('click');
+  assert.equal(accepted.els.source.value,saved);
+  assert.match(accepted.document.getElementById('batch-status').textContent,/整数/);
+  input.value='100';btn.dispatch('click');
+  assert.equal(accepted.els.source.value,saved);
+  assert.equal(accepted.confirmations.length,1,'out-of-range changes must not be confirmed or applied');
+  assert.match(read('index.html'),/class="batch-editor"[\s\S]*?class="syntax-help"/);
+});
+
+test('batch edit can update score programmatically when keyboard mode disables manual typing',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2';
+  const user=boot({source,keyboardMode:true},true);
+  assert.equal(user.els.source.disabled,true);
+  user.document.getElementById('batch-shift').value='1';
+  user.document.getElementById('batch-apply').dispatch('click');
+  assert.equal(user.els.source.disabled,true);
+  assert.deepEqual(user.state.song.notes.map(n=>n.raw),['#1','b3']);
+});
