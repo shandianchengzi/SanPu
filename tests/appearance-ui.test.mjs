@@ -14,10 +14,12 @@ class FakeElement {
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value)}
   focus(){this.focused=true}
+  click(){this.clicked=true;return this.dispatch('click')}
+  remove(){this.removed=true}
   append(...children){this.children.push(...children)}
   replaceChildren(...children){this.children=[...children]}
   addEventListener(type,listener){(this.listeners[type]??=[]).push(listener)}
-  dispatch(type,event={}){for(const listener of this.listeners[type]??[])listener(event)}
+  dispatch(type,event={}){let result;for(const listener of this.listeners[type]??[])result=listener(event);return result}
   querySelectorAll(selector){
     const found=[];
     const walk=node=>{for(const child of node.children){
@@ -32,12 +34,13 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre']){
+    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
+    'style-export-btn','style-import-btn','style-file-input','style-transfer-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
   const document={
-    head,createElement:tag=>new FakeElement(tag),createElementNS:(ns,tag)=>new FakeElement(tag),
+    head,body:new FakeElement('body'),createElement:tag=>new FakeElement(tag),createElementNS:(ns,tag)=>new FakeElement(tag),
     getElementById:id=>id==='print-page-rules'?head.children.find(el=>el.id===id)??null:ids[id]??null
   };
   const localStorage={
@@ -49,11 +52,22 @@ function boot(saved){
   const code=[stripped(read('src/core.mjs')),stripped(read('src/format.mjs')),
     stripped(read('src/timbres.mjs')),stripped(read('src/app.mjs')),
     'return {state,els,refresh,render};'].join('\n');
+  const downloads=[];
+  const fakeURL={
+    createObjectURL(blob){downloads.push(blob);return 'blob:sanpu-test';},
+    revokeObjectURL(){}
+  };
+  class FakeBlob{
+    constructor(parts,opts){this.parts=parts;this.type=opts.type;}
+  }
+  class FakeDecoder{
+    decode(buffer){return Array.from(new Uint8Array(buffer),value=>String.fromCharCode(value)).join('');}
+  }
   const api=new Function('document','window','localStorage',
-    'cancelAnimationFrame','requestAnimationFrame',code)(
-    document,window,localStorage,()=>{},()=>0
+    'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','TextDecoder',code)(
+    document,window,localStorage,()=>{},()=>0,fakeURL,FakeBlob,()=>0,FakeDecoder
   );
-  return {...api,document,window,localStorage,head};
+  return {...api,document,window,localStorage,head,downloads};
 }
 const field=(els,key,suffix='')=>els.formatControls.querySelectorAll('[data-format-key]')
   .find(el=>el.id==='format-'+key+suffix);
@@ -497,4 +511,102 @@ test('punctuation placement uses the measured SVG lyric width where available',(
     if(original===undefined)delete FakeElement.prototype.getComputedTextLength;
     else FakeElement.prototype.getComputedTextLength=original;
   }
+});
+
+function styleFile(text){
+  const bytes=Uint8Array.from(Array.from(text,char=>char.charCodeAt(0)));
+  return {size:bytes.length,async arrayBuffer(){return bytes.buffer}};
+}
+test('export style button produces a portable JSON with all current values and no song text',()=>{
+  const {state,els,document,downloads}=boot({source:'.Voice\n1 2 3',
+    format:{noteSize:69,lyricLineGap:-48,punctuationGap:21,highOctaveDotOffset:33},
+    zoom:210,tempo:92,timbre:'flute'});
+  document.getElementById('style-export-btn').dispatch('click');
+  assert.equal(downloads.length,1);
+  const blob=downloads[0];
+  assert.match(blob.type,/application\/json/);
+  const exported=JSON.parse(blob.parts.join(''));
+  assert.equal(exported.type,'sanpu-score-style');
+  assert.equal(exported.version,1);
+  assert.equal(exported.settings.noteSize,69);
+  assert.equal(exported.settings.lyricLineGap,-48);
+  assert.equal(exported.settings.punctuationGap,21);
+  assert.equal(exported.settings.highOctaveDotOffset,33);
+  assert.equal(Object.keys(exported.settings).length,Object.keys(state.format).length);
+  assert.equal(exported.source,undefined);
+  assert.equal(exported.tempo,undefined);
+  assert.equal(exported.timbre,undefined);
+  assert.equal(exported.zoom,undefined);
+  assert.equal(document.body.children.length,1);
+  assert.equal(document.body.children[0].download,'SanPu-谱面样式.sanpu-style.json');
+  assert.equal(document.body.children[0].clicked,true);
+  assert.match(document.getElementById('style-transfer-status').textContent,/已导出/);
+  assert.equal(els.source.value,'.Voice\n1 2 3');
+});
+
+test('import restores all appearance settings while keeping music and playback preferences',async()=>{
+  const app=boot({source:'.Voice\n1 2 3',format:{noteSize:33,lyricLineGap:10},
+    tempo:86,timbre:'guitar',zoom:180});
+  const {state,els,document,localStorage}=app;
+  const beforeSource=els.source.value;
+  const payload={
+    type:'sanpu-score-style',version:1,
+    settings:{noteSize:65,lyricLineGap:-67,highOctaveDotOffset:-25,punctuationGap:31}
+  };
+  document.getElementById('style-import-btn').dispatch('click');
+  const input=document.getElementById('style-file-input');
+  assert.equal(input.clicked,true);
+  input.files=[styleFile(JSON.stringify(payload))];
+  await input.dispatch('change',{target:input});
+  assert.equal(state.format.noteSize,65);
+  assert.equal(state.format.lyricLineGap,-67);
+  assert.equal(state.format.highOctaveDotOffset,-25);
+  assert.equal(state.format.punctuationGap,31);
+  assert.equal(els.score.style.props['--note-size'],'65px');
+  assert.equal(els.score.style.props['--punctuation-gap'],'31px');
+  assert.equal(els.formatPreset.value,'custom');
+  assert.equal(field(els,'noteSize','-value').value,'65');
+  assert.equal(field(els,'lyricLineGap').value,'-67');
+  assert.equal(els.source.value,beforeSource);
+  assert.equal(state.tempo,86);
+  assert.equal(state.timbre,'guitar');
+  assert.equal(state.zoom,180);
+  assert.equal(input.value,'','allows reimporting the same file');
+  assert.match(document.getElementById('style-transfer-status').textContent,/已导入/);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.punctuationGap,31);
+});
+
+test('bad or oversized style import is rejected without changing active editor state',async()=>{
+  const {state,els,document,localStorage}=boot({
+    source:'.Voice\n1 2',format:{lyricSize:54},tempo:105});
+  const input=document.getElementById('style-file-input');
+  const before=JSON.stringify(state.format);
+  const beforeSource=els.source.value;
+  const beforeSaved=localStorage.data['sanpu.editor.v1'];
+  for(const raw of ['{broken',JSON.stringify({type:'bad',version:1,settings:{lyricSize:22}})]){
+    input.files=[styleFile(raw)];
+    await input.dispatch('change',{target:input});
+    assert.equal(JSON.stringify(state.format),before);
+    assert.equal(els.source.value,beforeSource);
+    assert.match(document.getElementById('style-transfer-status').textContent,/导入失败/);
+    assert.equal(input.value,'');
+  }
+  input.files=[{size:1024*1024+1,async arrayBuffer(){throw Error('must not read')}}];
+  await input.dispatch('change',{target:input});
+  assert.equal(JSON.stringify(state.format),before);
+  assert.match(document.getElementById('style-transfer-status').textContent,/超过 1 MB/);
+  assert.equal(state.tempo,105);
+  assert.equal(localStorage.data['sanpu.editor.v1'],beforeSaved);
+  input.files=[];
+  await input.dispatch('change',{target:input});
+});
+
+test('style file controls are in the existing collapsible appearance panel',()=>{
+  const html=read('index.html');
+  const start=html.indexOf('<details class="format-panel"');
+  const actions=html.indexOf('id="style-export-btn"');
+  const upload=html.indexOf('id="style-import-btn"');
+  const status=html.indexOf('id="style-transfer-status"');
+  assert.ok(start>=0&&actions>start&&upload>actions&&status>upload);
+  assert.match(html,/id="style-file-input" hidden accept="\.json,application\/json"/);
 });
