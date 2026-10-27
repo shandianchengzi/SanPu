@@ -72,8 +72,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Install Android platform
-        run: sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0"
+      - name: Locate SDK manager and install Android platform
+        run: |
+          android_sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          sdkmanager=$(find "$android_sdk/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
+          test -x "$sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null
+          "$sdkmanager" "platform-tools" "platforms;android-37" "build-tools;37.0.0"
+          echo "ANDROID_HOME=$android_sdk" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
