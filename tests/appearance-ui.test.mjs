@@ -1025,9 +1025,10 @@ test('accidental and augmentation-dot gaps move markers separately and reserve h
   assert.equal(dot(afterDots[1])-numeral(afterDots[1]),baseDotDistance+38);
   assert.equal(numeral(afterDots[2]),numeral(afterAcc[2])+76,
     'two preceding dotted notes each reserve their own increased right gap');
-  assert.equal(numeral(afterDots[2]),numeral(afterDots[2]),
-    'undotted note remains at its cell center');
-  assert.ok(Number(scoreLine(els).attrs.viewBox.split(' ')[2])>baselineWidth);
+  assert.equal(afterDots[2].children.filter(el=>el.className==='octave duration-dot').length,0,
+    'undotted note must not acquire a dot');
+  assert.equal(Number(scoreLine(els).attrs.viewBox.split(' ')[2]),baselineWidth,
+    'short lines retain their configured minimum width while their note cells expand');
   assert.equal(state.format.accidentalGap,30);
   assert.equal(state.format.durationDotGap,38);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.accidentalGap,30);
