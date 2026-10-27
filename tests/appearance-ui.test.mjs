@@ -1822,7 +1822,7 @@ test('immutable pre-multi-score numbered rendering and CSS baseline',()=>{
   };
   const app=read('src/app.mjs');
   const first=app.indexOf('function drawSystem(elements,song,width){');
-  const last=app.indexOf('// Once a line is in the DOM',first);
+  const last=app.indexOf('// Do not modify drawSystem',first);
   assert.ok(first>=0&&last>first);
   const renderer=app.slice(first,last);
   assert.equal(renderer.length,5623,'original numbered-notation SVG renderer length');
