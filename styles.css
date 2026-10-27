@@ -350,3 +350,16 @@ main{padding-top:23px}
 .score-type-picker{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#385a51;white-space:nowrap}
 .score-type-picker select{max-width:122px;background:#fff;color:#203e36;border:1px solid #cbdbd1;border-radius:6px;padding:5px}
 @media print{.score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}.score-page .score-line .bar-click.active .bar{stroke:#000!important}.score-type-picker{display:none!important}}
+
+.score-page .score-line .bar-click{cursor:pointer;outline:none}
+.score-page .score-line .bar-click .bar-hit{fill:transparent}
+.score-page .score-line .bar-click:hover .bar-hit,.score-page .score-line .bar-click.active .bar-hit{fill:#def1e9}
+.score-page .score-line .bar-click.active .bar{stroke:#12856f;stroke-width:3.4}
+.score-page .score-line .bar-click:focus-visible .bar-hit{fill:#c1e7d5;stroke:#287e60}
+.score-type-picker{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#385a51;white-space:nowrap}
+.score-type-picker select{max-width:122px;background:#fff;color:#203e36;border:1px solid #cbdbd1;border-radius:6px;padding:5px}
+@media print{
+  .score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}
+  .score-page .score-line .bar-click.active .bar{stroke:#000!important}
+  .score-type-picker{display:none!important}
+}

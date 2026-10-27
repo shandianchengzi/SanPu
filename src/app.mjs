@@ -891,7 +891,7 @@ function render() {
   const width=Math.max(state.format.minLineWidth,...lines.map(line=>lineWidth(line,song)));
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   for(const line of lines){
-    const system=drawSystem(line,song,width);
+    const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
     els.score.append(system);
     positionPunctuation(system);
   }
@@ -1047,6 +1047,11 @@ els.keyboardMode.addEventListener('change',()=>{
   if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
   els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：36 个琴键；空格分小节、回车换行、· 记休止符；源码框禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
+});
+els.scoreType.addEventListener('change',()=>{
+  if(!['jianpu','staff','guitar'].includes(els.scoreType.value))return;
+  state.scoreType=els.scoreType.value;
+  render();persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{
   clearPianoSequence();

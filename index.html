@@ -70,7 +70,7 @@
           <p>正数整体升高音高，负数整体降低音高。点击确认后会再次核对；仅替换音符音高，不改时值、歌词、圆滑线、调号及排版记号。</p>
         </details>
         <details class="syntax-help"><summary>快速记谱说明 <span aria-hidden="true">＋</span></summary><div class="help-content"><p><code>3_</code> 半拍 · <code>3</code> 一拍 · <code>3-</code> 两拍 · <code>3--</code> 三拍 · <code>3.</code> 1.5 拍</p><p><code>7,</code> 低八度 · <code>1'</code> 高八度 · <code>0</code> 休止 · <code>|</code> 小节/分句 · <code>$(true)</code> 换行</p><p><code>y</code> 横向留白 20 单位 · <code>y40</code> 留白 40 单位 · <code>y80</code> 留白 80 单位。可插入小节线前将不等拍小节的线条对齐；不增加音符、不占拍数、不消耗歌词。直接敲空格只是分隔记号，不能改变谱面横向位置。</p><p><code>(3 4 5)</code> 在音符上方绘制圆滑线，可跨行；<code>3-</code> 仍是两拍音符而不是连音符号。</p><p><code>.Words</code> 中的汉字逐音对齐，标点、空格不占音符；<code>/</code> 占一个音符位置，用于一字多音。<code>{词组}</code> 作为一个歌词单位。</p><p>散板模式允许任意小节长度。试听按照你写的音符时值演奏，不模拟歌手自由伸缩。</p>
-          <section class="keyboard-help" aria-label="计算机键盘与钢琴音符的对应关系"><h3>⌨ 键盘弹奏对照 · C3～B5</h3><p>依次映射：<code>C3: q2w3er5t6y7u</code>，<code>C4: zsxdcvgbhnjm</code>，<code>C5: ,l.;/i9o0p-[</code>。三组各 12 键，覆盖 C3～B5 全部 36 个琴键。下图按照真实电脑键盘的数字行、QWERTY 行、ASDF 行和 ZXCV 行错位排列，未分配的键呈灰色；黑色表示钢琴黑键，按住按键时键位图与钢琴同步高亮。退格 <code>Backspace</code> 删除选中音符或小节线，空格插入小节线 <code>|</code>，回车插入 <code>$(true)</code> 换行，键盘左上角 <code>·</code>（波浪号/反引号键）输入无声休止符 <code>0</code>，按音符相同的计时逻辑记录长度。SVG 对照图随谱面调号及移调设置实时更新。键盘模式下源谱输入框禁用，关闭后恢复编辑；钢琴录入仍可自动写入源码。</p>
+          <section class="keyboard-help" aria-label="计算机键盘与钢琴音符的对应关系"><h3>⌨ 键盘弹奏对照 · C3～B5</h3><p>依次映射：<code>C3: q2w3er5t6y7u</code>，<code>C4: zsxdcvgbhnjm</code>，<code>C5: ,l.;/i9o0p-[</code>。三组各 12 键，覆盖 C3～B5 全部 36 个琴键。下图按照真实电脑键盘的数字行、QWERTY 行、ASDF 行和 ZXCV 行错位排列，未分配的键呈灰色；黑色表示钢琴黑键，按住按键时键位图与钢琴同步高亮。退格 <code>Backspace</code> 删除选中音符或小节线，退格 <code>Backspace</code> 删除选中音符或小节线，空格插入小节线 <code>|</code>，回车插入 <code>$(true)</code> 换行，键盘左上角 <code>·</code>（波浪号/反引号键）输入无声休止符 <code>0</code>，按音符相同的计时逻辑记录长度。SVG 对照图随谱面调号及移调设置实时更新。键盘模式下源谱输入框禁用，关闭后恢复编辑；钢琴录入仍可自动写入源码。</p>
           <div class="keyboard-diagram-scroll"><div id="piano-keyboard-diagram" aria-live="polite" aria-label="键位、实际音高和简谱音名动态对照图"></div></div>
           </section></div></details>
       </div>
@@ -80,6 +80,7 @@
           <div class="play-controls"><button class="btn play" id="play-btn" type="button" aria-label="播放">▶ 播放</button><button class="btn secondary" id="stop-btn" type="button">■ 停止</button></div>
           <label class="tempo compact-tempo" for="tempo">速度 <input id="tempo-value" type="number" min="35" max="180" step="1" value="72" inputmode="numeric" aria-label="手动输入播放速度 BPM" /> BPM <input type="range" id="tempo" min="35" max="180" step="1" value="72" aria-label="拖动调整播放速度" /></label>
           <label class="timbre-picker" for="timbre">音色 <select id="timbre" aria-label="试听音色"></select></label>
+          <label class="score-type-picker" for="score-type">谱面 <select id="score-type" aria-label="谱面类型"><option value="jianpu" selected>简谱</option><option value="staff">五线谱</option><option value="guitar">吉他指弹谱</option></select></label>
           <label class="score-type-picker" for="score-type">谱面 <select id="score-type" aria-label="谱面类型"><option value="jianpu" selected>简谱</option><option value="staff">五线谱</option><option value="guitar">吉他指弹谱</option></select></label>
           <label class="play-loop" for="loop-count" title="0 表示只播放一次；正数表示额外重复次数；-1 表示无限循环">循环：<input id="loop-count" type="number" min="-1" step="1" value="0" inputmode="numeric" aria-label="试听循环次数，0 不重复，-1 无限循环" /> 次</label>
           <div class="preview-tools" aria-label="预览操作">
@@ -91,7 +92,7 @@
           </div>
         </div>
         <p id="mp3-status" class="mp3-status" role="status" aria-live="polite"></p>
-        <div id="score" class="score-page" aria-label="数字简谱预览"></div>
+        <div id="score" class="score-page" aria-label="简谱预览"></div>
         <div id="warnings" class="warnings" role="status" aria-live="polite"></div>
         <p class="preview-note">提示：单击谱中音符可从该位置试听。PDF 通过浏览器打印对话框选择「另存为 PDF」生成，无水印。</p>
       </div>
