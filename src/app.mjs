@@ -11,12 +11,12 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',pianoAudition:true,pianoTranspose:true,pianoContinuous:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -33,6 +33,8 @@ function load() {
   els.pianoTranspose.checked=state.pianoTranspose;
   state.pianoContinuous=settings?.pianoContinuous!==false;
   els.pianoContinuous.checked=state.pianoContinuous;
+  state.keyboardMode=settings?.keyboardMode===true;
+  els.keyboardMode.checked=state.keyboardMode;
   els.tempo.value=String(state.tempo);
   els.tempoValue.value=String(state.tempo);
 }
@@ -69,6 +71,11 @@ function loadSelectedExample(){
   refresh();
 }
 const PIANO_FIRST=48,PIANO_LAST=83;
+const KEYBOARD_LAYOUT='qwertyuiopasdfghjklzxcvbn';
+const KEYBOARD_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
+const keyboardDownByMidi=new Map(),keyboardUpByMidi=new Map(),keyboardCancelByMidi=new Map();
+const activeKeyboardKeys=new Map();
+
 const PIANO_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const PIANO_BLACK=new Set([1,3,6,8,10]);
 function pianoLabel(midi){return PIANO_NAMES[midi%12]+String(Math.floor(midi/12)-1);}
@@ -87,6 +94,42 @@ function updatePianoLabels(){
     for(const child of key.children)
       if(child.className==='piano-key-name')child.textContent=target;
   }
+  renderPianoKeyboardDiagram();
+}
+function renderPianoKeyboardDiagram(){
+  if(!state.song)return;
+  const host=els.keyboardDiagram;
+  const width=1010,height=297,cols=10,cell=94,gap=6,top=29,step=85;
+  const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
+    class:'keyboard-map-svg',role:'img',
+    'aria-label':'键盘弹奏：C3至C5，键位跟随调号和移调更新'});
+  const title=svg('title',{},'电脑键盘与钢琴键位对照（当前 1='+state.song.key+'，'+
+    (state.pianoTranspose?'按调号移调':'固定音高')+'）');
+  graphic.append(title);
+  ['QWERTYUIOP','ASDFGHJKL','ZXCVBN'].forEach((keys,row)=>{
+    graphic.append(svg('text',{x:12,y:top-9+row*step,
+      class:'keyboard-map-row-label'},'第 '+(row+1)+' 排'));
+    for(let col=0;col<keys.length;col++){
+      const letter=keys[col];
+      const midi=PIANO_FIRST+KEYBOARD_LAYOUT.indexOf(letter.toLowerCase());
+      const actual=pianoSoundMidi(midi),black=PIANO_BLACK.has(midi%12);
+      const x=12+col*(cell+gap),y=top+row*step;
+      const group=svg('g',{class:'keyboard-map-cell'+(black?' keyboard-map-black':' keyboard-map-white'),
+        'data-midi':midi,'data-key':letter.toLowerCase()});
+      const base=pianoLabel(midi);
+      const pitch=actual===null?'—':pianoLabel(actual);
+      const score=actual===null?'—':pianoToNotation(actual,state.song.key);
+      group.append(svg('rect',{x,y,width:cell,height:66,rx:7}));
+      group.append(svg('text',{x:x+cell/2,y:y+19,'text-anchor':'middle',
+        class:'keyboard-map-letter'},letter));
+      group.append(svg('text',{x:x+cell/2,y:y+40,'text-anchor':'middle',
+        class:'keyboard-map-pitch'},state.pianoTranspose?base+' → '+pitch:base));
+      group.append(svg('text',{x:x+cell/2,y:y+57,'text-anchor':'middle',
+        class:'keyboard-map-notation'},'简谱 '+score));
+      graphic.append(group);
+    }
+  });
+  host.replaceChildren(graphic);
 }
 async function auditionPiano(midi){
   const soundMidi=pianoSoundMidi(midi);
@@ -274,8 +317,47 @@ function buildPiano(){
       }
     });
     els.pianoKeys.append(key);
+    keyboardDownByMidi.set(midi,down);
+    keyboardUpByMidi.set(midi,up);
+    keyboardCancelByMidi.set(midi,cancel);
   }
 }
+function keyboardEventCode(ev){
+  if(typeof ev.code==='string'&&/^Key[A-Z]$/.test(ev.code))return ev.code.slice(3).toLowerCase();
+  if(typeof ev.key==='string'&&/^[a-z]$/i.test(ev.key))return ev.key.toLowerCase();
+  return null;
+}
+function isEditingTarget(target){
+  if(!target)return false;
+  const tag=String(target.tagName||target.tag||'').toLowerCase();
+  return tag==='textarea'||tag==='input'||tag==='select'||target.isContentEditable===true||
+    !!target.closest?.('[contenteditable="true"]');
+}
+function keyboardDown(ev){
+  if(!state.keyboardMode||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
+  if(isEditingTarget(ev.target||document.activeElement))return;
+  const letter=keyboardEventCode(ev),position=KEYBOARD_LAYOUT.indexOf(letter);
+  if(position<0||PIANO_FIRST+position>60||activeKeyboardKeys.has(letter))return;
+  const midi=PIANO_FIRST+position;
+  const down=keyboardDownByMidi.get(midi);
+  if(!down)return;
+  ev.preventDefault?.();
+  activeKeyboardKeys.set(letter,midi);
+  down({type:'computer-keydown',timeStamp:ev.timeStamp});
+}
+function keyboardUp(ev){
+  const letter=keyboardEventCode(ev);
+  if(!activeKeyboardKeys.has(letter))return;
+  const midi=activeKeyboardKeys.get(letter);
+  activeKeyboardKeys.delete(letter);
+  ev.preventDefault?.();
+  keyboardUpByMidi.get(midi)?.({type:'computer-keyup',timeStamp:ev.timeStamp});
+}
+function releaseComputerKeys(){
+  for(const midi of activeKeyboardKeys.values())keyboardCancelByMidi.get(midi)?.();
+  activeKeyboardKeys.clear();
+}
+
 function changeTimbre(value){
   state.timbre=normalizeTimbre(value);
   els.timbre.value=state.timbre;
@@ -689,6 +771,9 @@ function readTextFile(file) {
 }
 let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
+document.addEventListener('keydown',keyboardDown);
+document.addEventListener('keyup',keyboardUp);
+window.addEventListener('blur',releaseComputerKeys);
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 els.transcriber.addEventListener('change',()=>{
   const updated=updateTranscriber(els.source.value,els.transcriber.value);
@@ -703,6 +788,11 @@ els.pianoTranspose.addEventListener('change',()=>{
   state.pianoTranspose=els.pianoTranspose.checked;
   updatePianoLabels();
   els.pianoStatus.textContent=state.pianoTranspose?'已按 1='+state.song.key+' 移调（C → '+pianoLabel(pianoSoundMidi(60))+'）':'已恢复固定音高键盘（C → C）';
+  persist();
+});
+els.keyboardMode.addEventListener('change',()=>{
+  releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
+  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：使用 Q～N 的 25 个字母弹奏 C3～C5（M 未绑定）':'键盘模式已关闭';
   persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{

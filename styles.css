@@ -282,3 +282,25 @@ main{padding-top:23px}
 
 /* Soft-wrap only the editor display; textarea.value remains unchanged. */
 #source{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden}
+
+/* Dynamic SVG keymap: 25 semitones (C3–C5) using the first 25 QWERTY letters. */
+.piano-keyboard-mode{display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  white-space:nowrap;color:#385a51}
+.piano-keyboard-mode input{accent-color:var(--accent);margin:0}
+.keyboard-help{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.keyboard-help h3{font-size:13px;font-weight:650;color:#315d53;margin:0 0 4px}
+.keyboard-help p{margin:0 0 8px}
+.keyboard-diagram-scroll{width:100%;overflow-x:auto;scrollbar-width:thin}
+.keyboard-map-svg{display:block;width:1010px;max-width:none;height:297px;background:#f5faf7;
+  border:1px solid #dce8e1;border-radius:9px}
+.keyboard-map-row-label{font:11px sans-serif;fill:#607a70}
+.keyboard-map-cell rect{stroke:#a9bcb3;stroke-width:1}
+.keyboard-map-white rect{fill:#fff}
+.keyboard-map-black rect{fill:#293b37;stroke:#1a2825}
+.keyboard-map-cell text{pointer-events:none}
+.keyboard-map-white text{fill:#2c4840}
+.keyboard-map-black text{fill:#f3f8f5}
+.keyboard-map-letter{font:700 16px ui-monospace,monospace}
+.keyboard-map-pitch{font:11px ui-monospace,monospace}
+.keyboard-map-notation{font:12px "Microsoft YaHei",sans-serif}
+@media print{.keyboard-help{display:none!important}}
