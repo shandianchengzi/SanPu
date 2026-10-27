@@ -212,8 +212,10 @@ function buildPiano(){
       if(pressedAudition){
         const soundMidi=pianoSoundMidi(midi);
         els.pianoStatus.textContent=label+' → '+(soundMidi===null?'不可用':pianoLabel(soundMidi))+' · '+(soundMidi===null?'?':pianoToNotation(soundMidi,state.song.key))+' · 试听';
-        auditionPiano(midi);
       }
+      // A piano key always sounds on key-down; audition mode only controls
+      // whether the same gesture also writes a note to the source editor.
+      auditionPiano(midi);
     };
     const up=ev=>{
       if(pressedAt===null)return;
@@ -253,8 +255,9 @@ function buildPiano(){
     // Screen readers may generate a click without pointer/keyboard events.
     key.addEventListener('click',()=>{
       if(ignoreClick){ignoreClick=false;return;}
-      if(state.pianoAudition)auditionPiano(midi);
-      else{
+      // Click-only activation (e.g. assistive tech) also sounds when recording.
+      auditionPiano(midi);
+      if(!state.pianoAudition){
         const now=typeof performance!=='undefined'?performance.now():Date.now();
         if(state.pianoContinuous)closePianoInterval(now);
         const inserted=insertFromPiano(midi,60000/state.tempo);
@@ -619,7 +622,7 @@ function readTextFile(file) {
 let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
-els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'试听模式：按键发声，不修改源码':'录入模式：按住决定时值，松开后插入音符';persist();});
+els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';persist();});
 els.pianoTranspose.addEventListener('change',()=>{
   clearPianoSequence();
   state.pianoTranspose=els.pianoTranspose.checked;

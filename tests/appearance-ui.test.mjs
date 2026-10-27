@@ -863,3 +863,79 @@ test('new onset after idle threshold does not retroactively expand final note ev
   c.dispatch('pointerup',{type:'pointerup',timeStamp:5500});
   assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
 });
+
+test('piano sounds on key-down even with audition unchecked, and records only once on release',async()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1';
+  const {state,els,document}=boot({source,pianoAudition:false,pianoTranspose:true,pianoContinuous:false,tempo:120});
+  const frequencies=[];
+  state.audio={
+    currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){
+      return {frequency:{setValueAtTime(freq){frequencies.push(freq);}},
+        setPeriodicWave(){},connect(){},start(){},stop(){},disconnect(){}};
+    },
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  const c4=document.getElementById('piano-keys').children.find(key=>key.dataset.midi==='60');
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100,pointerId:7});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(frequencies.length,1,'key-down must trigger sound even when recording');
+  assert.ok(Math.abs(frequencies[0]-440*Math.pow(2,(62-69)/12))<1e-8,'transposed C4 sounds D4');
+  assert.equal(els.source.value,source,'ordinary recording still writes at release');
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:600,pointerId:7});
+  c4.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+  assert.equal(frequencies.length,1,'synthetic click after pointer-up must not play twice');
+});
+test('continuous piano recording also sounds immediately on each successive key-down',async()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,document}=boot({source,pianoAudition:false,pianoContinuous:true,tempo:120});
+  const frequencies=[];
+  state.audio={
+    currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){
+      return {frequency:{setValueAtTime(freq){frequencies.push(freq);}},
+        setPeriodicWave(){},connect(){},start(){},stop(){},disconnect(){}};
+    },
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  const keys=document.getElementById('piano-keys').children;
+  const c4=keys.find(k=>k.dataset.midi==='60'),e4=keys.find(k=>k.dataset.midi==='64');
+  state.cursorNoteId=0;
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(frequencies.length,1);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:150});
+  e4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(frequencies.length,2,'next key-down sounds and updates previous duration');
+  assert.ok(Math.abs(frequencies[1]-440*Math.pow(2,(64-69)/12))<1e-8);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','3']);
+  e4.dispatch('pointerup',{type:'pointerup',timeStamp:850});
+  assert.equal(state.song.notes.length,3);
+});
+test('click-only piano activation produces audio and a note in record mode',async()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,document}=boot({source,pianoAudition:false});
+  let sounds=0;
+  state.audio={
+    currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){
+      sounds++;
+      return {frequency:{setValueAtTime(){}},setPeriodicWave(){},
+        connect(){},start(){},stop(){},disconnect(){}};
+    },
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  document.getElementById('piano-keys').children.find(k=>k.dataset.midi==='60').click();
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(sounds,1);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
+});
