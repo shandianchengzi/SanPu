@@ -1,6 +1,6 @@
 import {EXAMPLE, parseSong, noteFrequency, splitLyricPunctuation} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
-import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId} from './format.mjs';
+import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
 const $ = id => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -392,6 +392,33 @@ $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));
 $('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!confirm('将当前内容替换成示例谱？当前内容可以先用「保存源码」备份。'))return;els.source.value=EXAMPLE;refresh();});
+
+// Export only the appearance settings. Song text, BPM, timbre and zoom stay local.
+$('style-export-btn').addEventListener('click',()=>{
+  const status=$('style-transfer-status');
+  try{
+    download('SanPu-谱面样式.sanpu-style.json',exportStyle(state.format),'application/json;charset=utf-8');
+    status.textContent='已导出谱面样式 JSON';
+  }catch(err){status.textContent='导出失败：'+err.message;}
+});
+$('style-import-btn').addEventListener('click',()=>$('style-file-input').click());
+$('style-file-input').addEventListener('change',async ev=>{
+  const input=ev.target,file=input.files?.[0];
+  if(!file)return;
+  const status=$('style-transfer-status');
+  try{
+    if(file.size>1024*1024)throw new Error('样式文件超过 1 MB。');
+    const content=await readTextFile(file);
+    if(content.length>1024*1024)throw new Error('样式文件超过 1 MB。');
+    const imported=importStyle(content);
+    updateAppearance(imported);
+    status.textContent='已导入谱面样式（'+Object.keys(imported).length+' 项）';
+  }catch(err){
+    status.textContent='导入失败：'+err.message;
+  }finally{
+    input.value='';
+  }
+});
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',stopAudio);
