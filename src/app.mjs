@@ -1,4 +1,4 @@
-import {EXAMPLE, parseSong, noteFrequency} from './core.mjs';
+import {EXAMPLE, parseSong, noteFrequency, splitLyricPunctuation} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId} from './format.mjs';
 
@@ -84,6 +84,7 @@ function applyAppearance(){
     '--accidental-size':f.accidentalSize+'px',
     '--lyric-size':f.lyricSize+'px','--lyric-weight':f.lyricWeight,
     '--lyric-font':FONTS[f.lyricFont],'--lyric-spacing':f.lyricLetterSpacing+'px',
+    '--punctuation-gap':f.punctuationGap+'px',
     '--bar-stroke':f.barStroke,'--rhythm-stroke':f.rhythmStroke,
     '--system-gap':f.systemGap+'px','--lyric-line-gap':f.lyricLineGap+'px',
     '--preview-padding':f.previewPadding+'px'
@@ -182,10 +183,13 @@ function estimateWidth(element,song){
   const f=state.format;
   if(element.kind==='bar')return f.barSpacing;
   const lyric=song.lyrics.get(element.id);
-  const chars=Array.from(lyric?.text||'').length;
+  const {main,prefix,suffix}=splitLyricPunctuation(lyric?.text||'');
+  const chars=Array.from(main+prefix+suffix).length;
   const dashes=(element.suffix.match(/-/g)||[]).length;
+  // Reserve room for punctuation, but keep the lyric body anchored to the note.
+  const punctSpace=(prefix||suffix)?Math.max(0,f.punctuationGap):0;
   return Math.max(noteCellWidth()+dashes*f.dashSpacing,
-    noteCellWidth()+Math.max(0,chars-1)*(f.lyricSize*.93+f.lyricLetterSpacing));
+    noteCellWidth()+Math.max(0,chars-1)*(f.lyricSize*.93+f.lyricLetterSpacing)+punctSpace);
 }
 function systems(song) {
   const lines=[];
@@ -229,6 +233,7 @@ function drawSystem(elements,song,width){
   const lyricY=Math.max(164+lift+f.lyricOffset,bottom+Math.max(8,f.lyricSize*.45));
   const height=Math.max(195+lift,Math.ceil(lyricY+Math.max(31,f.lyricSize*.95)));
   const s=svg('svg',{viewBox:`0 0 ${width} ${height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
+  const punctuationPairs=[];
   let x=SCORE.pad;
   for(const e of elements){
     if(e.kind==='bar'){
@@ -262,13 +267,46 @@ function drawSystem(elements,song,width){
       const x1=cx+f.noteSize*.58+k*f.dashSpacing;
       g.append(svg('line',{x1,x2:x1+Math.min(19,f.dashSpacing-9),y1:noteY-11,y2:noteY-11,class:'rhythm'}));
     }
-    if(lyr?.text)g.append(svg('text',{x:cx,y:lyricY,'text-anchor':'middle',class:'lyrics-text'},lyr.text));
+    if(lyr?.text){
+      const {main,prefix,suffix}=splitLyricPunctuation(lyr.text);
+      const body=svg('text',{x:cx,y:lyricY,'text-anchor':'middle',class:'lyrics-text'},main);
+      g.append(body);
+      if(prefix||suffix){
+        const before=prefix?svg('text',{x:cx,y:lyricY,'text-anchor':'end',class:'lyrics-text lyric-punctuation'},prefix):null;
+        const after=suffix?svg('text',{x:cx,y:lyricY,'text-anchor':'start',class:'lyrics-text lyric-punctuation'},suffix):null;
+        if(before)g.append(before);
+        if(after)g.append(after);
+        punctuationPairs.push({body,before,after,cx,main});
+      }
+    }
     g.addEventListener('click',()=>playFrom(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();playFrom(n.id);}});
     s.append(g);
     x+=w;
   }
+  s.punctuationPairs=punctuationPairs;
   return s;
+}
+// Once a line is in the DOM, use the browser's actual text width (rather than a
+// fixed CJK character estimate) so punctuation sits to the right of the body
+// without shifting its existing text-anchor under the note.
+function positionPunctuation(line){
+  for(const {body,before,after,cx,main} of line.punctuationPairs){
+    const letters=Array.from(main);
+    const fallback=letters.reduce((n,char)=>n+state.format.lyricSize*
+      (/[^\\u0000-\\u007f]/.test(char)?1:.57),0)
+      +Math.max(0,letters.length-1)*state.format.lyricLetterSpacing;
+    let width=fallback;
+    if(typeof body.getComputedTextLength==='function'){
+      try{
+        const measured=body.getComputedTextLength();
+        if(Number.isFinite(measured)&&measured>0)width=measured;
+      }catch{/* Detached or unsupported SVG: keep fallback. */}
+    }
+    const gap=state.format.punctuationGap;
+    if(before)before.setAttribute('x',String(cx-width/2-gap));
+    if(after)after.setAttribute('x',String(cx+width/2+gap));
+  }
 }
 function render() {
   applyAppearance();
@@ -287,7 +325,11 @@ function render() {
   const lines=systems(song);
   const width=Math.max(state.format.minLineWidth,...lines.map(line=>lineWidth(line,song)));
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
-  for(const line of lines)els.score.append(drawSystem(line,song,width));
+  for(const line of lines){
+    const system=drawSystem(line,song,width);
+    els.score.append(system);
+    positionPunctuation(system);
+  }
   els.warnings.replaceChildren();
   const msgs=[...new Set(song.warnings)];
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
