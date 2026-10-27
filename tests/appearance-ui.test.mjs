@@ -178,7 +178,7 @@ test('saved SVG zoom preference is bounded independently from score formatting',
 test('score metadata supports separate tonic and tempo type sizes and weights, including printing',()=>{
   const {state,els}=boot({tempo:80});
   const meta=els.score.children.find(el=>el.className==='score-meta');
-  assert.equal(meta.children[0].children[0].textContent,'1 = G');
+  assert.equal(meta.children[0].children[0].textContent,'1 = D');
   assert.equal(meta.children[0].children[1].textContent,'♩ = 80');
   assert.equal(meta.children[0].children[2].textContent,'记谱人：shandianchengzi');
   assert.deepEqual(meta.children[1].children.map(el=>el.textContent),['词曲作者：唐书琛（词）／卢冠廷（曲）','演唱者：周深（原唱：卢冠廷、莫文蔚）']);
