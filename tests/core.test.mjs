@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation} from '../src/core.mjs';
+import {EXAMPLE,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -62,4 +62,41 @@ test('lyric punctuation can be detached without modifying raw text or note align
   assert.deepEqual(song.notes.map(n=>song.lyrics.get(n.id)?.text),['天，','海。','你','好！']);
   assert.equal(song.notes.length,4);
   assert.equal(song.warnings.length,0);
+});
+
+test('ABC-style y spacer only changes score layout, not note timing or lyric alignment',()=>{
+  const source='.Title\nTitle = 对齐\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 | 3 4 $(true)\n1 y65 | 3 4\n.Words\nW1@1,1:\n天地玄黄宇宙洪';
+  const song=parseSong(source);
+  assert.equal(song.raw,source);
+  assert.equal(song.notes.length,7);
+  assert.deepEqual(song.notes.map(n=>n.beats),Array(7).fill(1));
+  assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),[65]);
+  assert.deepEqual(song.elements.filter(e=>e.kind==='bar').map(e=>e.measure),[1,2]);
+  assert.equal(song.elements.filter(e=>e.kind==='spacer')[0].measure,3);
+  assert.deepEqual(song.notes.filter(n=>n.row===1).map(n=>n.noteIndex),[1,1,2]);
+  assert.deepEqual(song.notes.map(n=>song.lyrics.get(n.id)?.text),Array.from('天地玄黄宇宙洪'));
+  assert.equal([...song.measures.values()].reduce((sum,n)=>sum+n,0),7);
+  assert.equal(song.warnings.length,0);
+});
+test('default, repeated, zero-width, and bounded explicit spacing never creates notes',()=>{
+  const src='.Voice\n1 y 2 yy 3 y0 | y40 y5000 4';
+  const song=parseSong(src);
+  assert.equal(DEFAULT_SPACER_WIDTH,20);
+  assert.equal(MAX_SPACER_WIDTH,2000);
+  assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),
+    [20,20,20,0,40,2000]);
+  assert.deepEqual(song.notes.map(n=>n.degree),[1,2,3,4]);
+  assert.equal(song.notes.length,4);
+  assert.equal(song.notes[3].measure,2);
+  assert.deepEqual([...song.measures.values()],[3,1]);
+  assert.equal(song.warnings.length,1);
+  assert.match(song.warnings[0],/限制为 2000/);
+});
+test('ordinary whitespace remains source formatting and does not insert visible score space',()=>{
+  const first=parseSong('.Voice\n1 2 | 3');
+  const second=parseSong('.Voice\n1       2      |    3');
+  assert.deepEqual(first.notes.map(n=>n.raw),second.notes.map(n=>n.raw));
+  assert.equal(first.elements.length,second.elements.length);
+  assert.equal(first.elements.filter(e=>e.kind==='spacer').length,0);
+  assert.equal(second.elements.filter(e=>e.kind==='spacer').length,0);
 });
