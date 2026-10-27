@@ -182,6 +182,7 @@ function noteCellWidth(){
 function estimateWidth(element,song){
   const f=state.format;
   if(element.kind==='bar')return f.barSpacing;
+  if(element.kind==='spacer')return element.width;
   const lyric=song.lyrics.get(element.id);
   const {main,prefix,suffix}=splitLyricPunctuation(lyric?.text||'');
   const chars=Array.from(main+prefix+suffix).length;
@@ -236,6 +237,11 @@ function drawSystem(elements,song,width){
   const punctuationPairs=[];
   let x=SCORE.pad;
   for(const e of elements){
+    if(e.kind==='spacer'){
+      // Layout-only width: no SVG mark, no note, no lyric or playback event.
+      x+=e.width;
+      continue;
+    }
     if(e.kind==='bar'){
       const barX=x+9;
       s.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
@@ -392,6 +398,15 @@ $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));
 $('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!confirm('将当前内容替换成示例谱？当前内容可以先用「保存源码」备份。'))return;els.source.value=EXAMPLE;refresh();});
+$('insert-spacer-btn').addEventListener('click',()=>{
+  const source=els.source;
+  const start=source.selectionStart??source.value.length;
+  const end=source.selectionEnd??start;
+  // Explicit spaces delimit y40 from adjacent notes; the layout comes from y40.
+  source.setRangeText(' y40 ',start,end,'end');
+  source.focus();
+  refresh();
+});
 
 // Export only the appearance settings. Song text, BPM, timbre and zoom stay local.
 $('style-export-btn').addEventListener('click',()=>{
