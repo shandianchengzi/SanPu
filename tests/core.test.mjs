@@ -16,8 +16,8 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.key,'G');
   assert.equal(song.meter,'3/4');
   assert.equal(song.transcriber,'shandianchengzi');
-  assert.equal(song.composer,'');
-  assert.equal(song.singer,'');
+  assert.equal(song.composer,'唐书琛（词）／卢冠廷（曲）');
+  assert.equal(song.singer,'周深（原唱：卢冠廷、莫文蔚）');
   assert.equal(song.notes.length,91);
   assert.equal(song.elements.filter(e=>e.kind==='bar').length,21);
   assert.equal(song.elements.filter(e=>e.kind==='break').length,5);
