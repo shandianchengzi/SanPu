@@ -13,7 +13,7 @@ const els = {
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,pianoTranspose:false,pianoContinuous:false,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',pianoAudition:true,pianoTranspose:true,pianoContinuous:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
   try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous}));message('已自动保存在本机'); }
@@ -29,9 +29,9 @@ function load() {
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
   state.pianoAudition=settings?.pianoAudition!==false;
   els.pianoAudition.checked=state.pianoAudition;
-  state.pianoTranspose=settings?.pianoTranspose===true;
+  state.pianoTranspose=settings?.pianoTranspose!==false;
   els.pianoTranspose.checked=state.pianoTranspose;
-  state.pianoContinuous=settings?.pianoContinuous===true;
+  state.pianoContinuous=settings?.pianoContinuous!==false;
   els.pianoContinuous.checked=state.pianoContinuous;
   els.tempo.value=String(state.tempo);
   els.tempoValue.value=String(state.tempo);
@@ -318,6 +318,7 @@ function applyAppearance(){
     '--accidental-size':f.accidentalSize+'px',
     '--accidental-gap':f.accidentalGap+'px',
     '--duration-dot-gap':f.durationDotGap+'px',
+    '--dash-note-gap':f.dashNoteGap+'px',
     '--lyric-size':f.lyricSize+'px','--lyric-weight':f.lyricWeight,
     '--lyric-font':FONTS[f.lyricFont],'--lyric-spacing':f.lyricLetterSpacing+'px',
     '--punctuation-gap':f.punctuationGap+'px',
@@ -428,9 +429,10 @@ function estimateWidth(element,song){
   // tighten spacing, including overlaps.
   const accidentalInset=element.accidental?Math.max(0,f.accidentalGap):0;
   const dotInset=element.suffix.includes('.')?Math.max(0,f.durationDotGap):0;
+  const dashInset=dashes?Math.max(0,f.dashNoteGap):0;
   // Reserve room for punctuation, but keep the lyric body anchored to the note.
   const punctSpace=(prefix||suffix)?Math.max(0,f.punctuationGap):0;
-  return accidentalInset+dotInset+Math.max(noteCellWidth()+dashes*f.dashSpacing,
+  return accidentalInset+dotInset+dashInset+Math.max(noteCellWidth()+dashes*f.dashSpacing,
     noteCellWidth()+Math.max(0,chars-1)*(f.lyricSize*.93+f.lyricLetterSpacing)+punctSpace);
 }
 function systems(song) {
@@ -518,7 +520,7 @@ function drawSystem(elements,song,width){
       g.append(svg('circle',{cx:cx+f.noteSize*.63+f.durationDotGap+k*11,cy:noteY-8,r:Math.min(4,f.octaveDotSize),class:'octave duration-dot'}));
     const dashes=(n.suffix.match(/-/g)||[]).length;
     for(let k=0;k<dashes;k++){
-      const x1=cx+f.noteSize*.58+k*f.dashSpacing;
+      const x1=cx+f.noteSize*.58+f.dashNoteGap+k*f.dashSpacing;
       g.append(svg('line',{x1,x2:x1+Math.min(19,f.dashSpacing-9),y1:noteY-11,y2:noteY-11,class:'rhythm'}));
     }
     if(lyr?.text){

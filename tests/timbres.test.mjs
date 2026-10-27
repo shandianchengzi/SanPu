@@ -38,14 +38,14 @@ function fakeAudio(){
   return {audio,oscillators,gains,waves};
 }
 
-test('timbres are distinct, offline, and unknown preferences fall back to original sine',()=>{
+test('timbres are distinct, offline, and unknown preferences fall back to default piano',()=>{
   assert.equal(new Set(TIMBRES.map(t=>t.id)).size,TIMBRES.length);
   assert.equal(TIMBRES.length,7);
-  assert.equal(normalizeTimbre(undefined),'sine');
+  assert.equal(normalizeTimbre(undefined),'piano');
   assert.equal(normalizeTimbre('sine'),'sine');
   assert.equal(normalizeTimbre('piano'),'piano');
   assert.equal(normalizeTimbre('strings'),'strings');
-  assert.equal(normalizeTimbre('__proto__'),'sine');
+  assert.equal(normalizeTimbre('__proto__'),'piano');
 });
 
 test('different presets create different waveforms with bounded gain envelopes',()=>{

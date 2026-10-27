@@ -279,3 +279,6 @@ main{padding-top:23px}
 .mp3-status{font-size:11px;color:#476b62;margin:2px 0 8px;line-height:1.5}
 .mp3-status:empty{display:none}
 @media print{.mp3-status{display:none!important}}
+
+/* Soft-wrap only the editor display; textarea.value remains unchanged. */
+#source{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden}

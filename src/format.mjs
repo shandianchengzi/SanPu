@@ -48,6 +48,7 @@ export const FORMAT_GROUPS = [
     fields:[
       {key:'noteSpacing',label:'音符横向疏密',min:-35,max:100,step:1,unit:'px',default:0},
       {key:'dashSpacing',label:'延长线间距',min:22,max:65,step:1,unit:'px',default:29},
+      {key:'dashNoteGap',label:'延长线与音符间距微调',min:-25,max:70,step:1,unit:'px',default:0},
       {key:'barSpacing',label:'小节线占用宽度',min:16,max:90,step:1,unit:'px',default:24},
       {key:'systemGap',label:'谱行之间的间距',min:-100,max:120,step:1,unit:'px',default:-5},
       {key:'lyricLineGap',label:'相邻两行歌词间距微调',min:-160,max:160,step:1,unit:'px',default:0},

@@ -217,3 +217,15 @@ test('transcriber and author credit styles are bounded, independent and portable
   assert.deepEqual(importStyle(exportStyle(cfg)),cfg);
   assert.equal(normalizeFormat({transcriberFont:'invalid'}).transcriberFont,'sans');
 });
+
+test('extension dash offset is an independent signed and portable style',()=>{
+  const field=FORMAT_FIELDS.find(f=>f.key==='dashNoteGap');
+  assert.equal(field.min,-25);
+  assert.equal(field.max,70);
+  assert.equal(DEFAULT_FORMAT.dashNoteGap,0);
+  assert.equal(normalizeFormat({dashNoteGap:18,dashSpacing:42}).dashNoteGap,18);
+  assert.equal(normalizeFormat({dashNoteGap:-500}).dashNoteGap,-25);
+  assert.equal(normalizeFormat({dashNoteGap:1000}).dashNoteGap,70);
+  const format=normalizeFormat({dashNoteGap:24,dashSpacing:38});
+  assert.deepEqual(importStyle(exportStyle(format)),format);
+});

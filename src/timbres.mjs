@@ -12,7 +12,7 @@ export const TIMBRES=Object.freeze([
 const byId=new Map(TIMBRES.map(t=>[t.id,t]));
 const waves=new WeakMap();
 export function normalizeTimbre(value){
-  return typeof value==='string' && byId.has(value)?value:'sine';
+  return typeof value==='string' && byId.has(value)?value:'piano';
 }
 function getWave(audio,timbre){
   let cache=waves.get(audio);

@@ -86,7 +86,7 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,73);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,75);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[0].children[1].textContent,'♩ = 72');
@@ -305,7 +305,7 @@ test('negative note and lyric offsets change actual SVG coordinates',()=>{
 
 test('timbre selector offers all offline instruments, saves and restores the choice',()=>{
   const {state,els,localStorage}=boot();
-  assert.equal(state.timbre,'sine');
+  assert.equal(state.timbre,'piano');
   assert.equal(els.timbre.children.length,7);
   assert.deepEqual(els.timbre.children.map(option=>option.value),
     ['sine','piano','guitar','flute','strings','organ','chip']);
@@ -321,7 +321,7 @@ test('timbre selector offers all offline instruments, saves and restores the cho
   assert.equal(restored.state.tempo,90);
   assert.equal(restored.state.format.lyricLineGap,-21);
   restored.els.timbre.dispatch('change',{target:{value:'invalid-instrument'}});
-  assert.equal(restored.state.timbre,'sine','unsupported preset falls back to original sine');
+  assert.equal(restored.state.timbre,'piano','unsupported preset falls back to default piano');
 });
 
 test('PDF print stylesheet removes the whole playback and timbre toolbar',()=>{
@@ -688,7 +688,7 @@ test('example library initializes with the provided score, preserving previously
 });
 
 test('piano keyboard and saved audition mode',()=>{
-  const {document,state,els,localStorage}=boot();
+  const {document,state,els,localStorage}=boot({pianoTranspose:false});
   const keys=document.getElementById('piano-keys').children;
   assert.equal(keys.length,36);
   assert.equal(keys[0].attrs.title,'C3 · 4,,');
@@ -704,7 +704,7 @@ test('piano keyboard and saved audition mode',()=>{
 });
 test('piano inserts after selected note and subsequent notes, with duration',()=>{
   const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 2 | 3\n.Words\nW1@1,1:\n天地玄';
-  const {state,els,document,localStorage}=boot({source,pianoAudition:false});
+  const {state,els,document,localStorage}=boot({source,pianoAudition:false,pianoTranspose:false,pianoContinuous:false});
   const keys=document.getElementById('piano-keys').children;
   const d4=keys.find(k=>k.dataset.midi==='62');
   const e4=keys.find(k=>k.dataset.midi==='64');
@@ -724,7 +724,7 @@ test('piano inserts after selected note and subsequent notes, with duration',()=
 
 test('keyboard activation inserts exactly once at keyup and respects pressed duration',()=>{
   const src='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
-  const {state,document}=boot({source:src,pianoAudition:false});
+  const {state,document}=boot({source:src,pianoAudition:false,pianoTranspose:false,pianoContinuous:false});
   const key=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
   let suppressed=0;
   key.dispatch('keydown',{type:'keydown',key:'Enter',timeStamp:100,preventDefault(){suppressed++;}});
@@ -737,11 +737,11 @@ test('keyboard activation inserts exactly once at keyup and respects pressed dur
 
 test('key-signature transposition checkbox retunes note entry and labels without touching source',()=>{
   const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1';
-  const {els,document,state,localStorage}=boot({source,pianoAudition:false});
+  const {els,document,state,localStorage}=boot({source,pianoAudition:false,pianoTranspose:false,pianoContinuous:false});
   const transpose=document.getElementById('piano-transpose');
   const keyboard=document.getElementById('piano-keys').children;
   const c4=keyboard.find(x=>x.dataset.midi==='60');
-  assert.equal(transpose.checked,false,'existing users keep untransposed keyboard');
+  assert.equal(transpose.checked,false,'explicitly saved false preserves untransposed keyboard');
   assert.equal(state.pianoTranspose,false);
   assert.equal(c4.attrs.title,'C4 · b7,');
   transpose.checked=true;transpose.dispatch('change');
@@ -837,7 +837,7 @@ test('continuous mode ignored during audition and preference transitions stop pe
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
   const {state,els,document,localStorage}=boot({source,pianoContinuous:false,pianoAudition:false,tempo:100});
   const mode=document.getElementById('piano-continuous');
-  assert.equal(mode.checked,false,'new feature is opt-in');
+  assert.equal(mode.checked,false,'explicitly saved false keeps this feature off');
   mode.checked=true;mode.dispatch('change');
   assert.equal(state.pianoContinuous,true);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoContinuous,true);
@@ -928,7 +928,7 @@ test('continuous piano recording also sounds immediately on each successive key-
 });
 test('click-only piano activation produces audio and a note in record mode',async()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
-  const {state,document}=boot({source,pianoAudition:false});
+  const {state,document}=boot({source,pianoAudition:false,pianoTranspose:false,pianoContinuous:false});
   let sounds=0;
   state.audio={
     currentTime:0,destination:{},resume:async()=>{},
@@ -1144,4 +1144,54 @@ test('MP3 button reports missing offline renderer gracefully without changing so
   assert.match(status.textContent,/不支持离线音频渲染/);
   assert.equal(els.source.value,source);
   assert.equal(state.playing,false);
+});
+
+test('fresh editor defaults to all checked piano options and synthesized piano',()=>{
+  const {state,els,document}=boot();
+  for(const [id,key] of [['piano-audition','pianoAudition'],
+    ['piano-transpose','pianoTranspose'],['piano-continuous','pianoContinuous']]){
+    assert.equal(state[key],true,id);
+    assert.equal(document.getElementById(id).checked,true,id);
+    assert.match(read('index.html'),new RegExp('id="'+id+'"[^>]*checked'));
+  }
+  assert.equal(state.timbre,'piano');
+  assert.equal(els.timbre.value,'piano');
+  const saved=boot({source:'.Voice\n1',pianoAudition:false,
+    pianoTranspose:false,pianoContinuous:false,timbre:'sine'});
+  for(const key of ['pianoAudition','pianoTranspose','pianoContinuous'])
+    assert.equal(saved.state[key],false,key+' persists');
+  assert.equal(saved.state.timbre,'sine');
+});
+
+test('raw input wraps display without altering source newlines or recording content',()=>{
+  const original='.Voice\n'+'1_ y40 '.repeat(120)+'\n.Words\n今/天';
+  const {state,els}=boot({source:original});
+  assert.equal(els.source.value,original);
+  assert.equal(state.song.raw,original);
+  assert.match(read('index.html'),/<textarea id="source" wrap="soft"/);
+  const css=read('styles.css');
+  assert.match(css,/#source\{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden\}/);
+  assert.equal(els.source.value.split('\n').length,4);
+});
+
+test('extension dash distance adjusts only the dash start, supports signed values and persists',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n3-- 4 5-';
+  const {state,els,localStorage}=boot({source});
+  const notes=()=>scoreLine(els).children.filter(x=>x.className==='note-click');
+  const numeral=group=>Number(group.children.find(x=>x.className==='note-num').attrs.x);
+  const firstLine=group=>group.children.find(x=>x.tag==='line'&&x.className==='rhythm'&&x.attrs.x1!==undefined);
+  const base=Number(firstLine(notes()[0]).attrs.x1)-numeral(notes()[0]);
+  assert.equal(state.format.dashNoteGap,0);
+  assert.equal(field(els,'dashNoteGap').min,'-25');
+  const slider=field(els,'dashNoteGap');
+  slider.value='25';slider.dispatch('input');
+  assert.equal(Number(firstLine(notes()[0]).attrs.x1)-numeral(notes()[0]),base+25);
+  assert.equal(Number(firstLine(notes()[2]).attrs.x1)-numeral(notes()[2]),base+25);
+  assert.equal(notes()[1].children.filter(x=>x.tag==='line').length,0);
+  assert.equal(state.format.dashNoteGap,25);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.dashNoteGap,25);
+  const numeric=field(els,'dashNoteGap','-value');numeric.value='-12';numeric.dispatch('change');
+  assert.equal(Number(firstLine(notes()[0]).attrs.x1)-numeral(notes()[0]),base-12);
+  assert.equal(state.format.dashNoteGap,-12);
+  assert.equal(els.source.value,source);
 });

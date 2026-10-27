@@ -37,6 +37,7 @@
     "barStroke": 2.9,
     "noteSpacing": 0,
     "dashSpacing": 29,
+    "dashNoteGap": 0,
     "barSpacing": 24,
     "systemGap": -5,
     "lyricLineGap": 0,
