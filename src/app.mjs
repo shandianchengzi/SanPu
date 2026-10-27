@@ -143,7 +143,7 @@ function renderPianoKeyboardDiagram(){
       const w=units*unit-gap;
       const position=KEYBOARD_LAYOUT.indexOf(key);
       const mapped=position>=0;
-      const command=key==='`'||key==='Enter'||key==='Space';
+      const command=key==='`'||key==='Enter'||key==='Space'||key==='Backspace';
       const midi=mapped?PIANO_FIRST+position:null;
       const black=mapped&&PIANO_BLACK.has(midi%12);
       const group=svg('g',{class:mapped?
@@ -168,8 +168,8 @@ function renderPianoKeyboardDiagram(){
         const pianoKey=Array.from(els.pianoKeys.children).find(k=>Number(k.dataset.midi)===midi);
         group.classList.toggle('is-pressed',pianoKey?.classList.contains('is-pressed')===true);
       }else if(command){
-        const display=key==='`'?'·':key==='Enter'?'Enter ↵':'Space';
-        const notation=key==='`'?'休止符 0':key==='Enter'?'换行 $(true)':'小节线 |';
+        const display=key==='`'?'·':key==='Enter'?'Enter ↵':key==='Backspace'?'⌫':'Space';
+        const notation=key==='`'?'休止符 0':key==='Enter'?'换行 $(true)':key==='Backspace'?'删除':'小节线 |';
         group.append(svg('text',{x:x+w/2,y:y+27,'text-anchor':'middle',
           class:'keyboard-map-command-letter'},display));
         group.append(svg('text',{x:x+w/2,y:y+48,'text-anchor':'middle',
@@ -184,7 +184,7 @@ function renderPianoKeyboardDiagram(){
     }
   }
   graphic.append(svg('text',{x:pad,y:height-13,class:'keyboard-map-caption'},
-    '空格划小节 · 回车换行 · 左上角 · 键输入按时值计量的休止符 0；其余灰色键未绑定。'));
+    '退格删除选中对象 · 空格划小节 · 回车换行 · 左上角 · 记休止符 0。'));
   host.replaceChildren(graphic);
 }
 function highlightKeyboardMap(midi,pressed){
@@ -389,6 +389,7 @@ function buildPiano(){
   }
 }
 function keyboardEventCode(ev){
+  if(ev.code==='Backspace'||ev.key==='Backspace')return 'Backspace';
   if(ev.code==='Space'||ev.key===' ')return 'Space';
   if(ev.code==='Enter'||ev.code==='NumpadEnter'||ev.key==='Enter')return 'Enter';
   if(ev.code==='Backquote'||['·','`','~'].includes(ev.key))return '`';
@@ -472,10 +473,33 @@ function cancelRestPress(){
   restPress=null;
   highlightKeyboardSpecial('`',false);
 }
+function deleteSelectedScoreItem(){
+  const items=voiceEditItems(els.source.value);
+  const selected=state.selectedItem&&items.find(e=>
+    e.kind===state.selectedItem.kind&&e.index===state.selectedItem.index);
+  const caret=els.source.selectionStart;
+  const target=selected??items.filter(e=>!Number.isInteger(caret)||e.to<=caret).at(-1)??items.at(-1);
+  if(!target)return;
+  const changed=deleteVoiceItem(els.source.value,target.kind,target.index);
+  if(!changed)return;
+  clearPianoSequence();stopAudio();
+  els.source.value=changed.source;
+  els.source.selectionStart=els.source.selectionEnd=changed.caret;
+  state.song=parseSong(changed.source);
+  state.selectedItem=changed.previous;
+  const previousNote=voiceEditItems(changed.source).filter(e=>e.kind==='note'&&e.to<=changed.caret).at(-1);
+  state.cursorNoteId=previousNote?.index??-1;
+  render();
+  els.pianoStatus.textContent='已删除'+(target.kind==='note'?'音符':target.kind==='bar'?'小节线':'换行标记');
+  persist();
+}
 function keyboardDown(ev){
   if(!state.keyboardMode||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
+  if(key==='Backspace'){
+    ev.preventDefault?.();deleteSelectedScoreItem();highlightKeyboardSpecial('Backspace',true);return;
+  }
   if(key==='Space'||key==='Enter'){
     ev.preventDefault?.();
     // A layout token has no duration; the previous interval still ends
@@ -501,6 +525,9 @@ function keyboardDown(ev){
 }
 function keyboardUp(ev){
   const key=keyboardEventCode(ev);
+  if(key==='Backspace'){
+    if(state.keyboardMode){ev.preventDefault?.();highlightKeyboardSpecial('Backspace',false);}return;
+  }
   if(key==='Space'||key==='Enter'){
     if(state.keyboardMode){ev.preventDefault?.();highlightKeyboardSpecial(key,false);}
     return;
@@ -521,6 +548,7 @@ function releaseComputerKeys(){
   cancelRestPress();
   highlightKeyboardSpecial('Space',false);
   highlightKeyboardSpecial('Enter',false);
+  highlightKeyboardSpecial('Backspace',false);
 }
 
 function changeTimbre(value){
