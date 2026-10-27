@@ -294,7 +294,7 @@ function positionPunctuation(line){
   for(const {body,before,after,cx,main} of line.punctuationPairs){
     const letters=Array.from(main);
     const fallback=letters.reduce((n,char)=>n+state.format.lyricSize*
-      (/[^\\u0000-\\u007f]/.test(char)?1:.57),0)
+      (char.codePointAt(0)>127?1:.57),0)
       +Math.max(0,letters.length-1)*state.format.lyricLetterSpacing;
     let width=fallback;
     if(typeof body.getComputedTextLength==='function'){
