@@ -305,3 +305,49 @@ test('PDF print stylesheet removes the whole playback and timbre toolbar',()=>{
   assert.match(html,/id="timbre"/);
   assert.match(css,/@media print\s*\{\s*\.preview-toolbar\{display:none!important\}/);
 });
+
+test('changing timbre during playback resumes at the same timeline position',async()=>{
+  const {state,els}=boot();
+  const oscillators=[];
+  const audio={
+    currentTime:0,
+    destination:{},
+    resume:async()=>{},
+    createPeriodicWave(real,imag){return {real,imag}},
+    createOscillator(){
+      const osc={
+        frequency:{setValueAtTime(){}},setPeriodicWave(w){osc.wave=w},
+        connect(){},start(){},stop(){osc.stopped=true},
+        disconnect(){osc.disconnected=true}
+      };
+      oscillators.push(osc);return osc;
+    },
+    createGain(){
+      return {
+        gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},
+        connect(){},disconnect(){}
+      };
+    }
+  };
+  state.audio=audio;
+  els.play.dispatch('click');
+  await Promise.resolve();
+  assert.equal(state.playing,true);
+  assert.ok(state.nodes.length>0);
+  const initial=state.nodes.map(voice=>voice.oscillator);
+  const before=state.song.notes.map(note=>note.beats);
+  const position=state.schedule[2].start+.03;
+  audio.currentTime=position;
+  els.timbre.dispatch('change',{target:{value:'strings'}});
+  await Promise.resolve();
+  assert.equal(state.playing,true);
+  assert.equal(state.timbre,'strings');
+  assert.ok(Math.abs(state.position-position)<.001);
+  assert.deepEqual(state.song.notes.map(note=>note.beats),before);
+  assert.ok(initial.every(osc=>osc.disconnected));
+  assert.ok(state.nodes.length>0);
+  assert.ok(state.nodes.every(voice=>voice.oscillator.wave),'new voices use selected partials');
+  els.stop.dispatch('click');
+  assert.equal(state.playing,false);
+  assert.equal(state.nodes.length,0);
+});
