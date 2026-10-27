@@ -336,5 +336,5 @@ test('batch shift rejects invalid numbers and out-of-range notes atomically',()=
   assert.throws(()=>transposeSongSemitones('.Voice\n y15',2),/没有可移调/);
   assert.equal(original.includes('1 2 3'),true,'input source must remain intact');
   const flat=transposeSongSemitones('.Voice\nb3 #4 7,',-1);
-  assert.deepEqual(parseSong(flat.source).notes.map(n=>n.raw),['2','#4','b7,']);
+  assert.deepEqual(parseSong(flat.source).notes.map(n=>n.raw),['2','4','b7,']);
 });
