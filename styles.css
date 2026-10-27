@@ -164,3 +164,13 @@ main{padding-top:23px}
   .score-page .score-tempo{font-size:var(--tempo-size,26px)!important;font-weight:var(--tempo-weight,500)!important}
   .score-page .score-meta{font-weight:var(--meta-weight,400)!important}
 }
+
+/* Compact offline audio timbre control in the existing playback toolbar. */
+.timbre-picker{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:#476b62}
+.timbre-picker select{min-width:126px;max-width:176px;border:1px solid #cbdad3;border-radius:8px;background:#fff;color:var(--ink);padding:7px 8px;font:inherit;font-size:12px;cursor:pointer}
+.timbre-picker select:focus-visible{outline:2px solid #8fc6b3;outline-offset:2px}
+@media(max-width:640px){.timbre-picker select{min-width:104px;max-width:155px}}
+/* Playback is part of the editor UI, never part of the exported score. */
+@media print{
+  .preview-toolbar{display:none!important}
+}
