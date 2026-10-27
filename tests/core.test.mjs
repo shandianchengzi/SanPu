@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,parseSong,durationFromSuffix,noteFrequency,beatReport} from '../src/core.mjs';
+import {EXAMPLE,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -46,4 +46,20 @@ test('time signature is advisory, no notes are quantized',()=>{
   assert.equal(report[1].beats,5.5);
   assert.equal(report[1].unequal,true);
   assert.equal(noteFrequency(s.notes[0],'C'),noteFrequency(s.notes[0],'C'));
+});
+
+test('lyric punctuation can be detached without modifying raw text or note alignment',()=>{
+  assert.deepEqual(splitLyricPunctuation('天，'),{main:'天',prefix:'',suffix:'，'});
+  assert.deepEqual(splitLyricPunctuation('海？！'),{main:'海',prefix:'',suffix:'？！'});
+  assert.deepEqual(splitLyricPunctuation('你好。'),{main:'你好',prefix:'',suffix:'。'});
+  assert.deepEqual(splitLyricPunctuation('“爱”'),{main:'爱',prefix:'“',suffix:'”'});
+  assert.deepEqual(splitLyricPunctuation('Hello!'),{main:'Hello',prefix:'',suffix:'!'});
+  assert.deepEqual(splitLyricPunctuation('……'),{main:'……',prefix:'',suffix:''});
+  assert.deepEqual(splitLyricPunctuation(''),{main:'',prefix:'',suffix:''});
+  const source='.Voice\n1 2 3 4\n.Words\nW1@1,1:\n天，海。你好！';
+  const song=parseSong(source);
+  assert.equal(song.raw,source);
+  assert.deepEqual(song.notes.map(n=>song.lyrics.get(n.id)?.text),['天，','海。','你','好！']);
+  assert.equal(song.notes.length,4);
+  assert.equal(song.warnings.length,0);
 });
