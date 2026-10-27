@@ -14,6 +14,10 @@ class FakeElement {
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value)}
   focus(){this.focused=true}
+  setRangeText(text,start,end){
+    this.value=this.value.slice(0,start)+text+this.value.slice(end);
+    this.selectionStart=this.selectionEnd=start+text.length;
+  }
   click(){this.clicked=true;return this.dispatch('click')}
   remove(){this.removed=true}
   append(...children){this.children.push(...children)}
@@ -35,7 +39,7 @@ function boot(saved){
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
-    'style-export-btn','style-import-btn','style-file-input','style-transfer-status']){
+    'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -609,4 +613,45 @@ test('style file controls are in the existing collapsible appearance panel',()=>
   const status=html.indexOf('id="style-transfer-status"');
   assert.ok(start>=0&&actions>start&&upload>actions&&status>upload);
   assert.match(html,/id="style-file-input" hidden accept="\.json,application\/json"/);
+});
+
+test('layout-only y spacers align barlines across SVG rows without touching notes or PDF',()=>{
+  const plain='.Title\nTitle = 空位测试\n.Voice\n1 2 | 3 4 $(true)\n1 | 3 4\n.Words\nW1@1,1:\n天地玄黄宇宙洪';
+  const spaced=plain.replace('1 | 3 4','1 y65 | 3 4');
+  const noGap=boot({source:plain});
+  const withGap=boot({source:spaced});
+  const lines=app=>app.els.score.children.filter(el=>el.className==='score-line');
+  const firstBar=el=>Number(el.children.find(x=>x.className==='bar').attrs.x1);
+  assert.equal(lines(noGap).length,2);
+  assert.equal(lines(withGap).length,2);
+  assert.equal(lines(withGap)[0].attrs.viewBox,lines(withGap)[1].attrs.viewBox);
+  assert.ok(firstBar(lines(noGap)[1])<firstBar(lines(noGap)[0]));
+  assert.equal(firstBar(lines(withGap)[0]),firstBar(lines(withGap)[1]));
+  assert.equal(withGap.state.song.notes.length,noGap.state.song.notes.length);
+  assert.deepEqual(withGap.state.song.notes.map(n=>n.beats),noGap.state.song.notes.map(n=>n.beats));
+  assert.deepEqual(withGap.state.song.notes.map(n=>withGap.state.song.lyrics.get(n.id)?.text),
+    noGap.state.song.notes.map(n=>noGap.state.song.lyrics.get(n.id)?.text));
+  assert.equal(lines(withGap)[1].children.filter(el=>el.className==='note-click').length,3);
+  assert.equal(lines(noGap)[1].children.filter(el=>el.className==='note-click').length,3);
+  assert.equal(withGap.state.song.warnings.length,0);
+  const pdf=read('styles.css');
+  assert.match(pdf,/@media print\{\.score-page \.score-line\{width:100%!important/);
+});
+
+test('insert layout gap button places y40 at source caret and saves original text',()=>{
+  const source='.Voice\n1 | 2';
+  const {state,els,document,localStorage}=boot({source});
+  const at=els.source.value.indexOf('|');
+  els.source.selectionStart=at;
+  els.source.selectionEnd=at;
+  document.getElementById('insert-spacer-btn').dispatch('click');
+  assert.equal(els.source.value,'.Voice\n1  y40 | 2');
+  assert.equal(els.source.focused,true);
+  assert.equal(els.source.selectionStart,at+' y40 '.length);
+  assert.equal(state.song.notes.length,2);
+  assert.deepEqual(state.song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),[40]);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+  const html=read('index.html');
+  assert.match(html,/id="insert-spacer-btn"/);
+  assert.match(html,/<code>y40<\/code> 留白 40 单位/);
 });
