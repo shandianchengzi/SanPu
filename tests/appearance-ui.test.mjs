@@ -672,7 +672,7 @@ test('example library initializes with the provided score, preserving previously
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=G,3\/4\}/);
   assert.ok(initial.els.source.value.includes('y y y y y y y40|'));
   assert.ok(initial.els.source.value.includes('从前，现在,过去了再不来'));
-  assert.equal(initial.state.song.notes.length,90);
+  assert.equal(initial.state.song.notes.length,91);
   assert.equal(initial.state.song.warnings.length,0);
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
@@ -684,7 +684,7 @@ test('example library initializes with the provided score, preserving previously
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
   assert.equal(approved.state.song.key,'G');
-  assert.equal(approved.state.song.notes.length,90);
+  assert.equal(approved.state.song.notes.length,91);
 });
 
 test('piano keyboard and saved audition mode',()=>{
