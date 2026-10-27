@@ -37,7 +37,7 @@ class FakeElement {
 function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
-    'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
+    'play-btn','stop-btn','saved','transcriber-input','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
      'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-status']){
@@ -1096,4 +1096,38 @@ test('BPM digit field accepts typing, clamps limits and synchronizes audio, slid
   assert.equal(number.value,'90');
   assert.equal(state.tempo,90);
   assert.match(read('index.html'),/id="tempo-value" type="number"/);
+});
+
+test('transcriber input can be changed and explicitly emptied without erasing old notation',()=>{
+  const input='.Title\nTitle = T\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2';
+  const {state,els,document,localStorage}=boot({source:input});
+  const name=document.getElementById('transcriber-input');
+  assert.equal(name.value,'shandianchengzi');
+  name.value='小橙子';name.dispatch('change');
+  assert.equal(state.song.transcriber,'小橙子');
+  assert.ok(els.source.value.includes('Transcriber = 小橙子'));
+  assert.equal(els.source.value.split('.Voice')[1],'\n1 2');
+  assert.equal(els.score.children.find(e=>e.className==='score-meta').children[0].children[2].textContent,'记谱人：小橙子');
+  name.value='';name.dispatch('change');
+  assert.equal(state.song.transcriber,'');
+  assert.ok(els.source.value.includes('Transcriber = \n'));
+  assert.equal(els.score.children.find(e=>e.className==='score-meta').children[0].children.length,2);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+  assert.equal(name.value,'');
+});
+test('slurs draw independent SVG arcs, including continuation across manual score rows',()=>{
+  const source='.Title\nTitle = Slur\n.Voice\n(1 2 $(true) 3 4) 5';
+  const {state,els}=boot({source});
+  assert.deepEqual(state.song.slurs,[{startId:0,endId:3}]);
+  const lines=els.score.children.filter(e=>e.className==='score-line');
+  assert.equal(lines.length,2);
+  for(const line of lines){
+    assert.equal(line.children.filter(e=>e.className==='score-slur').length,1);
+    const path=line.children.find(e=>e.className==='score-slur');
+    assert.match(path.attrs.d,/^M [\d.]+ [\d.-]+ Q [\d.]+ [\d.-]+ [\d.]+ [\d.-]+$/);
+    assert.equal(path.attrs['aria-hidden'],'true');
+  }
+  assert.equal(state.song.notes[0].beats,1);
+  assert.equal(state.song.notes[1].beats,1);
+  assert.equal(els.source.value,source);
 });

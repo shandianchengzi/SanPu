@@ -264,3 +264,14 @@ main{padding-top:23px}
   .score-page .score-meta{display:flex!important;justify-content:space-between!important}
   .score-page .score-meta-right{margin-left:auto!important;text-align:right!important}
 }
+
+/* Slur is an SVG arc distinct from duration-extension dashes. */
+.score-page .score-line .score-slur{fill:none;stroke:#1b2927;stroke-width:2.1;stroke-linecap:round;pointer-events:none}
+@media print{.score-page .score-line .score-slur{stroke:#000!important}}
+.transcriber-editor{display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:wrap;font-size:12px;color:#3d645c}
+.transcriber-editor label{font-weight:650;white-space:nowrap}
+.transcriber-editor input{min-width:160px;flex:1;border:1px solid #cbdad3;border-radius:7px;
+  font:inherit;padding:7px 9px;color:var(--ink);background:#fff}
+.transcriber-editor span{font-size:11px;color:var(--sub)}
+.transcriber-editor input:focus-visible{outline:2px solid #8fc6b3}
+@media print{.transcriber-editor{display:none!important}}

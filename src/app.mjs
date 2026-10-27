@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -6,7 +6,7 @@ const $ = id => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const STORAGE = 'sanpu.editor.v1';
 const els = {
-  source:$('source'), score:$('score'), warnings:$('warnings'),
+  source:$('source'), score:$('score'), warnings:$('warnings'), transcriber:$('transcriber-input'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
@@ -455,7 +455,10 @@ function drawSystem(elements,song,width){
   // With a zero offset this preserves the original rendering exactly.
   const baseLift=Math.max(0,Math.ceil(f.noteSize*.95+2*f.octaveDotSize+32-80));
   const highLift=notes.some(n=>n.octave>0)?Math.max(0,f.highOctaveDotOffset):0;
-  const lift=baseLift+highLift;
+  // Slur arches need headroom even when every note is in the middle octave.
+  const firstNote=notes[0],lastNote=notes.at(-1);
+  const lineSlurs=firstNote? (song.slurs||[]).filter(s=>s.startId<=lastNote.id&&s.endId>=firstNote.id):[];
+  const lift=baseLift+highLift+(lineSlurs.length?30:0);
   const noteY=80+lift;
   const highDotStart=noteY-f.noteSize*.95-7-f.highOctaveDotOffset;
   const underY=noteY+Math.max(12,Math.round(f.noteSize*.28));
@@ -475,6 +478,7 @@ function drawSystem(elements,song,width){
   const height=Math.max(195+lift,Math.ceil(lyricY+Math.max(31,f.lyricSize*.95)));
   const s=svg('svg',{viewBox:`0 0 ${width} ${height}`,class:'score-line',role:'img','aria-label':'数字简谱与对应歌词'});
   const punctuationPairs=[];
+  const noteCenters=new Map();
   let x=SCORE.pad;
   for(const e of elements){
     if(e.kind==='spacer'){
@@ -491,6 +495,7 @@ function drawSystem(elements,song,width){
     const n=e,w=estimateWidth(n,song);
     // Extra leading space is reserved only for notes carrying accidentals.
     const cx=x+(n.accidental?Math.max(0,f.accidentalGap):0)+noteCellWidth()/2;
+    noteCenters.set(n.id,cx);
     const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button',
       'aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击定位到源码`});
     const lyr=song.lyrics.get(n.id);
@@ -532,6 +537,16 @@ function drawSystem(elements,song,width){
     s.append(g);
     x+=w;
   }
+  // Cross-system slurs continue on the following system. A separate path
+  // keeps the note click hitboxes and lyric anchors unchanged.
+  for(const [index,slur] of lineSlurs.entries()){
+    const left=slur.startId<firstNote.id?noteCenters.get(firstNote.id)-noteCellWidth()/2:noteCenters.get(slur.startId);
+    const right=slur.endId>lastNote.id?noteCenters.get(lastNote.id)+noteCellWidth()/2:noteCenters.get(slur.endId);
+    const y=Math.min(noteY-f.noteSize*.95-24,highDotStart-16)-index*9;
+    if(left===undefined||right===undefined||right<=left)continue;
+    s.append(svg('path',{d:`M ${left} ${y} Q ${(left+right)/2} ${y-22} ${right} ${y}`,
+      class:'score-slur','aria-hidden':'true'}));
+  }
   s.punctuationPairs=punctuationPairs;
   return s;
 }
@@ -561,6 +576,7 @@ function render() {
   applyAppearance();
   applyPreviewZoom();
   const song=state.song;
+  els.transcriber.value=song.transcriber;
   els.score.replaceChildren();
   els.noteCount.textContent=`${song.notes.length} 个音符`;
   const title=document.createElement('h2');title.className='score-title';title.textContent=song.title;
@@ -672,6 +688,13 @@ function readTextFile(file) {
 let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
+els.transcriber.addEventListener('change',()=>{
+  const updated=updateTranscriber(els.source.value,els.transcriber.value);
+  if(updated===null){message('源码缺少 .Title 段，无法保存记谱人');return;}
+  if(updated===els.source.value)return;
+  els.source.value=updated;
+  refresh();
+});
 els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';persist();});
 els.pianoTranspose.addEventListener('change',()=>{
   clearPianoSequence();

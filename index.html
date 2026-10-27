@@ -40,6 +40,11 @@
           <label class="example-picker" for="example-select">示例曲库 <select id="example-select" aria-label="选择示例曲谱"></select></label>
           <button id="example-btn" class="btn quiet" type="button" title="选择曲目后加载，覆盖当前编辑内容前会征求确认">加载选中示例</button>
         </div>
+        <div class="transcriber-editor">
+          <label for="transcriber-input">记谱人</label>
+          <input id="transcriber-input" type="text" maxlength="120" autocomplete="off" placeholder="留空则不显示" aria-label="修改乐谱记谱人姓名，留空不显示" />
+          <span>留空不显示 · 自动写入 .Title 源谱</span>
+        </div>
         <div class="piano-panel" aria-label="钢琴速记">
           <div class="piano-head">
             <strong>🎹 钢琴速记</strong>
