@@ -1810,3 +1810,26 @@ test('custom numbered-notation typography remains identical through score-type s
   assert.equal(JSON.stringify(laterBar.attrs),baselineBarPosition);
   assert.equal(els.source.value,source);
 });
+
+test('immutable pre-multi-score numbered rendering and CSS baseline',()=>{
+  // Snapshot source: main commit 2c87a0f77b66e593afcac48cccea2753c8bdef14,
+  // before staff/TAB and barline-selection edits. Any change to these checksums
+  // needs intentional user approval: numbered notation appearance is frozen.
+  const fnv32=text=>{
+    let h=0x811c9dc5;
+    for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),0x01000193)>>>0;
+    return h.toString(16).padStart(8,'0');
+  };
+  const app=read('src/app.mjs');
+  const first=app.indexOf('function drawSystem(elements,song,width){');
+  const last=app.indexOf('// Once a line is in the DOM',first);
+  assert.ok(first>=0&&last>first);
+  const renderer=app.slice(first,last);
+  assert.equal(renderer.length,5623,'original numbered-notation SVG renderer length');
+  assert.equal(fnv32(renderer),'90f551aa','original numbered-notation SVG renderer must stay byte-identical');
+  const sheet=read('styles.css');
+  const baseline=sheet.slice(0,30806);
+  assert.equal(baseline.length,30806);
+  assert.equal(fnv32(baseline),'351f9ede','original numbered-notation CSS must stay byte-identical');
+  assert.equal(sheet.slice(0,30806),baseline);
+});
