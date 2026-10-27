@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -10,12 +10,12 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine' };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -26,6 +26,8 @@ function load() {
   state.format=normalizeFormat(settings?.format);
   state.timbre=normalizeTimbre(settings?.timbre);
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
+  state.pianoAudition=settings?.pianoAudition!==false;
+  els.pianoAudition.checked=state.pianoAudition;
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
 }
@@ -60,6 +62,95 @@ function loadSelectedExample(){
   if(els.source.value!==example.source && !confirm('将当前内容替换为《'+example.title+'》示例谱？当前内容可以先用「保存源码」备份。'))return;
   els.source.value=example.source;
   refresh();
+}
+const PIANO_FIRST=48,PIANO_LAST=83;
+const PIANO_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const PIANO_BLACK=new Set([1,3,6,8,10]);
+function pianoLabel(midi){return PIANO_NAMES[midi%12]+String(Math.floor(midi/12)-1);}
+async function auditionPiano(midi){
+  if(!state.audio){
+    const Ctor=window.AudioContext||window.webkitAudioContext;
+    if(!Ctor){els.pianoStatus.textContent='当前浏览器不支持 Web Audio。';return;}
+    state.audio=new Ctor();
+  }
+  try{await state.audio.resume();}
+  catch{els.pianoStatus.textContent='浏览器未允许音频播放。';return;}
+  const now=state.audio.currentTime;
+  const voice=createVoice(state.audio,{frequency:440*Math.pow(2,(midi-69)/12),
+    start:now,end:now+.65,timbre:'piano'});
+  if(!voice)els.pianoStatus.textContent='琴键未能发声。';
+}
+function insertFromPiano(midi,heldMs){
+  const degree=pianoToNotation(midi,state.song.key);
+  if(!degree)return;
+  const token=degree+pianoDurationSuffix(heldMs,state.tempo);
+  const anchor=state.playing&&state.active>=0?state.active:state.cursorNoteId;
+  const result=insertPianoNote(els.source.value,token,anchor,els.source.selectionStart);
+  if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再录入音符。';return;}
+  stopAudio();
+  els.source.value=result.source;
+  els.source.selectionStart=els.source.selectionEnd=result.caret;
+  state.cursorNoteId=result.noteId;
+  state.song=parseSong(els.source.value);
+  render();highlight(result.noteId);
+  persist();
+  els.pianoStatus.textContent=pianoLabel(midi)+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
+}
+function buildPiano(){
+  let whites=0;
+  for(let midi=PIANO_FIRST;midi<=PIANO_LAST;midi++){
+    const black=PIANO_BLACK.has(midi%12);
+    const key=document.createElement('button');
+    key.type='button';key.className=black?'piano-key piano-black':'piano-key piano-white';
+    const label=pianoLabel(midi);
+    key.setAttribute('aria-label',label+'，'+(black?'黑键':'白键'));
+    key.setAttribute('title',label);
+    key.dataset.midi=String(midi);
+    if(black)key.style.left=(whites*26-9)+'px';
+    else{
+      whites++;
+      if(midi%12===0){
+        const caption=document.createElement('span');
+        caption.textContent=label;caption.className='piano-key-name';key.append(caption);
+      }
+    }
+    let pressedAt=null,ignoreClick=false;
+    const down=ev=>{
+      if(ev.type==='pointerdown'&&ev.button!==0)return;
+      if(ev.repeat||pressedAt!==null)return;
+      pressedAt=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
+      key.classList.toggle('is-pressed',true);
+      if(ev.type==='pointerdown'&&key.setPointerCapture&&ev.pointerId!==undefined)
+        key.setPointerCapture(ev.pointerId);
+      if(state.pianoAudition){
+        els.pianoStatus.textContent=label+' · '+(pianoToNotation(midi,state.song.key)||'?')+' · 试听';
+        auditionPiano(midi);
+      }
+    };
+    const up=ev=>{
+      if(pressedAt===null)return;
+      const stamp=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
+      const duration=Math.max(0,stamp-pressedAt);
+      pressedAt=null;key.classList.toggle('is-pressed',false);
+      ignoreClick=true;
+      if(!state.pianoAudition)insertFromPiano(midi,duration);
+    };
+    const cancel=()=>{pressedAt=null;key.classList.toggle('is-pressed',false);ignoreClick=true;};
+    key.addEventListener('pointerdown',down);
+    key.addEventListener('pointerup',up);
+    key.addEventListener('pointercancel',cancel);
+    key.addEventListener('keydown',ev=>{
+      if(ev.key===' '||ev.key==='Enter'){if(ev.repeat)return;down(ev);}
+    });
+    key.addEventListener('keyup',ev=>{if(ev.key===' '||ev.key==='Enter')up(ev);});
+    // Screen readers may generate a click without pointer/keyboard events.
+    key.addEventListener('click',()=>{
+      if(ignoreClick){ignoreClick=false;return;}
+      if(state.pianoAudition)auditionPiano(midi);
+      else insertFromPiano(midi,60000/state.tempo);
+    });
+    els.pianoKeys.append(key);
+  }
 }
 function changeTimbre(value){
   state.timbre=normalizeTimbre(value);
@@ -359,7 +450,7 @@ function render() {
   highlight(state.active);
 }
 function refresh() {
-  stopAudio();state.song=parseSong(els.source.value);
+  stopAudio();state.cursorNoteId=-1;state.song=parseSong(els.source.value);
   render();persist();
 }
 function buildSchedule(){let cursor=0;const sec=60/state.tempo;state.schedule=state.song.notes.map(n=>{const item={id:n.id,start:cursor,end:cursor+n.beats*sec,freq:noteFrequency(n,state.song.key)};cursor=item.end;return item;});state.total=cursor;}
@@ -393,7 +484,7 @@ async function runPlayback() {
     state.frame=requestAnimationFrame(tick);
   };tick();
 }
-function playFrom(id){buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
+function playFrom(id){state.cursorNoteId=id;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function download(name,bytes,type) {
   const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');
   a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
@@ -409,8 +500,9 @@ function readTextFile(file) {
   });
 }
 let saveTimer;
-load();buildTimbreSelect();buildExampleLibrary();buildAppearanceControls();state.song=parseSong(els.source.value);render();
+load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
+els.pianoAudition.addEventListener('change',()=>{state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'试听模式：按键发声，不修改源码':'录入模式：按住决定时值，松开后插入音符';persist();});
 $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));

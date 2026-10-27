@@ -6,7 +6,7 @@ Title = 一生所爱
 KeyAndMeters = {1=D,3/4}
 WordsByAndMusicBy =
 .Voice
-3_ 2_ 3- | 5 3_ 2-  7,- y y y y y y30| 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
+3_ 2_ 3- | 5 3_ 2  7,- y y y y y y y40| 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
 3_ 2_ 3- |5 6_ 3 2- 2_ 7,-|3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,-  |$(true)
 .Words
 W1@1,1:
@@ -69,7 +69,7 @@ function readVoice(body, warnings) {
     if (m && m[0]) {
       const raw = m[0], suffix = m[4] || '';
       const octave = [...m[3]].reduce((n,c)=>n+(c === "'" ? 1 : -1),0);
-      const note = {kind:'note', raw, degree:Number(m[2]), accidental:m[1], octave, suffix, beats:durationFromSuffix(suffix), measure, noteIndex:++noteIndex, row, id:notes.length};
+      const note = {kind:'note', raw, degree:Number(m[2]), accidental:m[1], octave, suffix, beats:durationFromSuffix(suffix), measure, noteIndex:++noteIndex, row, id:notes.length, sourceEnd:p+raw.length};
       notes.push(note); elements.push(note);
       measures.set(measure,(measures.get(measure)||0)+note.beats);
       p += raw.length; continue;
@@ -177,4 +177,52 @@ export function beatReport(song) {
   if (!m) return [];
   const target=Number(m[1])*4/Number(m[2]);
   return [...song.measures].map(([index,beats])=>({index,beats,target,unequal:Math.abs(beats-target)>1e-6}));
+}
+
+/** Chromatic piano pitches are converted relative to the active major-key tonic. */
+const CHROMATIC_DEGREES=Object.freeze(['1','#1','2','b3','3','4','#4','5','b6','6','b7','7']);
+export function pianoToNotation(midi,key='C'){
+  if(!Number.isInteger(midi)||midi<21||midi>108)return null;
+  const semitones=midi-(60+(ROOT[key]??0));
+  const octave=Math.floor(semitones/12);
+  const pitch=((semitones%12)+12)%12;
+  return CHROMATIC_DEGREES[pitch]+(octave<0?','.repeat(-octave):"'".repeat(octave));
+}
+const PIANO_BEATS=Object.freeze([
+  [0.125,'___'],[0.25,'__'],[0.375,'__.'],[0.5,'_'],[0.75,'_.'],
+  [1,''],[1.5,'.'],[2,'-'],[3,'--'],[4,'---'],
+  [5,'----'],[6,'-----'],[7,'------'],[8,'-------']
+]);
+/** Map how long a key was held onto the nearest notatable beat length. */
+export function pianoDurationSuffix(holdMs,tempo=72){
+  const ms=Math.max(0,Number(holdMs)||0);
+  const bpm=Math.max(35,Math.min(180,Number(tempo)||72));
+  const beats=ms*bpm/60000;
+  let nearest=PIANO_BEATS[0];
+  for(const option of PIANO_BEATS)
+    if(Math.abs(option[0]-beats)<Math.abs(nearest[0]-beats))nearest=option;
+  return nearest[1];
+}
+/** Insert by parsed note index, not by matching raw note text, preserving the
+ * exact lyrics, bars, empty layout spacers, source line endings and spacing.
+ */
+export function insertPianoNote(source,token,afterId=-1,caret=-1){
+  const text=String(source??'');
+  if(!/^(?:#{0,2}|b{0,2})[1-7][,']*(?:_+\.*|\.+_+|-+|\.+)?$/.test(token))return null;
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
+  const voiceIndex=headings.findIndex(h=>h[1]==='Voice');
+  if(voiceIndex<0)return null;
+  const header=headings[voiceIndex];
+  const begin=header.index+header[0].length;
+  const end=headings[voiceIndex+1]?.index??text.length;
+  const voice=text.slice(begin,end);
+  const notes=readVoice(voice,[]).notes;
+  let chosen=Number.isInteger(afterId)&&afterId>=0?notes[afterId]:null;
+  if(!chosen&&Number.isInteger(caret)&&caret>begin&&caret<=end)
+    chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
+  if(!chosen)chosen=notes.at(-1)??null;
+  const at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
+  const inserted=chosen?' '+token+' ':token+' ';
+  return {source:text.slice(0,at)+inserted+text.slice(at),
+    noteId:chosen?chosen.id+1:0,caret:at+inserted.length};
 }

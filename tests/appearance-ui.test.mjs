@@ -39,7 +39,8 @@ function boot(saved,allowOverwrite=false){
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
-    'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn']){
+    'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
+     'piano-keys','piano-audition','piano-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -663,7 +664,7 @@ test('example library initializes with the provided score, preserving previously
   assert.equal(initial.document.getElementById('example-select').children.length,1);
   assert.equal(initial.document.getElementById('example-select').value,'yi-sheng-suo-ai');
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=D,3\/4\}/);
-  assert.ok(initial.els.source.value.includes('y y y y y y30|'));
+  assert.ok(initial.els.source.value.includes('y y y y y y y40|'));
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.state.format.titleSize,62);
@@ -674,4 +675,39 @@ test('example library initializes with the provided score, preserving previously
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
   assert.equal(approved.state.song.key,'D');
+});
+
+test('piano keyboard and saved audition mode',()=>{
+  const {document,state,els,localStorage}=boot();
+  const keys=document.getElementById('piano-keys').children;
+  assert.equal(keys.length,36);
+  assert.equal(keys[0].attrs.title,'C3');
+  assert.equal(keys[1].attrs.title,'C♯3');
+  assert.equal(keys.at(-1).attrs.title,'B5');
+  const checkbox=document.getElementById('piano-audition');
+  assert.equal(checkbox.checked,true);
+  const before=els.source.value;
+  checkbox.checked=false;checkbox.dispatch('change');
+  assert.equal(state.pianoAudition,false);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoAudition,false);
+  assert.equal(els.source.value,before);
+});
+test('piano inserts after selected note and subsequent notes, with duration',()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 2 | 3\n.Words\nW1@1,1:\n天地玄';
+  const {state,els,document,localStorage}=boot({source,pianoAudition:false});
+  const keys=document.getElementById('piano-keys').children;
+  const d4=keys.find(k=>k.dataset.midi==='62');
+  const e4=keys.find(k=>k.dataset.midi==='64');
+  state.cursorNoteId=0;
+  d4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:0,pointerId:1});
+  d4.dispatch('pointerup',{type:'pointerup',timeStamp:1500,pointerId:1});
+  d4.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1-','2','3']);
+  assert.equal(state.cursorNoteId,1);
+  e4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:2000,pointerId:2});
+  e4.dispatch('pointerup',{type:'pointerup',timeStamp:2375,pointerId:2});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1-','2_','2','3']);
+  assert.ok(els.source.value.includes('.Words\nW1@1,1:\n天地玄'));
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+  assert.match(document.getElementById('piano-status').textContent,/已插入/);
 });

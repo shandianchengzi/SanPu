@@ -40,6 +40,16 @@
           <label class="example-picker" for="example-select">示例曲库 <select id="example-select" aria-label="选择示例曲谱"></select></label>
           <button id="example-btn" class="btn quiet" type="button" title="选择曲目后加载，覆盖当前编辑内容前会征求确认">加载选中示例</button>
         </div>
+        <div class="piano-panel" aria-label="钢琴速记">
+          <div class="piano-head">
+            <strong>🎹 钢琴速记</strong>
+            <label class="piano-audition"><input id="piano-audition" type="checkbox" checked /> 试听模式（取消勾选即可录入）</label>
+            <span id="piano-status" role="status" aria-live="polite">按住琴键决定时值 · 按当前 BPM 换算为简谱</span>
+          </div>
+          <div class="piano-scroll" aria-label="三组八度钢琴按键">
+            <div id="piano-keys" class="piano-keys" role="group" aria-label="C3 至 B5 钢琴键盘"></div>
+          </div>
+        </div>
         <label for="source" class="sr-only">JPW-ABC 源谱</label>
         <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>
         <div class="editor-foot"><span id="source-hint">歌词中的 <code>/</code> 表示延续上一字、跳过一个音符，而不是分句。</span><span id="saved" aria-live="polite">自动保存已开启</span></div>

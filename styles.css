@@ -215,3 +215,21 @@ main{padding-top:23px}
 .example-picker select:focus-visible{outline:3px solid #8fc6b3;outline-offset:2px}
 @media(max-width:640px){.example-picker select{max-width:180px}}
 @media print{.example-picker{display:none!important}}
+
+/* Compact three-octave piano; keyboard is never part of printed notation. */
+.piano-panel{margin:0 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:#f6faf8}
+.piano-head{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin-bottom:9px;font-size:12px}
+.piano-head strong{font-size:12px;color:#315d53}
+.piano-audition{display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;color:#385a51}
+.piano-audition input{accent-color:var(--accent);margin:0}
+#piano-status{color:var(--sub);font-size:11px;line-height:1.5;min-width:0}
+.piano-scroll{max-width:100%;overflow-x:auto;overflow-y:hidden;padding:0 0 4px;scrollbar-width:thin}
+.piano-keys{display:flex;position:relative;width:max-content;height:85px;isolation:isolate}
+.piano-key{user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;padding:0;border:0;border-radius:0 0 4px 4px;position:relative;outline-offset:2px}
+.piano-white{width:26px;flex:0 0 26px;height:83px;border:1px solid #bcc8c5;background:linear-gradient(#fff 75%,#edf2f0);z-index:1}
+.piano-black{position:absolute;top:0;width:18px;height:54px;border:1px solid #141e1d;background:linear-gradient(#34423f,#111b19);z-index:2;box-shadow:0 2px 3px #0003}
+.piano-key-name{position:absolute;bottom:7px;left:0;right:0;text-align:center;color:#657d75;font-size:9px;pointer-events:none}
+.piano-white:hover,.piano-white.is-pressed{background:#d9eee5}
+.piano-black:hover,.piano-black.is-pressed{background:#33735f}
+.piano-key:focus-visible{outline:3px solid #1b8974;z-index:3}
+@media print{.piano-panel{display:none!important}}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -25,8 +25,10 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.lyrics.get(3).text,'翻');
   assert.equal(song.warnings.length,0);
   assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),
-    [20,20,20,20,20,30,30]);
+    [20,20,20,20,20,20,40,30]);
   assert.ok(EXAMPLE.includes('相亲/ 竟不可/接近,或我应该相信是缘份。'));
+  assert.ok(EXAMPLE.includes('5 3_ 2  7,- y y y y y y y40|'));
+  assert.equal(song.notes[5].raw,'2');
   assert.equal(EXAMPLES[0].source,EXAMPLE);
   assert.equal(EXAMPLES[0].title,song.title);
 });
@@ -104,4 +106,53 @@ test('ordinary whitespace remains source formatting and does not insert visible 
   assert.equal(first.elements.length,second.elements.length);
   assert.equal(first.elements.filter(e=>e.kind==='spacer').length,0);
   assert.equal(second.elements.filter(e=>e.kind==='spacer').length,0);
+});
+
+test('piano uses score key, semitones and octave notation',()=>{
+  assert.equal(pianoToNotation(62,'D'),'1');
+  assert.equal(pianoToNotation(61,'D'),'7,');
+  assert.equal(pianoToNotation(65,'D'),'b3');
+  assert.equal(pianoToNotation(66,'D'),'3');
+  assert.equal(pianoToNotation(60,'C'),'1');
+  assert.equal(pianoToNotation(61,'C'),'#1');
+  assert.equal(pianoToNotation(72,'C'),"1'");
+  assert.equal(pianoToNotation(48,'C'),'1,');
+  assert.equal(pianoToNotation(200,'C'),null);
+  for(const key of ['C','D','F','#F','bE'])
+    for(let midi=48;midi<=83;midi++){
+      const token=pianoToNotation(midi,key);
+      const song=parseSong('.Title\nKeyAndMeters = {1='+key+',3/4}\n.Voice\n'+token);
+      const actual=noteFrequency(song.notes[0],key);
+      const expected=440*Math.pow(2,(midi-69)/12);
+      assert.ok(Math.abs(actual-expected)<1e-6,`${key} ${midi} => ${token}`);
+    }
+});
+test('held piano duration quantizes to current BPM',()=>{
+  assert.equal(pianoDurationSuffix(60,80),'___');
+  assert.equal(pianoDurationSuffix(190,80),'__');
+  assert.equal(pianoDurationSuffix(375,80),'_');
+  assert.equal(pianoDurationSuffix(750,80),'');
+  assert.equal(pianoDurationSuffix(1125,80),'.');
+  assert.equal(pianoDurationSuffix(1500,80),'-');
+  assert.equal(pianoDurationSuffix(2250,80),'--');
+  assert.equal(pianoDurationSuffix(6000,80),'-------');
+  assert.equal(pianoDurationSuffix(375,160),'');
+});
+test('piano insertion uses exact note span, preserving source and lyrics',()=>{
+  const src='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 1_ | y30 2 $(true)\n.Words\nW1@1,1:\n天地玄';
+  const a=insertPianoNote(src,"#4__",0);
+  assert.equal(a.noteId,1);
+  assert.ok(a.source.includes('1 #4__  1_ | y30 2'));
+  assert.ok(a.source.endsWith('.Words\nW1@1,1:\n天地玄'));
+  const b=insertPianoNote(a.source,'7,',a.noteId);
+  assert.equal(b.noteId,2);
+  assert.deepEqual(parseSong(b.source).notes.map(x=>x.raw),['1','#4__','7,','1_','2']);
+  const caretSrc='.Voice\n1 2 | 3\n.Words\nW1@1,1:\n甲乙丙';
+  assert.ok(insertPianoNote(caretSrc,'6',-1,caretSrc.indexOf(' |')).source.includes('1 2 6  |'));
+  assert.equal(insertPianoNote(caretSrc,'6').noteId,3);
+  assert.equal(insertPianoNote('.Title\nTitle = test','1'),null);
+  const empty=insertPianoNote('.Voice\n.Words\nW1@1,1:\n','2');
+  assert.equal(parseSong(empty.source).notes[0].raw,'2');
+  const crlf=insertPianoNote('.Voice\r\n1 2\r\n.Words\r\nW1@1,1:','3',0);
+  assert.ok(crlf.source.includes('1 3  2\r\n.Words'));
 });
