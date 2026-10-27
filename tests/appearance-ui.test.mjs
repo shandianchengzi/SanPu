@@ -12,7 +12,7 @@ class FakeElement {
     this.style={props:{},setProperty:(key,value)=>{this.style.props[key]=String(value)}};
     this.classes=new Set();this.classList={toggle:(name,on)=>{if(on??!this.classes.has(name))this.classes.add(name);else this.classes.delete(name);},contains:name=>this.classes.has(name)};this.value='';this.textContent='';
   }
-  setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value)}
+  setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value);if(key==='data-bar-id')this.dataset.barId=String(value);if(key==='data-note-id')this.dataset.noteId=String(value)}
   focus(){this.focused=true}
   setRangeText(text,start,end){
     this.value=this.value.slice(0,start)+text+this.value.slice(end);
@@ -637,7 +637,7 @@ test('layout-only y spacers align barlines across SVG rows without touching note
   const plain='.Title\nTitle = 空位测试\n.Voice\n1 2 | 3 4 $(true)\n1 | 3 4\n.Words\nW1@1,1:\n天地玄黄宇宙洪';
   const noGap=boot({source:plain});
   const lines=app=>app.els.score.children.filter(el=>el.className==='score-line');
-  const firstBar=el=>Number(el.children.find(x=>x.className==='bar').attrs.x1);
+  const firstBar=el=>Number(el.children.find(x=>x.className==='bar-click').children.find(g=>g.className==='bar').attrs.x1);
   const correction=firstBar(lines(noGap)[0])-firstBar(lines(noGap)[1]);
   const spaced=plain.replace('1 | 3 4',`1 y${correction} | 3 4`);
   const withGap=boot({source:spaced});
@@ -1294,7 +1294,9 @@ test('SVG renders the mapped pitches in real staggered QWERTY physical keyboard 
   assert.ok(unbound('1'),'digit row shows unused 1 key');
   assert.ok(unbound('a'),'ASDF row shows unused A key');
   assert.ok(unbound('=')&&unbound(']'),'unused punctuation keycaps remain visible');
-  assert.ok(unbound('Tab')&&unbound('Backspace')&&unbound('Shift'));
+  assert.ok(unbound('Tab')&&unbound('Shift'));
+  assert.ok(figure().children.some(g=>g.className==='keyboard-map-command'&&g.attrs['data-key']==='Backspace'));
+  assert.ok(figure().children.some(g=>g.className==='keyboard-map-command'&&g.attrs['data-key']==='Space'));
   assert.equal(y(named('2')),50);
   assert.equal(y(named('q')),130);
   assert.equal(y(named('s')),210);
@@ -1590,7 +1592,7 @@ test('score type selector persists and staff / guitar views draw from the same s
   assert.equal(state.scoreType,'staff');
   assert.equal(lines().length,2);
   assert.equal(lines()[0].className,'score-line score-staff');
-  assert.equal(lines()[0].children.filter(node=>node.className==='alt-staff-line').length,10);
+  assert.equal(lines()[0].children.filter(node=>node.className==='alt-staff-line').length,11);
   assert.ok(lines()[0].children.some(node=>node.className==='alt-clef'&&node.textContent==='𝄞'));
   assert.ok(lines()[0].children.some(node=>node.className==='alt-clef alt-bass-clef'));
   assert.ok(lines()[0].children.some(node=>node.className==='bar-click'));
