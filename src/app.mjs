@@ -423,8 +423,8 @@ function insertKeyboardMarker(marker){
   state.cursorNoteId=result.noteId;
   state.song=parseSong(els.source.value);
   const markerKind=marker==='|'?'bar':'break';
-  const found=voiceEditItems(els.source.value).find(e=>e.kind===markerKind&&
-    e.from>=result.caret-(marker==='|'?3:10)&&e.to<=result.caret);
+  const found=voiceEditItems(els.source.value).filter(e=>e.kind===markerKind&&
+    e.from>=result.caret-(marker==='|'?3:12)&&e.to<=result.caret).at(-1);
   state.selectedItem=found?{kind:found.kind,index:found.index}:null;
   render();
   if(result.noteId>=0)highlight(result.noteId);
@@ -482,7 +482,7 @@ function deleteSelectedScoreItem(){
   if(!target)return;
   const changed=deleteVoiceItem(els.source.value,target.kind,target.index);
   if(!changed)return;
-  clearPianoSequence();stopAudio();
+  clearPianoSequence();cancelRestPress();stopAudio();
   els.source.value=changed.source;
   els.source.selectionStart=els.source.selectionEnd=changed.caret;
   state.song=parseSong(changed.source);
@@ -494,7 +494,7 @@ function deleteSelectedScoreItem(){
   persist();
 }
 function keyboardDown(ev){
-  if(!state.keyboardMode||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
+  if(!state.keyboardMode||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
   if(key==='Backspace'){
@@ -832,7 +832,7 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
       for(const [top,bottom] of staff?[[80,136],[180,236]]:[[80,195]])
         bar.append(svg('line',{x1:barX,x2:barX,y1:top,y2:bottom,class:'bar'}));
       bar.addEventListener('click',()=>selectScoreBar(barId));
-      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreBar(barId);}});
+      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();ev.stopPropagation?.();selectScoreBar(barId);}});
       score.append(bar);x+=f.barSpacing;continue;
     }
     const n=e,w=estimateWidth(n,song),cx=x+noteCellWidth()/2+Math.max(0,n.accidental?f.accidentalGap:0);
@@ -967,7 +967,7 @@ function drawSystem(elements,song,width){
       bar.append(svg('rect',{x,y:noteY-45,width:Math.max(16,f.barSpacing),height:lyricY-noteY+5,class:'bar-hit'}));
       bar.append(svg('line',{x1:barX,x2:barX,y1:noteY-36,y2:lyricY-49,class:'bar'}));
       bar.addEventListener('click',()=>selectScoreBar(barId));
-      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreBar(barId);}});
+      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();ev.stopPropagation?.();selectScoreBar(barId);}});
       s.append(bar);
       x+=f.barSpacing;
       continue;

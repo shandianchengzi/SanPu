@@ -363,3 +363,35 @@ main{padding-top:23px}
   .score-page .score-line .bar-click.active .bar{stroke:#000!important}
   .score-type-picker{display:none!important}
 }
+
+/* Alternate notation views retain one shared source and export pipeline. */
+.score-page .score-staff .alt-staff-line,
+.score-page .score-guitar .alt-staff-line,
+.score-page .score-staff .alt-ledger{stroke:#283a34;stroke-width:1.25}
+.score-page .score-staff .alt-ledger{stroke-width:1.6}
+.score-page .score-staff .alt-clef{font-family:"Bravura","Noto Music","Segoe UI Symbol",serif;font-size:69px;fill:#263c35}
+.score-page .score-staff .alt-bass-clef{font-size:53px}
+.score-page .score-staff .alt-accidental{font-family:"Bravura","Noto Music","Segoe UI Symbol",serif;font-size:25px;fill:#253c35}
+.score-page .score-staff .alt-notehead{fill:#20362f;stroke:#20362f;stroke-width:1.5}
+.score-page .score-staff .alt-open{fill:#fff}
+.score-page .score-staff .alt-stem{stroke:#20362f;stroke-width:2.1}
+.score-page .score-staff .alt-flag{fill:none;stroke:#20362f;stroke-width:2.5;stroke-linecap:round}
+.score-page .score-staff .alt-augmentation{fill:#20362f}
+.score-page .score-line .alt-caption{font:600 16px "Microsoft YaHei",sans-serif;fill:#526b60}
+.score-page .score-line .alt-duration{font:14px ui-monospace,monospace;fill:#5f756b}
+.score-page .score-line .alt-rest{font:31px "Noto Music","Segoe UI Symbol","Microsoft YaHei",sans-serif;fill:#20362f}
+.score-page .score-staff .lyrics-text,.score-page .score-guitar .lyrics-text{font-size:30px}
+.score-page .score-guitar .alt-string-label{font:600 17px ui-monospace,monospace;fill:#405e50;text-anchor:middle}
+.score-page .score-guitar .alt-tab-label{font:700 16px ui-monospace,monospace;fill:#557369}
+.score-page .score-guitar .alt-fret-bg{fill:#fff}
+.score-page .score-guitar .alt-fret{font:700 19px ui-monospace,monospace;fill:#1c3931}
+.score-page .score-guitar .alt-unplayable{font:700 28px ui-sans-serif,sans-serif;fill:#a03b24}
+.score-page .score-line .note-click.active .alt-notehead{fill:#168a6e;stroke:#168a6e}
+.score-page .score-line .note-click.active .alt-open{fill:#e3f4ec}
+.score-page .score-line .note-click.active .alt-fret{fill:#168a6e}
+@media print{
+  .score-page .score-line .alt-staff-line,.score-page .score-line .alt-ledger{stroke:#000!important}
+  .score-page .score-line .note-click.active .alt-notehead{fill:#000!important;stroke:#000!important}
+  .score-page .score-line .note-click.active .alt-open{fill:#fff!important}
+  .score-page .score-line .note-click.active .alt-fret{fill:#000!important}
+}
