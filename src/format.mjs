@@ -80,6 +80,33 @@ export function normalizeFormat(raw) {
   }
   return result;
 }
+// Portable score appearance file. Only known score layout fields are exported;
+// the current song, BPM, playback timbre and screen zoom are intentionally excluded.
+export const STYLE_FILE_TYPE='sanpu-score-style';
+export const STYLE_FILE_VERSION=1;
+export function exportStyle(format){
+  return JSON.stringify({
+    type:STYLE_FILE_TYPE,
+    version:STYLE_FILE_VERSION,
+    settings:normalizeFormat(format)
+  },null,2)+'\n';
+}
+export function importStyle(text){
+  let value;
+  try{value=JSON.parse(String(text));}
+  catch{throw new Error('文件不是有效的 JSON。');}
+  if(!value || typeof value!=='object' || Array.isArray(value) || value.type!==STYLE_FILE_TYPE)
+    throw new Error('不是 SanPu 谱面样式文件。');
+  if(value.version!==STYLE_FILE_VERSION)
+    throw new Error('不支持该样式文件版本（当前支持版本 1）。');
+  const settings=value.settings;
+  if(!settings || typeof settings!=='object' || Array.isArray(settings))
+    throw new Error('样式文件缺少有效的 settings 对象。');
+  if(!FORMAT_FIELDS.some(field=>Object.hasOwn(settings,field.key)))
+    throw new Error('样式文件没有可识别的排版参数。');
+  // Ignore unknown future keys; normalize missing, out-of-range or invalid values.
+  return normalizeFormat(settings);
+}
 export const FORMAT_PRESETS=Object.freeze({
   standard:DEFAULT_FORMAT,
   compact:Object.freeze(normalizeFormat({
