@@ -26,6 +26,7 @@ jobs:
           test -s styles.css
           test -s src/app.mjs
           test -s src/core.mjs
+          test -s src/timbres.mjs
           test -s README.md
           test -s LICENSE
   deploy:
