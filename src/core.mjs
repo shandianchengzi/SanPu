@@ -261,8 +261,8 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
   let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
   // Keyboard-entered bars/line breaks live *after* the selected note.
   // Keep subsequent piano notes after those markers, never before them.
-  if(chosen&&Number.isInteger(caret)&&caret>=at&&caret<=end&&
-    (notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
+  if((chosen||!notes.length)&&Number.isInteger(caret)&&caret>=at&&caret<=end&&
+    (!chosen||notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
     /^(?:\s|\|+|\$\([^)]*\))*$/.test(text.slice(at,caret)))at=caret;
   // A newly created .Voice must keep the following .Words/.Title header on its own line.
   const inserted=chosen?' '+token+' ':token+(text.slice(at).startsWith('.')?'\n':' ');
@@ -277,7 +277,7 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
 export function insertPianoMarker(source,marker,afterId=-1,caret=-1){
   if(marker!=='|'&&marker!=='$(true)')return null;
   const text=String(source??'');
-  const headings=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
   const index=headings.findIndex(h=>h[1]==='Voice');
   if(index<0)return null;
   const begin=headings[index].index+headings[index][0].length;
@@ -287,11 +287,11 @@ export function insertPianoMarker(source,marker,afterId=-1,caret=-1){
   if(!chosen&&Number.isInteger(caret)&&caret>begin&&caret<=end)
     chosen=notes.filter(n=>n.sourceEnd<=caret-begin).at(-1)??null;
   if(!chosen)chosen=notes.at(-1)??null;
-  let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\\r?\\n/)?.[0].length??0);
+  let at=chosen?begin+chosen.sourceEnd:begin+(voice.match(/^\r?\n/)?.[0].length??0);
   if(Number.isInteger(caret)&&caret>=at&&caret<=end&&
     (!chosen||notes[chosen.id+1]===undefined||caret<=begin+notes[chosen.id+1].sourceStart)&&
-    /^(?:\\s|\\|+|\\$\\([^)]*\\))*$/.test(text.slice(at,caret)))at=caret;
-  const newline=text.includes('\\r\\n')?'\\r\\n':'\\n';
+    /^(?:\s|\|+|\$\([^)]*\))*$/.test(text.slice(at,caret)))at=caret;
+  const newline=text.includes('\r\n')?'\r\n':'\n';
   const inserted=marker==='|'?' | ': ' $(true)'+newline;
   return {source:text.slice(0,at)+inserted+text.slice(at),
     caret:at+inserted.length,noteId:chosen?chosen.id:-1,marker};

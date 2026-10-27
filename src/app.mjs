@@ -440,6 +440,8 @@ function restKeyDown(ev){
       restPress.pending=pianoPending;
     }
   }
+  // In continuous mode insertion rerenders the SVG; restore keycap feedback.
+  highlightKeyboardSpecial('`',true);
   els.pianoStatus.textContent='休止符 0 · 按住决定时值，不发声';
 }
 function restKeyUp(ev){
