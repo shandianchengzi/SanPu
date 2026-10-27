@@ -32,7 +32,7 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs']){
+    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -274,4 +274,33 @@ test('negative note and lyric offsets change actual SVG coordinates',()=>{
   const css=read('styles.css');
   assert.match(css,/\.score-page \.score-line:last-child\{margin-bottom:0\}/);
   assert.match(css,/\.score-page \.score-line:last-child\{margin-bottom:0!important\}/);
+});
+
+test('timbre selector offers all offline instruments, saves and restores the choice',()=>{
+  const {state,els,localStorage}=boot();
+  assert.equal(state.timbre,'sine');
+  assert.equal(els.timbre.children.length,7);
+  assert.deepEqual(els.timbre.children.map(option=>option.value),
+    ['sine','piano','guitar','flute','strings','organ','chip']);
+  const source=els.source.value;
+  els.timbre.dispatch('change',{target:{value:'flute'}});
+  assert.equal(state.timbre,'flute');
+  assert.equal(els.timbre.value,'flute');
+  assert.equal(els.source.value,source,'sound selection must not edit score');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).timbre,'flute');
+  const restored=boot({source,timbre:'guitar',tempo:90,format:{lyricLineGap:-21}});
+  assert.equal(restored.state.timbre,'guitar');
+  assert.equal(restored.els.timbre.value,'guitar');
+  assert.equal(restored.state.tempo,90);
+  assert.equal(restored.state.format.lyricLineGap,-21);
+  restored.els.timbre.dispatch('change',{target:{value:'invalid-instrument'}});
+  assert.equal(restored.state.timbre,'sine','unsupported preset falls back to original sine');
+});
+
+test('PDF print stylesheet removes the whole playback and timbre toolbar',()=>{
+  const html=read('index.html'),css=read('styles.css');
+  assert.match(html,/<div class="preview-toolbar">/);
+  assert.match(html,/<label class="timbre-picker" for="timbre">/);
+  assert.match(html,/id="timbre"/);
+  assert.match(css,/@media print\s*\{\s*\.preview-toolbar\{display:none!important\}/);
 });
