@@ -291,7 +291,7 @@ main{padding-top:23px}
 .keyboard-help h3{font-size:13px;font-weight:650;color:#315d53;margin:0 0 4px}
 .keyboard-help p{margin:0 0 8px}
 .keyboard-diagram-scroll{width:100%;overflow-x:auto;scrollbar-width:thin}
-.keyboard-map-svg{display:block;width:1010px;max-width:none;height:382px;background:#f5faf7;
+ .keyboard-map-svg{display:block;width:1320px;max-width:none;height:297px;background:#f5faf7;
   border:1px solid #dce8e1;border-radius:9px}
 .keyboard-map-row-label{font:11px sans-serif;fill:#607a70}
 .keyboard-map-cell rect{stroke:#a9bcb3;stroke-width:1}

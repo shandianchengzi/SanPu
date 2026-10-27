@@ -77,9 +77,13 @@ function loadSelectedExample(){
   els.source.value=example.source;
   refresh();
 }
-const PIANO_FIRST=48,PIANO_LAST=83;
-const KEYBOARD_LAYOUT='1234567890qwertyuiopasdfghjklzxcvbnm';
-const KEYBOARD_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
+// Physical QWERTY key ordering for three chromatic octaves. The final C6
+// is explicitly included because the requested C5 row has thirteen keys.
+const PIANO_FIRST=48;
+const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/io0p-[=]']);
+const KEYBOARD_LAYOUT=KEYBOARD_ROWS.join('');
+const PIANO_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
+const KEYBOARD_LAST=PIANO_LAST;
 const keyboardDownByMidi=new Map(),keyboardUpByMidi=new Map(),keyboardCancelByMidi=new Map();
 const activeKeyboardKeys=new Map();
 
@@ -106,19 +110,19 @@ function updatePianoLabels(){
 function renderPianoKeyboardDiagram(){
   if(!state.song)return;
   const host=els.keyboardDiagram;
-  const width=1010,height=382,cell=94,gap=6,top=29,step=85;
+  const width=1320,height=297,cell=94,gap=6,top=29,step=85;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
-    'aria-label':'键盘弹奏：C3至B5，36 个按键随调号和移调更新'});
+    'aria-label':'键盘弹奏：C3至C6，37 个按键随调号和移调更新'});
   const title=svg('title',{},'电脑键盘与钢琴键位对照（当前 1='+state.song.key+'，'+
     (state.pianoTranspose?'按调号移调':'固定音高')+'）');
   graphic.append(title);
-  ['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].forEach((keys,row)=>{
+  KEYBOARD_ROWS.forEach((keys,row)=>{
     graphic.append(svg('text',{x:12,y:top-9+row*step,
       class:'keyboard-map-row-label'},'第 '+(row+1)+' 排'));
     for(let col=0;col<keys.length;col++){
       const letter=keys[col];
-      const midi=PIANO_FIRST+KEYBOARD_LAYOUT.indexOf(letter.toLowerCase());
+      const midi=PIANO_FIRST+KEYBOARD_LAYOUT.indexOf(letter);
       const actual=pianoSoundMidi(midi),black=PIANO_BLACK.has(midi%12);
       const x=12+col*(cell+gap),y=top+row*step;
       const group=svg('g',{class:'keyboard-map-cell'+(black?' keyboard-map-black':' keyboard-map-white'),
@@ -332,7 +336,11 @@ function buildPiano(){
 function keyboardEventCode(ev){
   if(typeof ev.code==='string'&&/^Key[A-Z]$/.test(ev.code))return ev.code.slice(3).toLowerCase();
   if(typeof ev.code==='string'&&/^(Digit|Numpad)[0-9]$/.test(ev.code))return ev.code.at(-1);
-  if(typeof ev.key==='string'&&/^[a-z0-9]$/i.test(ev.key))return ev.key.toLowerCase();
+  const physical={Comma:',',Period:'.',Semicolon:';',Slash:'/',Minus:'-',
+    BracketLeft:'[',Equal:'=',BracketRight:']'};
+  if(Object.hasOwn(physical,ev.code))return physical[ev.code];
+  if(typeof ev.key==='string'&&ev.key.length===1&&
+    KEYBOARD_LAYOUT.includes(ev.key.toLowerCase()))return ev.key.toLowerCase();
   return null;
 }
 function isEditingTarget(target){
@@ -840,7 +848,7 @@ els.keyboardMode.addEventListener('change',()=>{
   releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
   els.source.disabled=state.keyboardMode;
   if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
-  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：使用 1～0 和 Q～M 的 36 个按键弹奏 C3～B5，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
+  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：按指定的三行键位弹奏 C3～C6 共 37 个音，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{

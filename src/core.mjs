@@ -3,16 +3,16 @@
 export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
 .Title
 Title = 一生所爱
-KeyAndMeters = {1=G,3/4}
+KeyAndMeters = {1=D,3/4}
 WordsByAndMusicBy = 唐书琛（词）／卢冠廷（曲）
 Singer = 周深（原唱：卢冠廷、莫文蔚）
 .Voice
-3,_   3, |#4,_ #4, |5,_ 5, (5,_ 6,) 7,_ 3,-- |3,_ 3, #4,_ #4, 5,_ 5,  6,_ 2 7,- y15|$(true)
-1_ 7,_ 6,_ 5,_ 6, #4,- | 5, 6,_ 7,-- y15 | y y  y15 1_ 7,_ 6,_ 5,_ 6, #4,-- y  y| 3, 2,_ 3,- y15| $(true)
-3_ (2_ 3-) | 5 3_ 2  7,-    y y y y y y y30| y y y y35 7, 2_ 3- |5,_ 5, 6,_ (7,_ 2_) 7,-- y25 y15|$(true)
-(3_  2_) 3- |5 6_ 3 2- 2_ 7,-| y y y y35 3, 5,_ 7, 6,- 6,_ 5,. y| y10 3, 2,_ 3,-  y15|$(true)
-6,. (6,_ 1.)  | (7,__ 1__ 7,__ 6,__) 7,_ 5,_ 5,__ 6,__ 7,- |  (1__. #1__ b3-) | (5 #4-) | (5__. #4_) 3--  |$(true)
-           
+6,_   6, |7,_ 7, |1_ 1 (1_ 2) 3_ 6,-- |6,_ 6, 7,_ 7, 1_ 1  2_ 5 3- y15|$(true)
+4_ 3_ 2_ 1_ 2 7,- | 1 2_ 3-- y15 | y y  y15 4_ 3_ 2_ 1_ 2 7,-- y  y| 6, 5,_ 6,- y15| $(true)
+6_ (5_ 6-) | 1' 6_ 5  3-    y y y y y y y30| y y y y35 3 5_ 6- |1_ 1 2_ (3_ 5_) 3-- y25 y15|$(true)
+(6_  5_) 6- |1' 2'_ 6 5- 5_ 3-| y y y y35 6, 1_ 3 2- 2_ 1. y| y10 6, 5,_ 6,-  y15|$(true)
+2. (2_ 4.)  | (3__ 4__ 3__ 2__) 3_ 1_ 1__ 2__ 3- |  (4__. #4__ b6-) | (1' 7-) | (1'__. 7_) 6--  |$(true)
+1
 .Words
 
 W1@1,1:
@@ -25,7 +25,7 @@ W1@1,1:
 // Entries are separate from the editor state: adding another example only
 // requires appending an id/title/source entry here.
 export const EXAMPLES = Object.freeze([
-  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=G · 散板 · 五行旋律',source:EXAMPLE})
+  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · 六行旋律',source:EXAMPLE})
 ]);
 const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
