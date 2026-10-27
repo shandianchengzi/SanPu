@@ -59,6 +59,23 @@ function readVoice(body, warnings) {
   }
   return {notes,elements,measures};
 }
+// Split display-only punctuation from a lyric without changing its stored text or
+// its note-to-lyric correspondence. Opening quotation marks remain to the left;
+// ending punctuation is drawn to the right of the centered lyric body.
+export function splitLyricPunctuation(text) {
+  const glyphs=Array.from(String(text??''));
+  const punctuation='，。；！？：、,.!?;:”“‘’…';
+  let start=0,end=glyphs.length;
+  while(start<end && punctuation.includes(glyphs[start]))start++;
+  while(end>start && punctuation.includes(glyphs[end-1]))end--;
+  // A punctuation-only lyric has no body to anchor to; keep it centered.
+  if(start===end)return {main:glyphs.join(''),prefix:'',suffix:''};
+  return {
+    main:glyphs.slice(start,end).join(''),
+    prefix:glyphs.slice(0,start).join(''),
+    suffix:glyphs.slice(end).join('')
+  };
+}
 function lyricItems(raw) {
   const result=[]; let previous=null, prePunct='';
   const push = text => { const item={text:prePunct+text, skip:false}; prePunct='';result.push(item); previous=item; };
