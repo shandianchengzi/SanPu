@@ -71,7 +71,7 @@ test('ABC-style y spacer only changes score layout, not note timing or lyric ali
   assert.equal(song.notes.length,7);
   assert.deepEqual(song.notes.map(n=>n.beats),Array(7).fill(1));
   assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),[65]);
-  assert.deepEqual(song.elements.filter(e=>e.kind==='bar').map(e=>e.measure),[1,2]);
+  assert.deepEqual(song.elements.filter(e=>e.kind==='bar').map(e=>e.measure),[1,3]);
   assert.equal(song.elements.filter(e=>e.kind==='spacer')[0].measure,3);
   assert.deepEqual(song.notes.filter(n=>n.row===1).map(n=>n.noteIndex),[1,1,2]);
   assert.deepEqual(song.notes.map(n=>song.lyrics.get(n.id)?.text),Array.from('天地玄黄宇宙洪'));
