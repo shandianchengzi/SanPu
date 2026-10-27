@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -138,7 +138,10 @@ function closePianoInterval(nextStartedAt){
     nextStartedAt-pending.releasedAt<=pianoIdleMs(pending.tempo);
   if(shouldJoin){
     revisePending(Math.max(0,nextStartedAt-pending.startedAt));
-    els.pianoStatus.textContent='上一音符 '+pianoPending?.raw+' · 已按两次按键的起始间隔修正节奏';
+    els.pianoStatus.textContent='上一音符 '+(pianoPending?.raw??pending.raw)+' · 已按两次按键的起始间隔修正节奏';
+  }else if(pending.heldMs!==null){
+    // Handle a new phrase even if a backgrounded timer fired late.
+    revisePending(pending.heldMs);
   }
   clearPianoSequence();
 }
@@ -147,7 +150,8 @@ function armPianoIdle(pending){
   const threshold=pianoIdleMs(pending.tempo);
   pianoIdleTimer=setTimeout(()=>{
     if(pianoPending!==pending)return;
-    // Its held duration was already provisionally written at pointer-up.
+    // Only the confirmed final note uses its key-hold duration.
+    if(pending.heldMs!==null)revisePending(pending.heldMs);
     els.pianoStatus.textContent='末音 '+pending.raw+' · 无后续按键，按按住时长确定节奏';
     clearPianoSequence();
   },threshold);
@@ -202,9 +206,10 @@ function buildPiano(){
         key.setPointerCapture(ev.pointerId);
       if(pressedContinuous){
         closePianoInterval(pressedAt);
-        const inserted=insertFromPiano(midi,60000/pressedTempo,pressedAnchor);
+        // Provisional two-beat note (one '-'); next onset resolves its duration.
+        const inserted=insertFromPiano(midi,120000/pressedTempo,pressedAnchor);
         if(inserted){
-          pianoPending={...inserted,startedAt:pressedAt,releasedAt:null,tempo:pressedTempo};
+          pianoPending={...inserted,startedAt:pressedAt,releasedAt:null,heldMs:null,tempo:pressedTempo};
           pressedPending=pianoPending;
           els.pianoStatus.textContent=label+' · 已记下起始时间，等待后续按键决定节奏';
         }
@@ -226,11 +231,10 @@ function buildPiano(){
       if(pressedContinuous){
         if(pressedPending && pianoPending===pressedPending){
           pressedPending.releasedAt=stamp;
-          revisePending(duration);
-          if(pianoPending===pressedPending){
-            els.pianoStatus.textContent='当前末音 '+pressedPending.raw+' · 等待下一键修正节奏';
-            armPianoIdle(pressedPending);
-          }
+          pressedPending.heldMs=duration;
+          // Keep provisional '-' after mouse-up; pointer travel must not shorten it.
+          els.pianoStatus.textContent='当前末音 '+pressedPending.raw+' · 等待下一键修正节奏';
+          armPianoIdle(pressedPending);
         }
         pressedPending=null;
       }else if(!pressedAudition)insertFromPiano(midi,duration,pressedAnchor);
@@ -260,10 +264,10 @@ function buildPiano(){
       if(!state.pianoAudition){
         const now=typeof performance!=='undefined'?performance.now():Date.now();
         if(state.pianoContinuous)closePianoInterval(now);
-        const inserted=insertFromPiano(midi,60000/state.tempo);
-        // Assistive click-only activation has no meaningful hold time.
+        const inserted=insertFromPiano(midi,(state.pianoContinuous?120000:60000)/state.tempo);
+        // Click-only activation cannot measure held duration; use one beat.
         if(state.pianoContinuous&&inserted){
-          pianoPending={...inserted,startedAt:now,releasedAt:now,tempo:state.tempo};
+          pianoPending={...inserted,startedAt:now,releasedAt:now,heldMs:60000/state.tempo,tempo:state.tempo};
           armPianoIdle(pianoPending);
         }
       }
@@ -477,7 +481,7 @@ function drawSystem(elements,song,width){
     }
     const n=e,w=estimateWidth(n,song),cx=x+noteCellWidth()/2;
     const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button',
-      'aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击从此处播放`});
+      'aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击定位到源码`});
     const lyr=song.lyrics.get(n.id);
     g.append(svg('rect',{x:x+1,y:5,width:w-2,height:height-9,rx:4,class:'note-bg'}));
     if(n.accidental)g.append(svg('text',{x:cx-f.noteSize*.54,y:noteY,'text-anchor':'middle',class:'accidental'},n.accidental));
@@ -512,8 +516,8 @@ function drawSystem(elements,song,width){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    g.addEventListener('click',()=>playFrom(n.id));
-    g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();playFrom(n.id);}});
+    g.addEventListener('click',()=>selectScoreNote(n.id));
+    g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     s.append(g);
     x+=w;
   }
@@ -605,6 +609,25 @@ async function runPlayback() {
   };tick();
 }
 function playFrom(id){state.cursorNoteId=id;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
+function selectScoreNote(id){
+  const caret=noteSourceCaret(els.source.value,id);
+  if(caret===null)return;
+  clearPianoSequence();
+  if(state.pianoAudition)playFrom(id);
+  else{
+    // Record mode: stop playback immediately and preserve the selected note
+    // as the resume point and the insertion anchor, without replaying.
+    stopAudio();
+    buildSchedule();
+    state.position=state.schedule.find(item=>item.id===id)?.start??0;
+    els.play.textContent='▶ 继续';
+    state.cursorNoteId=id;
+    highlight(id);
+  }
+  els.source.focus();
+  if(typeof els.source.setSelectionRange==='function')els.source.setSelectionRange(caret,caret);
+  else els.source.selectionStart=els.source.selectionEnd=caret;
+}
 function download(name,bytes,type) {
   const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');
   a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
@@ -634,7 +657,7 @@ els.pianoContinuous.addEventListener('change',()=>{
   clearPianoSequence();
   state.pianoContinuous=els.pianoContinuous.checked;
   els.pianoStatus.textContent=state.pianoContinuous?
-    '延音连续：下一键的按下时间决定上一音时值；末音长时间无下一键时按按住时长结算':
+    '延音连续：新音符默认延长一拍；下一键按下后修正上一音，末音待超时按实际按住时长结算':
     '普通模式：每个音符按住多久，就记多长时值';
   persist();
 });

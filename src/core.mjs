@@ -260,3 +260,16 @@ export function revisePianoNoteDuration(source,noteId,expectedRaw,suffix){
   return {source:text.slice(0,from)+raw+text.slice(to),raw,noteId,
     from,to,delta:raw.length-note.raw.length};
 }
+
+// Source-editor caret after the exact indexed note, even with duplicate notes.
+export function noteSourceCaret(source,noteId){
+  if(!Number.isInteger(noteId)||noteId<0)return null;
+  const text=String(source??'');
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
+  const voiceIndex=headings.findIndex(h=>h[1]==='Voice');
+  if(voiceIndex<0)return null;
+  const begin=headings[voiceIndex].index+headings[voiceIndex][0].length;
+  const end=headings[voiceIndex+1]?.index??text.length;
+  const note=readVoice(text.slice(begin,end),[]).notes[noteId];
+  return note?begin+note.sourceEnd:null;
+}
