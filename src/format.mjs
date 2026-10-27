@@ -18,12 +18,14 @@ export const FORMAT_GROUPS = [
     ]
   },
   {
-    title:'音符与歌词',hint:'高低音点距离分别微调：正数远离音符，负数靠近；默认 0 保留原位置。',
+    title:'音符与歌词',hint:'升降号、延时点（附点）和高低音点的位置可独立调节；正数远离音符，负数靠近；默认 0 保留原位置。',
     fields:[
       {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:50},
       {key:'noteWeight',label:'音符字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'700'},
       {key:'noteFont',label:'音符字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'accidentalSize',label:'升降号字号',min:14,max:48,step:1,unit:'px',default:23},
+      {key:'accidentalGap',label:'升降号与音符间距微调',min:-25,max:70,step:1,unit:'px',default:0},
+      {key:'durationDotGap',label:'延时点（附点）与音符间距微调',min:-25,max:70,step:1,unit:'px',default:0},
       {key:'lyricSize',label:'歌词字号',min:14,max:65,step:1,unit:'px',default:51},
       {key:'lyricWeight',label:'歌词字重',choices:[['300','细体'],['400','常规'],['500','中等'],['600','半粗'],['700','加粗']],default:'400'},
       {key:'lyricFont',label:'歌词字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'kai'},

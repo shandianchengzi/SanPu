@@ -86,7 +86,7 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,63);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,67);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
@@ -992,4 +992,53 @@ test('clicking score note in audition mode continues playing from selected note 
   assert.equal(state.playing,true);
   assert.ok(oscillators>0);
   els.stop.dispatch('click');
+});
+
+test('accidental and augmentation-dot gaps move markers separately and reserve horizontal room',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n#4... 4... 4 #5';
+  const {state,els,localStorage}=boot({source});
+  const notes=()=>scoreLine(els).children.filter(el=>el.className==='note-click');
+  const numeral=group=>Number(group.children.find(el=>el.className==='note-num').attrs.x);
+  const accidental=group=>Number(group.children.find(el=>el.className==='accidental').attrs.x);
+  const dot=group=>Number(group.children.find(el=>el.className==='octave duration-dot').attrs.cx);
+  const before=notes();
+  const baseAccDistance=numeral(before[0])-accidental(before[0]);
+  const baseDotDistance=dot(before[0])-numeral(before[0]);
+  const baselineWidth=Number(scoreLine(els).attrs.viewBox.split(' ')[2]);
+  assert.equal(state.format.accidentalGap,0);
+  assert.equal(state.format.durationDotGap,0);
+  const accSlider=field(els,'accidentalGap');
+  const dotValue=field(els,'durationDotGap','-value');
+  assert.equal(accSlider.min,'-25');
+  assert.equal(dotValue.max,'70');
+  accSlider.value='30';accSlider.dispatch('input');
+  const afterAcc=notes();
+  assert.equal(numeral(afterAcc[0])-accidental(afterAcc[0]),baseAccDistance+30);
+  assert.equal(dot(afterAcc[0])-numeral(afterAcc[0]),baseDotDistance);
+  assert.equal(numeral(afterAcc[1]),numeral(before[1])+30,
+    'next note shifts only to reserve the preceding accidental');
+  assert.equal(numeral(afterAcc[0]),numeral(before[0])+30);
+  dotValue.value='38';dotValue.dispatch('change');
+  const afterDots=notes();
+  assert.equal(numeral(afterDots[0])-accidental(afterDots[0]),baseAccDistance+30);
+  assert.equal(dot(afterDots[0])-numeral(afterDots[0]),baseDotDistance+38);
+  assert.equal(dot(afterDots[1])-numeral(afterDots[1]),baseDotDistance+38);
+  assert.equal(numeral(afterDots[2]),numeral(afterAcc[2])+76,
+    'two preceding dotted notes each reserve their own increased right gap');
+  assert.equal(numeral(afterDots[2]),numeral(afterDots[2]),
+    'undotted note remains at its cell center');
+  assert.ok(Number(scoreLine(els).attrs.viewBox.split(' ')[2])>baselineWidth);
+  assert.equal(state.format.accidentalGap,30);
+  assert.equal(state.format.durationDotGap,38);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.accidentalGap,30);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.durationDotGap,38);
+  assert.equal(els.score.style.props['--accidental-gap'],'30px');
+  assert.equal(els.score.style.props['--duration-dot-gap'],'38px');
+  assert.equal(els.source.value,source,'spacing never changes note source');
+  dotValue.value='-18';dotValue.dispatch('change');
+  assert.equal(dot(notes()[0])-numeral(notes()[0]),baseDotDistance-18);
+  const restored=boot({source,format:{accidentalGap:19,durationDotGap:-12}});
+  assert.equal(numeral(restored.els.score.children.find(el=>el.className==='score-line').children.find(el=>el.className==='note-click')) -
+    Number(restored.els.score.children.find(el=>el.className==='score-line').children.find(el=>el.className==='note-click').children.find(el=>el.className==='accidental').attrs.x),
+    baseAccDistance+19);
 });

@@ -18,6 +18,8 @@
     "noteWeight": "700",
     "noteFont": "sans",
     "accidentalSize": 23,
+    "accidentalGap": 0,
+    "durationDotGap": 0,
     "lyricSize": 51,
     "lyricWeight": "400",
     "lyricFont": "kai",

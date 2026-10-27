@@ -313,6 +313,8 @@ function applyAppearance(){
     '--meta-bottom':f.metaBottomGap+'px','--note-size':f.noteSize+'px',
     '--note-weight':f.noteWeight,'--note-font':FONTS[f.noteFont],
     '--accidental-size':f.accidentalSize+'px',
+    '--accidental-gap':f.accidentalGap+'px',
+    '--duration-dot-gap':f.durationDotGap+'px',
     '--lyric-size':f.lyricSize+'px','--lyric-weight':f.lyricWeight,
     '--lyric-font':FONTS[f.lyricFont],'--lyric-spacing':f.lyricLetterSpacing+'px',
     '--punctuation-gap':f.punctuationGap+'px',
@@ -418,9 +420,14 @@ function estimateWidth(element,song){
   const {main,prefix,suffix}=splitLyricPunctuation(lyric?.text||'');
   const chars=Array.from(main+prefix+suffix).length;
   const dashes=(element.suffix.match(/-/g)||[]).length;
+  // Allow more space around modified accidentals / augmentation dots without
+  // moving notes that have no such symbols. Negative values can intentionally
+  // tighten spacing, including overlaps.
+  const accidentalInset=element.accidental?Math.max(0,f.accidentalGap):0;
+  const dotInset=element.suffix.includes('.')?Math.max(0,f.durationDotGap):0;
   // Reserve room for punctuation, but keep the lyric body anchored to the note.
   const punctSpace=(prefix||suffix)?Math.max(0,f.punctuationGap):0;
-  return Math.max(noteCellWidth()+dashes*f.dashSpacing,
+  return accidentalInset+dotInset+Math.max(noteCellWidth()+dashes*f.dashSpacing,
     noteCellWidth()+Math.max(0,chars-1)*(f.lyricSize*.93+f.lyricLetterSpacing)+punctSpace);
 }
 function systems(song) {
@@ -479,12 +486,14 @@ function drawSystem(elements,song,width){
       x+=f.barSpacing;
       continue;
     }
-    const n=e,w=estimateWidth(n,song),cx=x+noteCellWidth()/2;
+    const n=e,w=estimateWidth(n,song);
+    // Extra leading space is reserved only for notes carrying accidentals.
+    const cx=x+(n.accidental?Math.max(0,f.accidentalGap):0)+noteCellWidth()/2;
     const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button',
       'aria-label':`第 ${n.measure} 小节第 ${n.noteIndex} 音 ${n.raw}，点击定位到源码`});
     const lyr=song.lyrics.get(n.id);
     g.append(svg('rect',{x:x+1,y:5,width:w-2,height:height-9,rx:4,class:'note-bg'}));
-    if(n.accidental)g.append(svg('text',{x:cx-f.noteSize*.54,y:noteY,'text-anchor':'middle',class:'accidental'},n.accidental));
+    if(n.accidental)g.append(svg('text',{x:cx-f.noteSize*.54-f.accidentalGap,y:noteY,'text-anchor':'middle',class:'accidental'},n.accidental));
     g.append(svg('text',{x:cx,y:noteY,class:'note-num','text-anchor':'middle'},n.degree));
     if(n.octave>0){
       for(let k=0;k<Math.min(n.octave,3);k++)
@@ -498,7 +507,7 @@ function drawSystem(elements,song,width){
       g.append(svg('line',{x1:cx-18,x2:cx+18,y1:underY+k*underStep,y2:underY+k*underStep,class:'rhythm'}));
     const dots=(n.suffix.match(/\./g)||[]).length;
     for(let k=0;k<dots;k++)
-      g.append(svg('circle',{cx:cx+f.noteSize*.63+k*11,cy:noteY-8,r:Math.min(4,f.octaveDotSize),class:'octave'}));
+      g.append(svg('circle',{cx:cx+f.noteSize*.63+f.durationDotGap+k*11,cy:noteY-8,r:Math.min(4,f.octaveDotSize),class:'octave duration-dot'}));
     const dashes=(n.suffix.match(/-/g)||[]).length;
     for(let k=0;k<dashes;k++){
       const x1=cx+f.noteSize*.58+k*f.dashSpacing;

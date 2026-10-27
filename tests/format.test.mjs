@@ -168,3 +168,33 @@ test('the built-in standard preset matches the supplied SanPu appearance JSON ex
   assert.ok(FORMAT_PRESETS.spacious.noteSize>DEFAULT_FORMAT.noteSize);
   assert.ok(FORMAT_PRESETS.spacious.lyricSize>DEFAULT_FORMAT.lyricSize);
 });
+
+test('accidental and duration-dot spacing are signed, independent and portable',()=>{
+  const fields=Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field]));
+  for(const key of ['accidentalGap','durationDotGap']){
+    assert.equal(DEFAULT_FORMAT[key],0);
+    assert.equal(fields[key].min,-25);
+    assert.equal(fields[key].max,70);
+    assert.equal(normalizeFormat({[key]:-11})[key],-11);
+    assert.equal(normalizeFormat({[key]:52})[key],52);
+    assert.equal(normalizeFormat({[key]:-999})[key],-25);
+    assert.equal(normalizeFormat({[key]:999})[key],70);
+    assert.equal(normalizeFormat({[key]:'invalid'})[key],0);
+    assert.equal(FORMAT_PRESETS.compact[key],0);
+    assert.equal(FORMAT_PRESETS.spacious[key],0);
+  }
+  const appearance=normalizeFormat({
+    accidentalSize:31,accidentalGap:26,durationDotGap:-8,noteSpacing:-15
+  });
+  assert.equal(appearance.accidentalSize,31);
+  assert.equal(appearance.noteSpacing,-15);
+  assert.equal(appearance.accidentalGap,26);
+  assert.equal(appearance.durationDotGap,-8);
+  const restored=importStyle(exportStyle(appearance));
+  assert.deepEqual(restored,appearance);
+  const legacy=importStyle(JSON.stringify({
+    type:STYLE_FILE_TYPE,version:1,settings:{accidentalSize:27}
+  }));
+  assert.equal(legacy.accidentalGap,0);
+  assert.equal(legacy.durationDotGap,0);
+});
