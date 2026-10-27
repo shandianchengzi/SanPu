@@ -269,7 +269,10 @@ test('transcriber update preserves source and permits an explicitly blank credit
   assert.equal(parseSong(blank).transcriber,'');
   assert.equal((blank.match(/Transcriber =/g)||[]).length,1);
   assert.equal(updateTranscriber(blank,'另一位'),named.replace('王小明','另一位'));
-  assert.equal(updateTranscriber('.Voice\n1','no-title'),null);
+  const newTitle=updateTranscriber('.Voice\n1','no-title');
+  assert.equal(parseSong(newTitle).transcriber,'no-title');
+  assert.ok(newTitle.endsWith('.Voice\n1'));
+  assert.equal(parseSong(updateTranscriber('.Voice\n1','')).transcriber,'');
 });
 
 test('shared playback schedule preserves notation lengths and marks legato boundaries',()=>{

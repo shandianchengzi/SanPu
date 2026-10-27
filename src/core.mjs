@@ -301,7 +301,10 @@ export function updateTranscriber(source,value){
   const text=String(source??'');
   const name=String(value??'').replace(/[\r\n]+/g,' ').trim();
   const heading=/^[ \t]*\.Title[ \t]*\r?$/m.exec(text);
-  if(!heading)return null;
+  if(!heading){
+    const newline=text.includes('\r\n')?'\r\n':'\n';
+    return '.Title'+newline+'Transcriber = '+name+newline+text;
+  }
   const line=/^([ \t]*Transcriber[ \t]*=[ \t]*)[^\r\n]*/m;
   const titleEnd=text.search(/^[ \t]*\.(Voice|Words|Layout|Repeat)[ \t]*\r?$/m);
   const end=titleEnd>=0?titleEnd:text.length;

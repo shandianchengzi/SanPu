@@ -1131,3 +1131,17 @@ test('slurs draw independent SVG arcs, including continuation across manual scor
   assert.equal(state.song.notes[1].beats,1);
   assert.equal(els.source.value,source);
 });
+
+test('MP3 button reports missing offline renderer gracefully without changing source',async()=>{
+  const source='.Title\nTitle = 示例\n.Voice\n1 2';
+  const {state,els,document}=boot({source});
+  const button=document.getElementById('mp3-btn');
+  const status=document.getElementById('mp3-status');
+  assert.equal(button.disabled,undefined);
+  await button.dispatch('click');
+  assert.equal(button.disabled,false);
+  assert.equal(button.textContent,'↓ 导出 MP3');
+  assert.match(status.textContent,/不支持离线音频渲染/);
+  assert.equal(els.source.value,source);
+  assert.equal(state.playing,false);
+});
