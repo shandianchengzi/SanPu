@@ -3,21 +3,26 @@
 export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
 .Title
 Title = 一生所爱
-KeyAndMeters = {1=D,3/4}
+KeyAndMeters = {1=G,3/4}
 WordsByAndMusicBy =
 .Voice
-3_ 2_ 3- | 5 3_ 2  7,- y y y y y y y40| 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
-3_ 2_ 3- |5 6_ 3 2- 2_ 7,-|3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,-  |$(true)
+3,_ 3, |#4,_ #4, |5,_ 5, 5,_ 6, 7,_ 3,-- |3,_ 3, #4,_ #4, 5,_ 5,  6,_ 2 7,- |$(true)
+1_ 7,_ 6,_ 5,_ 6, #4,- | 5, 6,_ 7,. y y10| y y y y15 1_ 7,_ 6,_ 5,_ 6, #4,... y y y y | 3, 2,_ 3,-         | $(true)
+3_ 2_ 3- | 5 3_ 2  7,-    y y y y y y y40| y y y y35 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
+3_ 2_ 3- |5 6_ 3 2- 2_ 7,-| y y y y35 3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,- |$(true)
+           
 .Words
-W1@1,1:
 
+W1@1,1:
+从前，现在,过去了再不来，红红落叶，长埋尘土里。
+开始终结总是没变改，天边的你飘泊白云外。
 {1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。
 相亲/ 竟不可/接近,或我应该相信是缘份。
 `;
 // Entries are separate from the editor state: adding another example only
 // requires appending an id/title/source entry here.
 export const EXAMPLES = Object.freeze([
-  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · y 排版空位',source:EXAMPLE})
+  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=G · 散板 · 四行完整示例',source:EXAMPLE})
 ]);
 const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
