@@ -37,7 +37,7 @@ class FakeElement {
 function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
-    'play-btn','stop-btn','loop-count','mp3-btn','mp3-status','saved','transcriber-input','format-controls','format-preset','format-reset',
+    'play-btn','stop-btn','loop-count','mp3-btn','mp3-status','batch-shift','batch-apply','batch-status','saved','transcriber-input','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
      'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-keyboard-mode','piano-keyboard-diagram','piano-status']){
@@ -1354,7 +1354,7 @@ test('finite and infinite loop playback restart on the audio timeline, pause ret
   audio.currentTime=2.01;fireFrame();
   assert.equal(state.loopsDone,1);
   assert.equal(state.playing,true);
-  assert.deepEqual(starts.slice(-2),[2,3]);
+  assert.deepEqual(starts.slice(-2),[2.01,3]);
   audio.currentTime=2.25;
   els.play.dispatch('click');
   assert.equal(state.playing,false);

@@ -314,3 +314,16 @@ main{padding-top:23px}
   border:1px solid #cbdad3;border-radius:6px;background:#fff;color:#173f36;font:inherit}
 .play-loop input:focus-visible{outline:2px solid #8fc6b3}
 @media print{.play-loop{display:none!important}}
+
+/* Explicit, confirm-before-commit score-wide semitone operations. */
+.batch-editor{margin-top:12px;padding:11px 12px;border:1px solid #d6e2dd;
+  background:#f6faf8;border-radius:9px;font-size:12px;color:#36584e}
+.batch-editor summary{cursor:pointer;font-size:13px;font-weight:650;display:flex;justify-content:space-between}
+.batch-editor[open] summary{margin-bottom:10px}
+.batch-editor-controls{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.batch-editor-controls label{display:inline-flex;gap:6px;align-items:center}
+.batch-editor-controls input{width:68px;text-align:center;padding:7px 5px;
+  border:1px solid #b8cac1;border-radius:7px;background:white;color:var(--ink)}
+.batch-editor-controls #batch-status{font-size:11px;color:#44675d;flex-basis:100%}
+.batch-editor p{font-size:11px;color:#557168;margin:7px 0 0;line-height:1.6}
+@media print{.batch-editor{display:none!important}}

@@ -284,6 +284,46 @@ export function revisePianoNoteDuration(source,noteId,expectedRaw,suffix){
     from,to,delta:raw.length-note.raw.length};
 }
 
+/** Batch shift every sounding pitch by a signed number of semitones.
+ * Preserve byte-for-byte the title, tempo, lyrics, punctuation, durations,
+ * slurs, layout spacers, bars, and whitespace. Rests are unchanged.
+ * No partial update is returned if any destination pitch is unrepresentable.
+ */
+export function transposeSongSemitones(source,semitones){
+  const text=String(source??'');
+  if(!Number.isSafeInteger(semitones))
+    throw new Error('音程必须是整数半音数。');
+  const heading=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const voiceAt=heading.findIndex(h=>h[1]==='Voice');
+  if(voiceAt<0)throw new Error('缺少 .Voice 音符段。');
+  const offset=heading[voiceAt].index+heading[voiceAt][0].length;
+  const limit=heading[voiceAt+1]?.index??text.length;
+  const notes=readVoice(text.slice(offset,limit),[]).notes;
+  if(!notes.length)throw new Error('没有可移调的音符。');
+  if(semitones===0)return {source:text,count:0,total:notes.length};
+  const key=parseSong(text).key;
+  const root=ROOT[key]??0;
+  const changes=[];
+  for(const note of notes){
+    if(note.degree===0)continue; // rest
+    const accidental=note.accidental.includes('#')?1:note.accidental.includes('b')?-1:0;
+    const midi=60+root+MAJOR[note.degree-1]+note.octave*12+accidental+semitones;
+    if(midi<21||midi>108)
+      throw new Error('第 '+(note.id+1)+' 个音符移调后超出支持音域（MIDI 21～108），已取消本次批量编辑。');
+    const target=pianoToNotation(midi,key);
+    if(!target)throw new Error('无法转换第 '+(note.id+1)+' 个音符。');
+    const replacement=target+note.suffix;
+    const from=offset+note.sourceStart,to=offset+note.sourceEnd;
+    if(text.slice(from,to)!==note.raw)
+      throw new Error('音符位置不一致，已取消本次批量编辑。');
+    changes.push({from,to,replacement});
+  }
+  let result=text;
+  for(const {from,to,replacement} of changes.reverse())
+    result=result.slice(0,from)+replacement+result.slice(to);
+  return {source:result,count:changes.length,total:notes.length};
+}
+
 // Source-editor caret after the exact indexed note, even with duplicate notes.
 export function noteSourceCaret(source,noteId){
   if(!Number.isInteger(noteId)||noteId<0)return null;

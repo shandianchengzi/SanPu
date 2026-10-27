@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -11,7 +11,7 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
 const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
@@ -802,6 +802,25 @@ document.addEventListener('keydown',keyboardDown);
 document.addEventListener('keyup',keyboardUp);
 window.addEventListener('blur',releaseComputerKeys);
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
+els.batchApply.addEventListener('click',()=>{
+  const raw=els.batchShift.value,n=Number(raw);
+  if(raw.trim()===''||!Number.isSafeInteger(n)){
+    els.batchStatus.textContent='请输入有效的整数半音数（支持负数）。';return;
+  }
+  if(n===0){els.batchStatus.textContent='音程为 0，谱面不需要修改。';return;}
+  let changed;
+  try{changed=transposeSongSemitones(els.source.value,n);}
+  catch(err){els.batchStatus.textContent='批量编辑未生效：'+err.message;return;}
+  if(changed.count===0){els.batchStatus.textContent='谱面没有需要移调的发声音符。';return;}
+  const direction=n>0?'升高 '+n:'降低 '+Math.abs(n);
+  if(!confirm('确认将全谱 '+changed.count+' 个音符'+direction+'个半音吗？\\n歌词、时值、圆滑线、排版空位与调号保持不变。')) {
+    els.batchStatus.textContent='已取消，谱面未修改。';return;
+  }
+  clearPianoSequence();
+  els.source.value=changed.source;
+  refresh();
+  els.batchStatus.textContent='已'+direction+'个半音，共修改 '+changed.count+' 个音符。';
+});
 els.transcriber.addEventListener('change',()=>{
   const updated=updateTranscriber(els.source.value,els.transcriber.value);
   if(updated===null){message('源码缺少 .Title 段，无法保存记谱人');return;}
