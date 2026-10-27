@@ -81,10 +81,19 @@ function loadSelectedExample(){
 const PIANO_FIRST=48;
 const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-[']);
 const KEYBOARD_LAYOUT=KEYBOARD_ROWS.join('');
+// Arrange the SVG by physical key position, not by melodic order.
+// Units match the width/offsets of a conventional desktop QWERTY keyboard.
+const PHYSICAL_KEY_ROWS=Object.freeze([
+  [['`',1],...Array.from('1234567890-=').map(k=>[k,1]),['Backspace',2]],
+  [['Tab',1.5],...Array.from('qwertyuiop[]\\').map(k=>[k,1])],
+  [['Caps',1.75],...Array.from("asdfghjkl;'").map(k=>[k,1]),['Enter',2.25]],
+  [['Shift',2.25],...Array.from('zxcvbnm,./').map(k=>[k,1]),['Shift',2.75]]
+]);
 const PIANO_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
 const KEYBOARD_LAST=PIANO_LAST;
 const keyboardDownByMidi=new Map(),keyboardUpByMidi=new Map(),keyboardCancelByMidi=new Map();
 const activeKeyboardKeys=new Map();
+const keyboardMapCells=new Map();
 
 const PIANO_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const PIANO_BLACK=new Set([1,3,6,8,10]);
@@ -109,37 +118,63 @@ function updatePianoLabels(){
 function renderPianoKeyboardDiagram(){
   if(!state.song)return;
   const host=els.keyboardDiagram;
-  const width=1220,height=297,cell=94,gap=6,top=29,step=85;
+  // Four physically staggered key rows: numbers, QWERTY, ASDF, ZXCV.
+  // Extra computer keys are displayed in grey rather than repositioning the
+  // user's deliberately ergonomic pitch assignments.
+  const unit=77,gap=5,pad=22,top=50,rowStep=80,keyHeight=66;
+  const width=15*unit+pad*2,height=392;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
-    'aria-label':'键盘弹奏：C3至B5，36 个按键随调号和移调更新'});
-  const title=svg('title',{},'电脑键盘与钢琴键位对照（当前 1='+state.song.key+'，'+
-    (state.pianoTranspose?'按调号移调':'固定音高')+'）');
-  graphic.append(title);
-  KEYBOARD_ROWS.forEach((keys,row)=>{
-    graphic.append(svg('text',{x:12,y:top-9+row*step,
-      class:'keyboard-map-row-label'},'C'+(row+3)+' 八度'));
-    for(let col=0;col<keys.length;col++){
-      const letter=keys[col];
-      const midi=PIANO_FIRST+KEYBOARD_LAYOUT.indexOf(letter);
-      const actual=pianoSoundMidi(midi),black=PIANO_BLACK.has(midi%12);
-      const x=12+col*(cell+gap),y=top+row*step;
-      const group=svg('g',{class:'keyboard-map-cell'+(black?' keyboard-map-black':' keyboard-map-white'),
-        'data-midi':midi,'data-key':letter.toLowerCase()});
-      const base=pianoLabel(midi);
-      const pitch=actual===null?'—':pianoLabel(actual);
-      const score=actual===null?'—':pianoToNotation(actual,state.song.key);
-      group.append(svg('rect',{x,y,width:cell,height:66,rx:7}));
-      group.append(svg('text',{x:x+cell/2,y:y+19,'text-anchor':'middle',
-        class:'keyboard-map-letter'},letter));
-      group.append(svg('text',{x:x+cell/2,y:y+40,'text-anchor':'middle',
-        class:'keyboard-map-pitch'},state.pianoTranspose?base+' → '+pitch:base));
-      group.append(svg('text',{x:x+cell/2,y:y+57,'text-anchor':'middle',
-        class:'keyboard-map-notation'},'简谱 '+score));
+    'aria-label':'真实 QWERTY 键盘布局，36 个 C3 到 B5 的映射键；随谱面调号和移调更新'});
+  graphic.append(svg('title',{},'标准电脑键盘键位 · 1='+state.song.key+
+    (state.pianoTranspose?' · 按调号移调':' · 固定音高')));
+  graphic.append(svg('text',{x:pad,y:26,class:'keyboard-map-heading'},
+    '标准 QWERTY 键盘 · 按实际位置排列'));
+  keyboardMapCells.clear();
+  for(const [rowIndex,row] of PHYSICAL_KEY_ROWS.entries()){
+    let x=pad;
+    const y=top+rowIndex*rowStep;
+    for(const [key,units] of row){
+      const w=units*unit-gap;
+      const position=KEYBOARD_LAYOUT.indexOf(key);
+      const mapped=position>=0;
+      const midi=mapped?PIANO_FIRST+position:null;
+      const black=mapped&&PIANO_BLACK.has(midi%12);
+      const group=svg('g',{class:mapped?
+        'keyboard-map-cell keyboard-map-'+(black?'black':'white')+' keyboard-map-octave-'+(Math.floor(midi/12)-1):
+        'keyboard-map-unused',
+        'data-key':key,
+        ...(mapped?{'data-midi':midi}:{})});
+      group.append(svg('rect',{x,y,width:w,height:keyHeight,rx:7}));
+      if(mapped){
+        const sounding=pianoSoundMidi(midi);
+        const original=pianoLabel(midi);
+        const actual=sounding===null?'—':pianoLabel(sounding);
+        const notation=sounding===null?'—':pianoToNotation(sounding,state.song.key);
+        group.append(svg('text',{x:x+w/2,y:y+20,'text-anchor':'middle',
+          class:'keyboard-map-letter'},/^[a-z]$/.test(key)?key.toUpperCase():key));
+        group.append(svg('text',{x:x+w/2,y:y+41,'text-anchor':'middle',
+          class:'keyboard-map-pitch'},state.pianoTranspose?original+' → '+actual:original));
+        group.append(svg('text',{x:x+w/2,y:y+57,'text-anchor':'middle',
+          class:'keyboard-map-notation'},'简谱 '+notation));
+        keyboardMapCells.set(midi,group);
+        // Preserve the pressed visual when an active note triggers a rerender.
+        const pianoKey=Array.from(els.pianoKeys.children).find(k=>Number(k.dataset.midi)===midi);
+        group.classList.toggle('is-pressed',pianoKey?.classList.contains('is-pressed')===true);
+      }else{
+        group.append(svg('text',{x:x+w/2,y:y+39,'text-anchor':'middle',
+          class:'keyboard-map-unused-label'},key));
+      }
       graphic.append(group);
+      x+=units*unit;
     }
-  });
+  }
+  graphic.append(svg('text',{x:pad,y:height-13,class:'keyboard-map-caption'},
+    '有音符的键显示其实际音高与简谱；灰色键未绑定。按下对应按键时会与钢琴同步高亮。'));
   host.replaceChildren(graphic);
+}
+function highlightKeyboardMap(midi,pressed){
+  keyboardMapCells.get(midi)?.classList.toggle('is-pressed',pressed);
 }
 async function auditionPiano(midi){
   const soundMidi=pianoSoundMidi(midi);
@@ -256,6 +291,7 @@ function buildPiano(){
       pressedContinuous=!pressedAudition&&state.pianoContinuous;
       pressedTempo=state.tempo;
       key.classList.toggle('is-pressed',true);
+      highlightKeyboardMap(midi,true);
       if(ev.type==='pointerdown'&&key.setPointerCapture&&ev.pointerId!==undefined)
         key.setPointerCapture(ev.pointerId);
       if(pressedContinuous){
@@ -281,6 +317,7 @@ function buildPiano(){
       const stamp=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
       const duration=Math.max(0,stamp-pressedAt);
       pressedAt=null;key.classList.toggle('is-pressed',false);
+      highlightKeyboardMap(midi,false);
       ignoreClick=true;
       if(pressedContinuous){
         if(pressedPending && pianoPending===pressedPending){
@@ -296,7 +333,7 @@ function buildPiano(){
     const cancel=()=>{
       if(pressedPending&&pianoPending===pressedPending)clearPianoSequence();
       pressedPending=null;pressedAt=null;
-      key.classList.toggle('is-pressed',false);ignoreClick=true;
+      key.classList.toggle('is-pressed',false);highlightKeyboardMap(midi,false);ignoreClick=true;
     };
     key.addEventListener('pointerdown',down);
     key.addEventListener('pointerup',up);

@@ -283,7 +283,7 @@ main{padding-top:23px}
 /* Soft-wrap only the editor display; textarea.value remains unchanged. */
 #source{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden}
 
-/* Dynamic SVG keymap: 25 semitones (C3–C5) using the first 25 QWERTY letters. */
+/* Physical QWERTY keyboard SVG: correct row stagger and unbound keys. */
 .piano-keyboard-mode{display:inline-flex;align-items:center;gap:5px;cursor:pointer;
   white-space:nowrap;color:#385a51}
 .piano-keyboard-mode input{accent-color:var(--accent);margin:0}
@@ -291,18 +291,26 @@ main{padding-top:23px}
 .keyboard-help h3{font-size:13px;font-weight:650;color:#315d53;margin:0 0 4px}
 .keyboard-help p{margin:0 0 8px}
 .keyboard-diagram-scroll{width:100%;overflow-x:auto;scrollbar-width:thin}
- .keyboard-map-svg{display:block;width:1220px;max-width:none;height:297px;background:#f5faf7;
+.keyboard-map-svg{display:block;width:1199px;max-width:none;height:392px;background:#f5faf7;
   border:1px solid #dce8e1;border-radius:9px}
-.keyboard-map-row-label{font:11px sans-serif;fill:#607a70}
-.keyboard-map-cell rect{stroke:#a9bcb3;stroke-width:1}
+.keyboard-map-heading{font:600 15px "Microsoft YaHei",sans-serif;fill:#345b50}
+.keyboard-map-caption{font:11px "Microsoft YaHei",sans-serif;fill:#60776e}
+.keyboard-map-cell rect{stroke:#b4c9c0;stroke-width:1.2}
 .keyboard-map-white rect{fill:#fff}
 .keyboard-map-black rect{fill:#293b37;stroke:#1a2825}
+.keyboard-map-unused rect{fill:#e6ece9;stroke:#c7d5ce;stroke-width:1}
+.keyboard-map-unused-label{font:11px ui-sans-serif,sans-serif;fill:#7c8d85;pointer-events:none}
 .keyboard-map-cell text{pointer-events:none}
-.keyboard-map-white text{fill:#2c4840}
+.keyboard-map-white text{fill:#26483f}
 .keyboard-map-black text{fill:#f3f8f5}
-.keyboard-map-letter{font:700 16px ui-monospace,monospace}
-.keyboard-map-pitch{font:11px ui-monospace,monospace}
-.keyboard-map-notation{font:12px "Microsoft YaHei",sans-serif}
+.keyboard-map-octave-3 rect{stroke:#79b69c;stroke-width:1.6}
+.keyboard-map-octave-4 rect{stroke:#7f9fc1;stroke-width:1.6}
+.keyboard-map-octave-5 rect{stroke:#aa95bb;stroke-width:1.6}
+.keyboard-map-letter{font:700 17px ui-monospace,monospace}
+.keyboard-map-pitch{font:10px ui-monospace,monospace}
+.keyboard-map-notation{font:11px "Microsoft YaHei",sans-serif}
+.keyboard-map-cell.is-pressed rect{fill:#9ddfc3;stroke:#287e60;stroke-width:2.6}
+.keyboard-map-cell.is-pressed text{fill:#173b30}
 @media print{.keyboard-help{display:none!important}}
 
 /* The source remains readable but cannot capture key input during piano keyboard mode. */
