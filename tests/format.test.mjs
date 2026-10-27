@@ -96,3 +96,20 @@ test('octave dot offsets are independent, signed, bounded, and default to legacy
   assert.equal(normalizeFormat({noteSize:50}).highOctaveDotOffset,0);
   assert.equal(normalizeFormat({noteSize:50}).lowOctaveDotOffset,0);
 });
+
+test('punctuation gap defaults to zero, accepts signed spacing and is independent of character spacing',()=>{
+  assert.equal(DEFAULT_FORMAT.punctuationGap,0);
+  const field=FORMAT_FIELDS.find(f=>f.key==='punctuationGap');
+  assert.ok(field);
+  assert.equal(field.min,-30);
+  assert.equal(field.max,80);
+  assert.equal(normalizeFormat({punctuationGap:-22}).punctuationGap,-22);
+  assert.equal(normalizeFormat({punctuationGap:55}).punctuationGap,55);
+  assert.equal(normalizeFormat({punctuationGap:-10000}).punctuationGap,-30);
+  assert.equal(normalizeFormat({punctuationGap:10000}).punctuationGap,80);
+  assert.equal(normalizeFormat({punctuationGap:'bad'}).punctuationGap,0);
+  const f=normalizeFormat({lyricLetterSpacing:-3,punctuationGap:23});
+  assert.equal(f.lyricLetterSpacing,-3);
+  assert.equal(f.punctuationGap,23);
+  assert.equal(normalizeFormat({lyricSize:52}).punctuationGap,0);
+});
