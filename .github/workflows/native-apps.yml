@@ -72,7 +72,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
       - name: Install Android platform
         run: sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0"
       - uses: dtolnay/rust-toolchain@stable
