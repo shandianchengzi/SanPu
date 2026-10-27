@@ -726,6 +726,202 @@ function systems(song) {
 function lineWidth(elements,song) {
   return SCORE.pad*2+elements.reduce((width,element)=>width+estimateWidth(element,song),0);
 }
+
+const STAFF_LETTERS='CDEFGAB';
+const STAFF_PCS=[0,2,4,5,7,9,11];
+const KEY_SIGNATURES={C:0,G:1,D:2,A:3,E:4,B:5,'#F':6,'#C':7,F:-1,bB:-2,bE:-3,bA:-4,bD:-5,bG:-6,bC:-7};
+const SHARP_ORDER='FCGDAEB',FLAT_ORDER='BEADGCF';
+const GUITAR_OPEN=[64,59,55,50,45,40]; // E4 B3 G3 D3 A2 E2 (highest string first).
+function soundingMidi(note,key){
+  const frequency=noteFrequency(note,key);
+  return frequency>0?Math.round(69+12*Math.log2(frequency/440)):null;
+}
+function staffPosition(note,key){
+  const midi=soundingMidi(note,key);
+  if(midi===null)return null;
+  const tonic=STAFF_LETTERS.indexOf(String(key).replace(/^[#b]/,'')[0]);
+  const letterIndex=((tonic<0?0:tonic)+note.degree-1)%7;
+  const octave=Math.round((midi-12-STAFF_PCS[letterIndex])/12);
+  const natural=12*(octave+1)+STAFF_PCS[letterIndex];
+  const staff=note.degree?midi>=60?'treble':'bass':'treble';
+  const baseline=staff==='treble'?136:236;
+  const baseStep=staff==='treble'?4*7+2:2*7+4;
+  const y=baseline-(octave*7+letterIndex-baseStep)*7;
+  return {midi,letter:STAFF_LETTERS[letterIndex],octave,alter:midi-natural,staff,y};
+}
+function signatureDefault(letter,key){
+  const count=KEY_SIGNATURES[key]??0;
+  return count>0&&SHARP_ORDER.slice(0,count).includes(letter)?1:
+    count<0&&FLAT_ORDER.slice(0,-count).includes(letter)?-1:0;
+}
+function staffWrittenAccidentals(song){
+  const changes=new Map(),active=new Map();
+  for(const element of song.elements){
+    if(element.kind==='bar'){active.clear();continue;}
+    if(element.kind!=='note'||element.degree===0)continue;
+    const pitch=staffPosition(element,song.key);
+    if(!pitch)continue;
+    const label=pitch.letter+pitch.octave;
+    const previous=active.has(label)?active.get(label):signatureDefault(pitch.letter,song.key);
+    if(previous!==pitch.alter)
+      changes.set(element.id,pitch.alter===0?'♮':pitch.alter===1?'♯':
+        pitch.alter===-1?'♭':pitch.alter>1?'𝄪':'𝄫');
+    active.set(label,pitch.alter);
+  }
+  return changes;
+}
+function guitarFingering(note,key,maxFret=20){
+  const midi=soundingMidi(note,key);
+  if(midi===null)return null;
+  const positions=GUITAR_OPEN.map((open,string)=>({string,fret:midi-open}))
+    .filter(p=>p.fret>=0&&p.fret<=maxFret);
+  if(!positions.length)return {unplayable:true,midi};
+  positions.sort((a,b)=>a.fret-b.fret||a.string-b.string);
+  return {...positions[0],midi};
+}
+function drawAlternativeSystem(elements,song,sourceWidth,kind){
+  const staff=kind==='staff', f=state.format;
+  const width=sourceWidth+155, height=staff?395:335;
+  const score=svg('svg',{viewBox:'0 0 '+width+' '+height,
+    class:'score-line score-'+kind,role:'img',
+    'aria-label':staff?'五线谱：高音谱表与低音谱表、节奏和歌词':'吉他指弹谱：标准调弦六线 TAB、弦品和歌词'});
+  const left=140,right=width-18;
+  const head=staff?'五线谱 · 高音与低音联合谱表':'吉他指弹谱 · 六线 TAB · 标准调弦 E A D G B E';
+  score.append(svg('text',{x:20,y:25,class:'alt-caption'},head));
+  if(staff){
+    for(const offset of [0,100]){
+      for(let i=0;i<5;i++)
+        score.append(svg('line',{x1:82,x2:right,y1:80+offset+i*14,
+          y2:80+offset+i*14,class:'alt-staff-line'}));
+    }
+    score.append(svg('line',{x1:82,x2:82,y1:80,y2:236,class:'alt-staff-line'}));
+    score.append(svg('text',{x:87,y:132,class:'alt-clef'},'𝄞'));
+    score.append(svg('text',{x:86,y:217,class:'alt-clef alt-bass-clef'},'𝄢'));
+    const signature=KEY_SIGNATURES[song.key]??0;
+    const sharpTreble=[80,101,73,94,115,87,108],sharpBass=[194,215,187,208,229,201,222];
+    const flatTreble=[108,87,115,94,122,101,129],flatBass=[222,201,229,208,236,215,243];
+    for(let i=0;i<Math.abs(signature);i++){
+      const sharp=signature>0;
+      score.append(svg('text',{x:103+i*13,y:(sharp?sharpTreble:flatTreble)[i],
+        class:'alt-accidental'},sharp?'♯':'♭'));
+      score.append(svg('text',{x:103+i*13,y:(sharp?sharpBass:flatBass)[i],
+        class:'alt-accidental'},sharp?'♯':'♭'));
+    }
+  }else{
+    const strings=['e','B','G','D','A','E'];
+    for(let i=0;i<6;i++){
+      const y=80+i*23;
+      score.append(svg('line',{x1:82,x2:right,y1:y,y2:y,class:'alt-staff-line alt-tab-line'}));
+      score.append(svg('text',{x:67,y:y+5,class:'alt-string-label'},strings[i]));
+    }
+    score.append(svg('text',{x:90,y:65,class:'alt-tab-label'},'TAB'));
+  }
+  const accidentalMarks=staff?staffWrittenAccidentals(song):new Map();
+  const notes=elements.filter(e=>e.kind==='note');
+  const firstNote=notes[0],lastNote=notes.at(-1);
+  const slurs=firstNote?(song.slurs||[]).filter(s=>s.startId<=lastNote.id&&s.endId>=firstNote.id):[];
+  const centers=new Map(),punctuationPairs=[];
+  let x=left;
+  for(const e of elements){
+    if(e.kind==='spacer'){x+=e.width;continue;}
+    if(e.kind==='bar'){
+      const barX=x+9,barId=e.index;
+      const bar=svg('g',{class:'bar-click','data-bar-id':barId,tabindex:0,role:'button',
+        'aria-label':'第 '+e.measure+' 小节后的小节线，可点击选中'});
+      bar.append(svg('rect',{x,y:67,width:Math.max(16,f.barSpacing),height:staff?177:139,class:'bar-hit'}));
+      for(const [top,bottom] of staff?[[80,136],[180,236]]:[[80,195]])
+        bar.append(svg('line',{x1:barX,x2:barX,y1:top,y2:bottom,class:'bar'}));
+      bar.addEventListener('click',()=>selectScoreBar(barId));
+      bar.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreBar(barId);}});
+      score.append(bar);x+=f.barSpacing;continue;
+    }
+    const n=e,w=estimateWidth(n,song),cx=x+noteCellWidth()/2+Math.max(0,n.accidental?f.accidentalGap:0);
+    centers.set(n.id,cx);
+    const g=svg('g',{class:'note-click','data-note-id':n.id,tabindex:0,role:'button',
+      'aria-label':'第 '+n.measure+' 小节第 '+n.noteIndex+' 音 '+n.raw+'，点击定位源码'});
+    g.append(svg('rect',{x,y:35,width:w,height:height-42,rx:4,class:'note-bg'}));
+    if(staff){
+      const p=staffPosition(n,song.key);
+      if(!p){
+        g.append(svg('text',{x:cx,y:120,class:'alt-rest','text-anchor':'middle'},'𝄽'));
+        g.append(svg('text',{x:cx,y:149,class:'alt-duration','text-anchor':'middle'},
+          n.beats+' 拍休止'));
+      }else{
+        const top=p.staff==='treble'?80:180,bottom=p.staff==='treble'?136:236;
+        for(let y=bottom+14;y<=p.y;y+=14)
+          g.append(svg('line',{x1:cx-17,x2:cx+17,y1:y,y2:y,class:'alt-ledger'}));
+        for(let y=top-14;y>=p.y;y-=14)
+          g.append(svg('line',{x1:cx-17,x2:cx+17,y1:y,y2:y,class:'alt-ledger'}));
+        const accidental=accidentalMarks.get(n.id);
+        if(accidental)g.append(svg('text',{x:cx-24,y:p.y+6,class:'alt-accidental'},accidental));
+        const open=n.beats>=2,whole=n.beats>=4;
+        g.append(svg('ellipse',{cx,cy:p.y,rx:whole?11:10,ry:6,
+          transform:'rotate(-17 '+cx+' '+p.y+')',class:open?'alt-notehead alt-open':'alt-notehead'}));
+        if(!whole){
+          const up=p.y>=108,stemX=cx+(up?9:-9);
+          const stemEnd=p.y+(up?-44:44);
+          g.append(svg('line',{x1:stemX,x2:stemX,y1:p.y,y2:stemEnd,class:'alt-stem'}));
+          const flags=n.beats<=.25?2:n.beats<1?1:0;
+          for(let k=0;k<flags;k++)
+            g.append(svg('path',{d:'M '+stemX+' '+(stemEnd+k*(up?9:-9))+
+              ' Q '+(stemX+16)+' '+(stemEnd+(up?14:-14)+k*(up?9:-9))+
+              ' '+(stemX+8)+' '+(stemEnd+(up?27:-27)+k*(up?9:-9)),
+              class:'alt-flag'}));
+        }
+        if(n.suffix.includes('.'))
+          g.append(svg('circle',{cx:cx+19,cy:p.y-3,r:3,class:'alt-augmentation'}));
+        if(n.beats>4)
+          g.append(svg('text',{x:cx,y:staff?264:230,class:'alt-duration',
+            'text-anchor':'middle'},n.beats+' 拍'));
+      }
+    }else{
+      const tab=guitarFingering(n,song.key);
+      if(!tab){
+        g.append(svg('text',{x:cx,y:149,class:'alt-rest','text-anchor':'middle'},'休'));
+      }else if(tab.unplayable){
+        g.append(svg('text',{x:cx,y:149,class:'alt-unplayable','text-anchor':'middle'},'×'));
+        g.append(svg('title',{},'超出标准调弦 20 品的可弹奏音域'));
+      }else{
+        const y=80+tab.string*23,text=String(tab.fret);
+        g.append(svg('rect',{x:cx-(text.length>1?15:11),y:y-11,
+          width:text.length>1?30:22,height:22,class:'alt-fret-bg'}));
+        g.append(svg('text',{x:cx,y:y+6,class:'alt-fret','text-anchor':'middle'},text));
+        g.append(svg('title',{},'第 '+(tab.string+1)+' 弦，第 '+tab.fret+' 品'));
+      }
+      g.append(svg('text',{x:cx,y:233,'text-anchor':'middle',class:'alt-duration'},
+        n.beats+' 拍'));
+    }
+    const lyric=song.lyrics.get(n.id);
+    if(lyric?.text){
+      const y=staff?341:292;
+      const {main,prefix,suffix}=splitLyricPunctuation(lyric.text);
+      const body=svg('text',{x:cx,y,'text-anchor':'middle',class:'lyrics-text'},main);
+      g.append(body);
+      if(prefix||suffix){
+        const before=prefix?svg('text',{x:cx,y,'text-anchor':'end',class:'lyrics-text lyric-punctuation'},prefix):null;
+        const after=suffix?svg('text',{x:cx,y,'text-anchor':'start',class:'lyrics-text lyric-punctuation'},suffix):null;
+        if(before)g.append(before);
+        if(after)g.append(after);
+        punctuationPairs.push({body,before,after,cx,main});
+      }
+    }
+    g.addEventListener('click',()=>selectScoreNote(n.id));
+    g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
+    score.append(g);x+=w;
+  }
+  if(firstNote&&lastNote){
+    for(const [index,slur] of slurs.entries()){
+      const l=slur.startId<firstNote.id?centers.get(firstNote.id)-18:centers.get(slur.startId);
+      const r=slur.endId>lastNote.id?centers.get(lastNote.id)+18:centers.get(slur.endId);
+      if(l===undefined||r===undefined||r<=l)continue;
+      const y=staff?45-index*8:49-index*8;
+      score.append(svg('path',{d:'M '+l+' '+y+' Q '+((l+r)/2)+' '+(y-22)+' '+r+' '+y,
+        class:'score-slur','aria-hidden':'true'}));
+    }
+  }
+  score.punctuationPairs=punctuationPairs;
+  return score;
+}
 function drawSystem(elements,song,width){
   const f=state.format;
   const notes=elements.filter(element=>element.kind==='note');
