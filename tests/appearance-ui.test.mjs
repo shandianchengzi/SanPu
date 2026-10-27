@@ -47,7 +47,8 @@ function boot(saved){
   };
   const window={addEventListener(){},print(){window.printed=true}};
   const code=[stripped(read('src/core.mjs')),stripped(read('src/format.mjs')),
-    stripped(read('src/app.mjs')),'return {state,els,refresh,render};'].join('\n');
+    stripped(read('src/timbres.mjs')),stripped(read('src/app.mjs')),
+    'return {state,els,refresh,render};'].join('\n');
   const api=new Function('document','window','localStorage',
     'cancelAnimationFrame','requestAnimationFrame',code)(
     document,window,localStorage,()=>{},()=>0
