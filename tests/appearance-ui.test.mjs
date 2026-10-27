@@ -62,7 +62,7 @@ const scoreLine=els=>els.score.children.find(el=>el.className==='score-line');
 test('full appearance editor renders and updates score and persisted settings',()=>{
   const {state,els,localStorage,head,window}=boot();
   assert.equal(els.formatControls.children.length,3);
-  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,57);
+  assert.equal(els.formatControls.querySelectorAll('[data-format-key]').length,61);
   assert.equal(els.formatTabs.children.length,3);
   assert.ok(scoreLine(els));
   assert.equal(els.score.children.find(el=>el.className==='score-meta').children[1].textContent,'♩ = 72');
@@ -350,4 +350,70 @@ test('changing timbre during playback resumes at the same timeline position',asy
   els.stop.dispatch('click');
   assert.equal(state.playing,false);
   assert.equal(state.nodes.length,0);
+});
+
+test('high and low octave dot offsets change distance independently without altering source',()=>{
+  const source=".Title\nTitle = 八度点\n.Voice\n1'' 7,,__ 3 4,";
+  const {state,els,localStorage,document}=boot({source});
+  assert.equal(state.song.notes.length,4);
+  const dots=(index)=>scoreLine(els).children.filter(el=>el.className==='note-click')[index].children
+    .filter(el=>el.tag==='circle'&&el.className==='octave');
+  const numeralY=index=>Number(scoreLine(els).children.filter(el=>el.className==='note-click')[index]
+    .children.find(el=>el.className==='note-num').attrs.y);
+  const distanceAbove=()=>numeralY(0)-Number(dots(0)[0].attrs.cy);
+  const distanceBelow=()=>Number(dots(1)[0].attrs.cy)-numeralY(1);
+  assert.equal(dots(0).length,2);
+  assert.equal(dots(1).length,2);
+  const initialHigh=distanceAbove(),initialLow=distanceBelow();
+  const highSlider=field(els,'highOctaveDotOffset');
+  const highNumber=field(els,'highOctaveDotOffset','-value');
+  const lowSlider=field(els,'lowOctaveDotOffset');
+  const lowNumber=field(els,'lowOctaveDotOffset','-value');
+  assert.equal(highSlider.min,'-50');
+  assert.equal(lowNumber.min,'-50');
+  highSlider.value='45';highSlider.dispatch('input');
+  assert.equal(state.format.highOctaveDotOffset,45);
+  assert.equal(highNumber.value,'45');
+  assert.ok(Math.abs(distanceAbove()-(initialHigh+45))<.001);
+  assert.equal(distanceBelow(),initialLow);
+  lowNumber.value='30';lowNumber.dispatch('change');
+  assert.equal(state.format.lowOctaveDotOffset,30);
+  assert.equal(lowSlider.value,'30');
+  assert.ok(Math.abs(distanceBelow()-(initialLow+30))<.001);
+  assert.ok(Math.abs(distanceAbove()-(initialHigh+45))<.001);
+  highNumber.value='-20';highNumber.dispatch('change');
+  lowSlider.value='-15';lowSlider.dispatch('input');
+  assert.ok(Math.abs(distanceAbove()-(initialHigh-20))<.001);
+  assert.ok(Math.abs(distanceBelow()-(initialLow-15))<.001);
+  assert.equal(els.source.value,source);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.highOctaveDotOffset,-20);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.lowOctaveDotOffset,-15);
+  document.getElementById('format-reset').dispatch('click');
+  assert.equal(state.format.highOctaveDotOffset,0);
+  assert.equal(state.format.lowOctaveDotOffset,0);
+  assert.ok(Math.abs(distanceAbove()-initialHigh)<.001);
+  assert.ok(Math.abs(distanceBelow()-initialLow)<.001);
+});
+
+test('large positive octave dot offsets remain inside SVG viewBox and leave lyrics clear',()=>{
+  const source=".Title\nTitle = 音点排版\n.Voice\n1''' 7,,,___ 2\n.Words\nW1@1,1:\n天/地";
+  const {state,els}=boot({
+    source,format:{highOctaveDotOffset:80,lowOctaveDotOffset:80,noteSize:80,lyricSize:65}
+  });
+  assert.equal(state.song.notes.length,3);
+  const line=scoreLine(els);
+  const height=Number(line.attrs.viewBox.split(' ')[3]);
+  const groups=line.children.filter(el=>el.className==='note-click');
+  const upperDots=groups[0].children.filter(el=>el.tag==='circle'&&el.className==='octave');
+  const lowerDots=groups[1].children.filter(el=>el.tag==='circle'&&el.className==='octave');
+  assert.equal(upperDots.length,3);
+  assert.equal(lowerDots.length,3);
+  assert.ok(upperDots.every(dot=>Number(dot.attrs.cy)-Number(dot.attrs.r)>0),'upper dots not clipped');
+  assert.ok(lowerDots.every(dot=>Number(dot.attrs.cy)+Number(dot.attrs.r)<height),'lower dots not clipped');
+  assert.ok(height>195,'SVG grows to fit octave dots');
+  assert.ok(state.format.lowOctaveDotOffset>0);
+  const lyric=groups[0].children.find(el=>el.className==='lyrics-text');
+  if(lyric)assert.ok(Number(lyric.attrs.y)>Number(lowerDots.at(-1).attrs.cy));
+  assert.equal(state.song.notes[0].octave,3);
+  assert.equal(state.song.notes[1].octave,-3);
 });
