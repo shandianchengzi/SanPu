@@ -25,7 +25,7 @@ test('offline export follows shared schedule including rests, slurs, and selecte
       this.length=length;this.destination={};
     }
     createOscillator(){
-      const osc={frequency:{setValueAtTime(){}},setPeriodicWave(){},connect(){},
+      const osc={frequency:{setValueAtTime(){},linearRampToValueAtTime(){}},setPeriodicWave(){},connect(){},
         start(time){starts.push(time);},stop(){},disconnect(){}};
       return osc;
     }
@@ -39,7 +39,7 @@ test('offline export follows shared schedule including rests, slurs, and selecte
   const result=await renderScoreToMp3({song,tempo:120,timbre:'flute',
     OfflineContext:Offline,loadEncoder:async()=>({Mp3Encoder})});
   assert.ok(result.size>0);
-  assert.deepEqual(starts,[0,.25,1.0]);
+  assert.deepEqual(starts,[0,1.0],'legato pair uses one oscillator, rest is silent');
   assert.ok(songSchedule(song,120).timeline[0].legatoToNext);
   assert.equal(songSchedule(song,120).timeline[2].freq,0);
 });

@@ -1,5 +1,5 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule} from './core.mjs';
-import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents} from './core.mjs';
+import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -635,11 +635,10 @@ async function runPlayback() {
   try{await state.audio.resume();}catch{alert('浏览器无法启用音频。');return;}
   buildSchedule();if(state.position>=state.total-.01)state.position=0;
   const now=state.audio.currentTime;state.origin=now-state.position;
-  for(const ev of state.schedule){
-    if(ev.end<=state.position||!ev.freq)continue;
-    const start=Math.max(ev.start,state.position);
-    const begin=state.origin+start,end=state.origin+ev.end+(ev.legatoToNext?.035:0);
-    const voice=createVoice(state.audio,{frequency:ev.freq,start:begin,end,timbre:state.timbre});
+  for(const group of groupPlaybackEvents(state.schedule,state.position)){
+    const events=group.map(ev=>({...ev,start:state.origin+ev.start,end:state.origin+ev.end}));
+    const voice=events.length>1?createLegatoVoice(state.audio,{events,timbre:state.timbre}):
+      createVoice(state.audio,{frequency:events[0].freq,start:events[0].start,end:events[0].end,timbre:state.timbre});
     if(voice)state.nodes.push(voice);
   }
   state.playing=true;els.play.textContent='Ⅱ 暂停';

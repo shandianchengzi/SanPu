@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -282,4 +282,16 @@ test('shared playback schedule preserves notation lengths and marks legato bound
   assert.deepEqual(timeline.map(x=>x.legatoToNext),[true,true,false,false,true,false,false]);
   assert.equal(total,3);
   assert.equal(timeline[3].freq,0);
+});
+
+test('legato scheduler groups continuously sounding notes but never bridges rests',()=>{
+  const s=parseSong('.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n(1 2 3) 4 (5 0 6) 7');
+  const {timeline}=songSchedule(s,120);
+  const groups=groupPlaybackEvents(timeline);
+  assert.deepEqual(groups.map(group=>group.map(ev=>ev.id)),[[0,1,2],[3],[4],[6],[7]]);
+  assert.equal(timeline[4].legatoToNext,false);
+  assert.equal(timeline[5].freq,0);
+  const resumed=groupPlaybackEvents(timeline, .75);
+  assert.deepEqual(resumed[0].map(ev=>ev.id),[1,2]);
+  assert.equal(resumed[0][0].start,.75);
 });

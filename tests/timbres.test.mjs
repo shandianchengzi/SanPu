@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TIMBRES,normalizeTimbre,createVoice} from '../src/timbres.mjs';
+import {TIMBRES,normalizeTimbre,createVoice,createLegatoVoice} from '../src/timbres.mjs';
 
 function fakeAudio(){
   const oscillators=[],gains=[],waves=[];
@@ -12,7 +12,7 @@ function fakeAudio(){
     },
     createOscillator(){
       const osc={
-        type:null,wave:null,frequency:{setValueAtTime(freq,at){osc.pitch={freq,at};}},
+        type:null,wave:null,frequency:{events:[],setValueAtTime(freq,at){osc.pitch={freq,at};this.events.push({type:'set',freq,at});},linearRampToValueAtTime(freq,at){this.events.push({type:'linear',freq,at});}},
         setPeriodicWave(wave){osc.wave=wave;},
         connect(to){osc.output=to;},
         start(at){osc.began=at;},
@@ -101,4 +101,22 @@ test('very short notes keep monotonic automation events and silence stays silent
   assert.equal(events.at(-1).at,2.01);
   assert.ok(v.oscillator.ended>2.01);
   v.stop();
+});
+
+test('slurred phrase produces one oscillator with a continuous envelope and pitch bends',()=>{
+  const {audio,oscillators,gains}=fakeAudio();
+  const group=[{freq:440,start:0,end:.5},{freq:523.25,start:.5,end:1},
+    {freq:659.25,start:1,end:1.5}];
+  const voice=createLegatoVoice(audio,{events:group,timbre:'piano'});
+  assert.ok(voice);
+  assert.equal(oscillators.length,1,'no retrigger within slur');
+  assert.equal(gains.length,1,'only one envelope for entire phrase');
+  assert.equal(oscillators[0].began,0);
+  assert.ok(oscillators[0].ended>=1.5);
+  assert.deepEqual(oscillators[0].frequency.events.map(event=>event.type),['set','set','linear','set','linear']);
+  const gain=gains[0].gain.events;
+  assert.equal(gain.filter(x=>x.type==='set').length,1,'no fresh attack at each note');
+  assert.equal(gain.at(-1).at,1.5);
+  assert.ok(gain.at(-2).value>.04,'legato piano stays audible');
+  voice.stop();
 });

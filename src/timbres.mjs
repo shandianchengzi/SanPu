@@ -59,3 +59,49 @@ export function createVoice(audio,{frequency,start,end,timbre='sine'}){
     }
   };
 }
+
+/** A true legato phrase: one oscillator and one continuous gain envelope.
+ * Individual note pitches change at boundaries without a new oscillator attack.
+ * Pitch glide is short (<=12 ms) and phase-continuous, not a slow portamento.
+ */
+export function createLegatoVoice(audio,{events,timbre='piano'}){
+  if(!Array.isArray(events)||events.length<2)return null;
+  const start=events[0].start,end=events.at(-1).end;
+  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||
+    events.some((event,i)=>!Number.isFinite(event.freq)||event.freq<=0||
+      !Number.isFinite(event.start)||!Number.isFinite(event.end)||
+      event.end<=event.start||(i>0&&Math.abs(event.start-events[i-1].end)>1e-6)))return null;
+  const cfg=byId.get(normalizeTimbre(timbre));
+  const oscillator=audio.createOscillator();
+  if(cfg.harmonics)oscillator.setPeriodicWave(getWave(audio,cfg));
+  else oscillator.type=cfg.type;
+  oscillator.frequency.setValueAtTime(events[0].freq,start);
+  for(let i=1;i<events.length;i++){
+    const boundary=events[i].start;
+    // No retrigger: smoothly change the frequency of the same oscillator.
+    // The short glide avoids clicks without sounding like a slide.
+    const glide=Math.min(.012,(events[i].end-boundary)*.25);
+    oscillator.frequency.setValueAtTime(events[i-1].freq,boundary);
+    oscillator.frequency.linearRampToValueAtTime(events[i].freq,boundary+glide);
+  }
+  const gain=audio.createGain();
+  const level=.14,floor=.0001;
+  const attackEnd=start+Math.min(Math.max(.002,cfg.attack), (end-start)*.25);
+  const releaseStart=Math.max(attackEnd,end-Math.min(cfg.release,(end-start)*.25));
+  // Piano-like sounds must remain audible between connected notes.
+  const heldLevel=Math.max(level*.5,level*cfg.sustain);
+  gain.gain.setValueAtTime(floor,start);
+  gain.gain.linearRampToValueAtTime(level,attackEnd);
+  if(releaseStart>attackEnd+.0001)
+    gain.gain.exponentialRampToValueAtTime(heldLevel,releaseStart);
+  gain.gain.exponentialRampToValueAtTime(floor,end);
+  oscillator.connect(gain);
+  gain.connect(audio.destination);
+  oscillator.start(start);
+  oscillator.stop(end+.01);
+  return {oscillator,gain,stop(){
+    try{oscillator.stop();}catch{/* already finished */}
+    try{oscillator.disconnect();}catch{/* already detached */}
+    try{gain.disconnect();}catch{/* already detached */}
+  }};
+}

@@ -1,5 +1,5 @@
-import {songSchedule} from './core.mjs';
-import {createVoice} from './timbres.mjs';
+import {songSchedule,groupPlaybackEvents} from './core.mjs';
+import {createVoice,createLegatoVoice} from './timbres.mjs';
 
 export const MP3_RATE=44100;
 export const MP3_MAX_SECONDS=15*60;
@@ -48,9 +48,9 @@ export async function renderScoreToMp3({song,tempo,timbre='sine',OfflineContext,
   const length=Math.ceil((total+.35)*MP3_RATE);
   const ctx=new OfflineContext(1,length,MP3_RATE);
   const voices=[];
-  for(const ev of timeline){
-    if(!ev.freq)continue;
-    const voice=createVoice(ctx,{frequency:ev.freq,start:ev.start,end:ev.end+(ev.legatoToNext?.035:0),timbre});
+  for(const events of groupPlaybackEvents(timeline)){
+    const voice=events.length>1?createLegatoVoice(ctx,{events,timbre}):
+      createVoice(ctx,{frequency:events[0].freq,start:events[0].start,end:events[0].end,timbre});
     if(voice)voices.push(voice);
   }
   const audio=await ctx.startRendering();

@@ -330,3 +330,22 @@ export function songSchedule(song,tempo){
   });
   return {timeline,total:cursor};
 }
+
+/** Partition sounding events into uninterrupted, single-envelope slur phrases.
+ * Rests and ordinary note boundaries always start a separate voice.
+ * from allows playback to resume in the middle of a long phrase. */
+export function groupPlaybackEvents(timeline,from=0){
+  const groups=[];
+  let previous=null;
+  for(const event of timeline){
+    if(event.end<=from||!event.freq){previous=null;continue;}
+    const clipped={...event,start:Math.max(event.start,from)};
+    const current=groups.at(-1);
+    if(previous?.legatoToNext&&current&&
+      Math.abs(previous.end-event.start)<1e-7){
+      current.push(clipped);
+    }else groups.push([clipped]);
+    previous=event;
+  }
+  return groups;
+}
