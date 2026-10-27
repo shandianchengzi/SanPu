@@ -77,8 +77,7 @@ function loadSelectedExample(){
   els.source.value=example.source;
   refresh();
 }
-// Follow the supplied 11-key C5 layout exactly; '[' supplements the final B5
-// so every existing 36-key on-screen piano key remains playable.
+// Use the user's exact three 12-key mappings for C3, C4, and C5.
 const PIANO_FIRST=48;
 const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-[']);
 const KEYBOARD_LAYOUT=KEYBOARD_ROWS.join('');
@@ -110,7 +109,7 @@ function updatePianoLabels(){
 function renderPianoKeyboardDiagram(){
   if(!state.song)return;
   const host=els.keyboardDiagram;
-  const width=1320,height=297,cell=94,gap=6,top=29,step=85;
+  const width=1220,height=297,cell=94,gap=6,top=29,step=85;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
     'aria-label':'键盘弹奏：C3至B5，36 个按键随调号和移调更新'});
