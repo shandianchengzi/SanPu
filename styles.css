@@ -307,3 +307,10 @@ main{padding-top:23px}
 
 /* The source remains readable but cannot capture key input during piano keyboard mode. */
 #source:disabled{opacity:1;cursor:not-allowed;background:#f2f7f4;color:var(--ink)}
+
+.play-loop{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  font-size:12px;color:#385a51}
+.play-loop input{width:55px;min-width:55px;padding:4px 5px;text-align:center;
+  border:1px solid #cbdad3;border-radius:6px;background:#fff;color:#173f36;font:inherit}
+.play-loop input:focus-visible{outline:2px solid #8fc6b3}
+@media print{.play-loop{display:none!important}}

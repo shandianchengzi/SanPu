@@ -9,14 +9,18 @@ const STORAGE = 'sanpu.editor.v1';
 const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'), transcriber:$('transcriber-input'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
-  play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
+  play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
+function normalizeLoopCount(value){
+  const n=Number(value);
+  return value===null||value===undefined||String(value).trim()===''||!Number.isSafeInteger(n)||n<-1?0:n;
+}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode,loopCount:state.loopCount}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -24,6 +28,8 @@ function load() {
   try{settings=JSON.parse(localStorage.getItem(STORAGE)||'null');}catch{ /* corrupt storage */ }
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
+  state.loopCount=normalizeLoopCount(settings?.loopCount);
+  els.loopCount.value=String(state.loopCount);
   state.format=normalizeFormat(settings?.format);
   state.timbre=normalizeTimbre(settings?.timbre);
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
@@ -713,31 +719,49 @@ function highlight(id) {
   state.active=id;
   for(const g of els.score.querySelectorAll('.note-click'))g.classList.toggle('active',Number(g.dataset.noteId)===id);
 }
-function stopAudio(){cancelAnimationFrame(state.frame);clearNodes();state.playing=false;state.position=0;highlight(-1);els.play.textContent='▶ 播放';}
+function stopAudio(){cancelAnimationFrame(state.frame);clearNodes();state.playing=false;state.position=0;state.loopsDone=0;highlight(-1);els.play.textContent='▶ 播放';}
+function scheduleAudioPass(position=0){
+  for(const group of groupPlaybackEvents(state.schedule,position)){
+    const events=group.map(ev=>({...ev,start:state.origin+ev.start,end:state.origin+ev.end}));
+    const voice=events.length>1?createLegatoVoice(state.audio,{events,timbre:state.timbre}):
+      createVoice(state.audio,{frequency:events[0].freq,start:events[0].start,end:events[0].end,timbre:state.timbre});
+    if(voice)state.nodes.push(voice);
+  }
+}
+function advanceLoop(){
+  if(state.total<=0)return false;
+  const elapsed=state.audio.currentTime-state.origin;
+  if(elapsed<state.total)return true;
+  const passed=Math.floor(elapsed/state.total);
+  if(state.loopCount!==-1 && state.loopsDone+passed>state.loopCount)return false;
+  state.loopsDone+=passed;
+  state.origin+=passed*state.total;
+  state.position=Math.max(0,state.audio.currentTime-state.origin);
+  clearNodes();
+  scheduleAudioPass(state.position);
+  highlight(-1);
+  return true;
+}
 async function runPlayback() {
   if(!state.song?.notes.length)return;
   if(state.playing){state.position=Math.max(0,state.audio.currentTime-state.origin);state.playing=false;clearNodes();cancelAnimationFrame(state.frame);els.play.textContent='▶ 继续';return;}
   if(!state.audio){const Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor){alert('当前浏览器不支持 Web Audio。');return;}state.audio=new Ctor();}
   try{await state.audio.resume();}catch{alert('浏览器无法启用音频。');return;}
   buildSchedule();if(state.position>=state.total-.01)state.position=0;
+  if(state.total<=0)return;
   const now=state.audio.currentTime;state.origin=now-state.position;
-  for(const group of groupPlaybackEvents(state.schedule,state.position)){
-    const events=group.map(ev=>({...ev,start:state.origin+ev.start,end:state.origin+ev.end}));
-    const voice=events.length>1?createLegatoVoice(state.audio,{events,timbre:state.timbre}):
-      createVoice(state.audio,{frequency:events[0].freq,start:events[0].start,end:events[0].end,timbre:state.timbre});
-    if(voice)state.nodes.push(voice);
-  }
+  scheduleAudioPass(state.position);
   state.playing=true;els.play.textContent='Ⅱ 暂停';
   const tick=()=>{
     if(!state.playing)return;
     state.position=state.audio.currentTime-state.origin;
-    if(state.position>=state.total){stopAudio();return;}
+    if(state.position>=state.total && !advanceLoop()){stopAudio();return;}
     const item=state.schedule.find(x=>state.position>=x.start && state.position<x.end);
     if(item && item.id!==state.active)highlight(item.id);
     state.frame=requestAnimationFrame(tick);
   };tick();
 }
-function playFrom(id){state.cursorNoteId=id;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
+function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
@@ -749,6 +773,7 @@ function selectScoreNote(id){
     stopAudio();
     buildSchedule();
     state.position=state.schedule.find(item=>item.id===id)?.start??0;
+    state.loopsDone=0;
     els.play.textContent='▶ 继续';
     state.cursorNoteId=id;
     highlight(id);
@@ -869,6 +894,16 @@ $('mp3-btn').addEventListener('click',async()=>{
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',()=>{clearPianoSequence();stopAudio();});
 els.timbre.addEventListener('change',ev=>changeTimbre(ev.target.value));
+els.loopCount.addEventListener('change',()=>{
+  const raw=els.loopCount.value,n=Number(raw);
+  if(raw.trim()===''||!Number.isSafeInteger(n)||n<-1){
+    els.loopCount.value=String(state.loopCount);
+    return;
+  }
+  state.loopCount=n;
+  els.loopCount.value=String(n);
+  persist();
+});
 els.zoom.addEventListener('input',ev=>changePreviewZoom(ev.target.value));
 els.zoomFit.addEventListener('click',()=>changePreviewZoom(100));
 function changeTempo(value){
