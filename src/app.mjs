@@ -1028,25 +1028,34 @@ function drawSystem(elements,song,width){
 // including its direct bar <line> children, dimensions, and styles.
 // Interactive hit targets are appended separately and are invisible until hovered
 // or selected. Thus the default numbered score paints the same SVG as before.
-function addJianpuBarSelectionTargets(svgNode,elements,song){
-  let x=SCORE.pad;
-  for(const item of elements){
-    if(item.kind==='bar'){
-      const width=state.format.barSpacing;
-      const bar=svg('g',{class:'bar-click','data-bar-id':item.index,
-        tabindex:0,role:'button',
-        'aria-label':'选中第 '+item.measure+' 小节的小节线'});
-      bar.append(svg('rect',{x:x+1,y:25,width:Math.max(12,width-2),
-        height:105,class:'bar-hit'}));
-      bar.addEventListener('click',()=>selectScoreBar(item.index));
-      bar.addEventListener('keydown',ev=>{
-        if(ev.key==='Enter'||ev.key===' '){
-          ev.preventDefault();ev.stopPropagation?.();selectScoreBar(item.index);
-        }
-      });
-      svgNode.append(bar);
-    }
-    x+=estimateWidth(item,song);
+// Numbered score uses the original unchanged drawSystem implementation.
+// Each new selection rectangle is a separate transparent SVG hit target,
+// positioned from the ORIGINAL barline's own coordinates. This also tracks
+// custom note size, lyric offset and system height without moving any glyph.
+function addJianpuBarSelectionTargets(svgNode,elements){
+  const attr=(node,name)=>node.getAttribute?.(name)??node.attrs?.[name];
+  const sourceBars=Array.from(svgNode.children).filter(node=>
+    attr(node,'class')==='bar' && (node.tagName?.toLowerCase?.()==='line'||node.tag==='line'));
+  const parsedBars=elements.filter(item=>item.kind==='bar');
+  if(parsedBars.length!==sourceBars.length)return;
+  for(let i=0;i<parsedBars.length;i++){
+    const item=parsedBars[i],line=sourceBars[i];
+    const originalX=Number(attr(line,'x1'));
+    const originalTop=Number(attr(line,'y1'));
+    const originalBottom=Number(attr(line,'y2'));
+    const rectWidth=Math.max(14,state.format.barSpacing);
+    const hit=svg('g',{class:'bar-click','data-bar-id':item.index,
+      tabindex:0,role:'button','aria-label':'选中第 '+item.measure+' 小节的小节线'});
+    hit.append(svg('rect',{x:originalX-rectWidth/2,
+      y:Math.min(originalTop,originalBottom)-9,width:rectWidth,
+      height:Math.abs(originalBottom-originalTop)+18,class:'bar-hit'}));
+    hit.addEventListener('click',()=>selectScoreBar(item.index));
+    hit.addEventListener('keydown',ev=>{
+      if(ev.key==='Enter'||ev.key===' '){
+        ev.preventDefault();ev.stopPropagation?.();selectScoreBar(item.index);
+      }
+    });
+    svgNode.append(hit);
   }
 }
 
@@ -1108,7 +1117,7 @@ function render() {
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   for(const line of lines){
     const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
-    if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line,song);
+    if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line);
     els.score.append(system);
     positionPunctuation(system);
   }
