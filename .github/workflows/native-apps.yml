@@ -78,7 +78,7 @@ jobs:
           sdkmanager=$(find "$android_sdk/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
           test -x "$sdkmanager"
           yes | "$sdkmanager" --licenses > /dev/null
-          "$sdkmanager" --channel=3 "platform-tools" "platforms;android-37"
+          "$sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
           echo "ANDROID_HOME=$android_sdk" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -100,6 +100,15 @@ jobs:
           fi
       - name: Initialize Android wrapper
         run: npx tauri android init --ci
+      - name: Target stable Android SDK
+        run: |
+          # Tauri 2.12 generates API 37 settings, but that preview platform is not
+          # available on GitHub's hosted runners yet. Keep builds reproducible on
+          # the latest stable Android SDK until the runner image catches up.
+          find src-tauri/gen/android -type f -name '*.kts' -exec sed -i \
+            -e 's/compileSdk = 37/compileSdk = 36/g' \
+            -e 's/targetSdk = 37/targetSdk = 36/g' {} +
+          ! grep -R -E 'compileSdk = 37|targetSdk = 37' src-tauri/gen/android
       - name: Build installable APK in GitHub Actions
         env:
           SANPU_BUILD_COMMIT: ${{ github.sha }}
