@@ -3,38 +3,38 @@ export const FORMAT_GROUPS = [
   {
     title:'标题与调号', hint:'曲名、调号 1 = C 与速度 ♩ = 80 可分别调整；字间距和上下留白可为负。',
     fields:[
-      {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:65},
+      {key:'titleSize',label:'曲名字号',min:28,max:100,step:1,unit:'px',default:38},
       {key:'titleWeight',label:'曲名字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗'],['900','极粗']],default:'800'},
       {key:'titleFont',label:'曲名字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
-      {key:'titleLetterSpacing',label:'曲名字符间距',min:-8,max:16,step:1,unit:'px',default:1},
-      {key:'titleBottomGap',label:'曲名下方间距',min:-60,max:110,step:1,unit:'px',default:42},
-      {key:'metaSize',label:'调号 1 = C 字号',min:16,max:64,step:1,unit:'px',default:33},
+      {key:'titleLetterSpacing',label:'曲名字符间距',min:-8,max:16,step:1,unit:'px',default:6},
+      {key:'titleBottomGap',label:'曲名下方间距',min:-60,max:110,step:1,unit:'px',default:19},
+      {key:'metaSize',label:'调号 1 = C 字号',min:16,max:64,step:1,unit:'px',default:21},
       {key:'metaWeight',label:'调号字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'400'},
-      {key:'tempoSize',label:'速度 ♩ = 80 字号',min:14,max:64,step:1,unit:'px',default:26},
+      {key:'tempoSize',label:'速度 ♩ = 80 字号',min:14,max:64,step:1,unit:'px',default:21},
       {key:'tempoWeight',label:'速度标记字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'500'},
-      {key:'metaFont',label:'调号与速度字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
-      {key:'metaGap',label:'调号与速度间距',min:-50,max:80,step:1,unit:'px',default:11},
-      {key:'metaBottomGap',label:'调号下方间距',min:-70,max:100,step:1,unit:'px',default:22}
+      {key:'metaFont',label:'调号与速度字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'serif'},
+      {key:'metaGap',label:'调号与速度间距',min:-50,max:80,step:1,unit:'px',default:9},
+      {key:'metaBottomGap',label:'调号下方间距',min:-70,max:100,step:1,unit:'px',default:-1}
     ]
   },
   {
     title:'音符与歌词',hint:'高低音点距离分别微调：正数远离音符，负数靠近；默认 0 保留原位置。',
     fields:[
-      {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:43},
+      {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:50},
       {key:'noteWeight',label:'音符字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'700'},
       {key:'noteFont',label:'音符字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
       {key:'accidentalSize',label:'升降号字号',min:14,max:48,step:1,unit:'px',default:23},
-      {key:'lyricSize',label:'歌词字号',min:14,max:65,step:1,unit:'px',default:34},
+      {key:'lyricSize',label:'歌词字号',min:14,max:65,step:1,unit:'px',default:51},
       {key:'lyricWeight',label:'歌词字重',choices:[['300','细体'],['400','常规'],['500','中等'],['600','半粗'],['700','加粗']],default:'400'},
-      {key:'lyricFont',label:'歌词字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'sans'},
-      {key:'lyricLetterSpacing',label:'歌词字符间距',min:-10,max:12,step:1,unit:'px',default:0},
-      {key:'punctuationGap',label:'标点与歌词距离',min:-30,max:80,step:1,unit:'px',default:0},
-      {key:'lyricOffset',label:'歌词与音符纵向间距',min:-70,max:110,step:1,unit:'px',default:0},
-      {key:'octaveDotSize',label:'高低音点大小',min:2,max:6,step:.1,unit:'px',default:3.3},
+      {key:'lyricFont',label:'歌词字体',choices:[['sans','黑体'],['serif','宋体'],['kai','楷体']],default:'kai'},
+      {key:'lyricLetterSpacing',label:'歌词字符间距',min:-10,max:12,step:1,unit:'px',default:-4},
+      {key:'punctuationGap',label:'标点与歌词距离',min:-30,max:80,step:1,unit:'px',default:2},
+      {key:'lyricOffset',label:'歌词与音符纵向间距',min:-70,max:110,step:1,unit:'px',default:3},
+      {key:'octaveDotSize',label:'高低音点大小',min:2,max:6,step:.1,unit:'px',default:3.9},
       {key:'highOctaveDotOffset',label:'高音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:0},
-      {key:'lowOctaveDotOffset',label:'低音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:0},
+      {key:'lowOctaveDotOffset',label:'低音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:-13},
       {key:'rhythmStroke',label:'减时线/延长线粗细',min:1,max:6,step:.1,unit:'px',default:2.35},
-      {key:'barStroke',label:'小节线粗细',min:1,max:6,step:.1,unit:'px',default:2.4}
+      {key:'barStroke',label:'小节线粗细',min:1,max:6,step:.1,unit:'px',default:2.9}
     ]
   },
   {
@@ -43,12 +43,12 @@ export const FORMAT_GROUPS = [
       {key:'noteSpacing',label:'音符横向疏密',min:-35,max:100,step:1,unit:'px',default:0},
       {key:'dashSpacing',label:'延长线间距',min:22,max:65,step:1,unit:'px',default:29},
       {key:'barSpacing',label:'小节线占用宽度',min:16,max:90,step:1,unit:'px',default:24},
-      {key:'systemGap',label:'谱行之间的间距',min:-100,max:120,step:1,unit:'px',default:17},
+      {key:'systemGap',label:'谱行之间的间距',min:-100,max:120,step:1,unit:'px',default:-5},
       {key:'lyricLineGap',label:'相邻两行歌词间距微调',min:-160,max:160,step:1,unit:'px',default:0},
       {key:'minLineWidth',label:'谱行最小宽度',min:580,max:2200,step:20,unit:'px',default:980},
       {key:'previewPadding',label:'预览四周留白',min:0,max:100,step:1,unit:'px',default:48},
       {key:'printMarginX',label:'PDF 左右页边距',min:4,max:35,step:1,unit:'mm',default:15},
-      {key:'printMarginY',label:'PDF 上下页边距',min:4,max:35,step:1,unit:'mm',default:17}
+      {key:'printMarginY',label:'PDF 上下页边距',min:4,max:35,step:1,unit:'mm',default:8}
     ]
   }
 ];
@@ -110,14 +110,16 @@ export function importStyle(text){
 export const FORMAT_PRESETS=Object.freeze({
   standard:DEFAULT_FORMAT,
   compact:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:51,titleBottomGap:22,metaSize:26,tempoSize:21,metaBottomGap:12,
-    noteSize:36,lyricSize:28,noteSpacing:-10,dashSpacing:25,barSpacing:19,systemGap:5,
-    previewPadding:24,minLineWidth:820,lyricOffset:0
+    ...DEFAULT_FORMAT,titleSize:34,titleBottomGap:12,metaSize:18,tempoSize:18,
+    metaGap:6,metaBottomGap:-8,noteSize:44,lyricSize:45,lyricOffset:0,
+    noteSpacing:-8,dashSpacing:25,barSpacing:20,systemGap:-15,
+    previewPadding:32,minLineWidth:820
   })),
   spacious:Object.freeze(normalizeFormat({
-    ...DEFAULT_FORMAT,titleSize:76,titleBottomGap:58,metaSize:38,tempoSize:32,metaBottomGap:36,
-    noteSize:50,lyricSize:41,noteSpacing:24,dashSpacing:38,barSpacing:34,systemGap:45,
-    previewPadding:65,minLineWidth:1200,lyricOffset:24
+    ...DEFAULT_FORMAT,titleSize:46,titleBottomGap:29,metaSize:25,tempoSize:25,
+    metaGap:15,metaBottomGap:10,noteSize:57,lyricSize:57,lyricOffset:15,
+    noteSpacing:16,dashSpacing:38,barSpacing:32,systemGap:22,
+    previewPadding:62,minLineWidth:1200
   }))
 });
 export function formatPresetId(format){

@@ -37,7 +37,8 @@
           <input id="file-input" hidden type="file" accept=".jpwabc,.txt,text/plain" />
           <button id="save-btn" class="btn secondary" type="button">↓ 保存源码</button>
           <button id="insert-spacer-btn" class="btn quiet" type="button" title="在源码光标位置插入 y40，增加 40 单位的水平空位，不改变拍数">＋ 排版空位</button>
-          <button id="example-btn" class="btn quiet" type="button" title="覆盖当前编辑内容前会征求确认">加载示例</button>
+          <label class="example-picker" for="example-select">示例曲库 <select id="example-select" aria-label="选择示例曲谱"></select></label>
+          <button id="example-btn" class="btn quiet" type="button" title="选择曲目后加载，覆盖当前编辑内容前会征求确认">加载选中示例</button>
         </div>
         <label for="source" class="sr-only">JPW-ABC 源谱</label>
         <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>

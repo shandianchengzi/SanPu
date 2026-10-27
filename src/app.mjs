@@ -1,4 +1,4 @@
-import {EXAMPLE, parseSong, noteFrequency, splitLyricPunctuation} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -43,6 +43,23 @@ function buildTimbreSelect(){
     els.timbre.append(option);
   }
   els.timbre.value=state.timbre;
+}
+function buildExampleLibrary(){
+  const select=$('example-select');
+  for(const entry of EXAMPLES){
+    const option=document.createElement('option');
+    option.value=entry.id;
+    option.textContent=entry.title+' · '+entry.description;
+    select.append(option);
+  }
+  select.value=EXAMPLES[0]?.id||'';
+}
+function loadSelectedExample(){
+  const example=EXAMPLES.find(item=>item.id===$('example-select').value);
+  if(!example)return;
+  if(els.source.value!==example.source && !confirm('将当前内容替换为《'+example.title+'》示例谱？当前内容可以先用「保存源码」备份。'))return;
+  els.source.value=example.source;
+  refresh();
 }
 function changeTimbre(value){
   state.timbre=normalizeTimbre(value);
@@ -392,12 +409,12 @@ function readTextFile(file) {
   });
 }
 let saveTimer;
-load();buildTimbreSelect();buildAppearanceControls();state.song=parseSong(els.source.value);render();
+load();buildTimbreSelect();buildExampleLibrary();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));
-$('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!confirm('将当前内容替换成示例谱？当前内容可以先用「保存源码」备份。'))return;els.source.value=EXAMPLE;refresh();});
+$('example-btn').addEventListener('click',loadSelectedExample);
 $('insert-spacer-btn').addEventListener('click',()=>{
   const source=els.source;
   const start=source.selectionStart??source.value.length;

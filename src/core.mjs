@@ -3,17 +3,22 @@
 export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
 .Title
 Title = 一生所爱
-KeyAndMeters = {1=C,3/4}
+KeyAndMeters = {1=D,3/4}
 WordsByAndMusicBy =
 .Voice
-3_ 2_ 3- | 5 3_ 2-  7,- | 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- |$(true)
-3_ 2_ 3- |5 6_ 3 2- 2_ 7,-  |3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,-  |$(true)
+3_ 2_ 3- | 5 3_ 2-  7,- y y y y y y30| 7, 2_ 3- |5,_ 5, 6,_ 7,_ 2_ 7,- y30|$(true)
+3_ 2_ 3- |5 6_ 3 2- 2_ 7,-|3, 5,_ 7, 6,- 6,_ 5,-| 3, 2,_ 3,-  |$(true)
 .Words
 W1@1,1:
 
 {1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。
-相亲/ 竟不可/接近，或我应该相信是缘份
+相亲/ 竟不可/接近,或我应该相信是缘份。
 `;
+// Entries are separate from the editor state: adding another example only
+// requires appending an id/title/source entry here.
+export const EXAMPLES = Object.freeze([
+  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · y 排版空位',source:EXAMPLE})
+]);
 const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
 // Widths use SVG user units (not musical beats) and are bounded to avoid

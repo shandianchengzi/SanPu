@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -13,7 +13,7 @@ test('user supplied score parses without changing source',()=>{
   const song=parseSong(EXAMPLE);
   assert.equal(song.raw,EXAMPLE);
   assert.equal(song.title,'一生所爱');
-  assert.equal(song.key,'C');
+  assert.equal(song.key,'D');
   assert.equal(song.meter,'3/4');
   assert.equal(song.notes.length,34);
   assert.equal(song.elements.filter(e=>e.kind==='bar').length,8);
@@ -24,6 +24,11 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.lyrics.get(2).skip,true);
   assert.equal(song.lyrics.get(3).text,'翻');
   assert.equal(song.warnings.length,0);
+  assert.deepEqual(song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),
+    [20,20,20,20,20,30,30]);
+  assert.ok(EXAMPLE.includes('相亲/ 竟不可/接近,或我应该相信是缘份。'));
+  assert.equal(EXAMPLES[0].source,EXAMPLE);
+  assert.equal(EXAMPLES[0].title,song.title);
 });
 test('slash consumes one note; punctuation and spaces do not',()=>{
   const s=parseSong('.Title\nTitle = test\n.Voice\n1 2 3 4 5 |$(true)\n.Words\nW1@1,1:\n好/ 天， 气美');

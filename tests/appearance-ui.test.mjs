@@ -38,7 +38,7 @@ function boot(saved){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
+    'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
@@ -92,7 +92,7 @@ test('full appearance editor renders and updates score and persisted settings',(
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.lyricSize,55);
   assert.equal(els.source.value,original,'appearance changes cannot rewrite source');
   els.formatPreset.value='compact';els.formatPreset.dispatch('change');
-  assert.equal(state.format.lyricSize,28);
+  assert.equal(state.format.lyricSize,45);
   assert.equal(els.formatPreset.value,'compact');
   const margin=field(els,'printMarginX','-value');
   margin.value='27';margin.dispatch('change');
@@ -476,7 +476,7 @@ test('trailing punctuation is rendered to the right without shifting lyric body 
   assert.equal(els.source.value,source);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.punctuationGap,37);
   document.getElementById('format-reset').dispatch('click');
-  assert.equal(state.format.punctuationGap,0);
+  assert.equal(state.format.punctuationGap,2);
   assert.equal(Number(mark(0).attrs.x),baseMarkX);
 });
 
@@ -654,4 +654,15 @@ test('insert layout gap button places y40 at source caret and saves original tex
   const html=read('index.html');
   assert.match(html,/id="insert-spacer-btn"/);
   assert.match(html,/<code>y40<\/code> 留白 40 单位/);
+});
+
+test('example library initializes with the provided score, preserving previously saved drafts',()=>{
+  const initial=boot();
+  assert.equal(initial.els['example-select'].children.length,1);
+  assert.equal(initial.els['example-select'].value,'yi-sheng-suo-ai');
+  assert.match(initial.els.source.value,/KeyAndMeters = \{1=D,3\/4\}/);
+  assert.ok(initial.els.source.value.includes('y y y y y y30|'));
+  const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
+  assert.equal(draft.els.source.value,'.Voice\n1 2');
+  assert.equal(draft.state.format.titleSize,62);
 });

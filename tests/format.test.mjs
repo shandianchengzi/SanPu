@@ -35,8 +35,8 @@ test('presets are distinct, recognized, and fonts are whitelisted',()=>{
 });
 
 test('tonic and tempo sizes are independent and old local settings keep their appearance',()=>{
-  assert.equal(DEFAULT_FORMAT.metaSize,33);
-  assert.equal(DEFAULT_FORMAT.tempoSize,26);
+  assert.equal(DEFAULT_FORMAT.metaSize,21);
+  assert.equal(DEFAULT_FORMAT.tempoSize,21);
   const newLayout=normalizeFormat({metaSize:52,tempoSize:24,tempoWeight:'700'});
   assert.equal(newLayout.metaSize,52);
   assert.equal(newLayout.tempoSize,24);
@@ -46,8 +46,8 @@ test('tonic and tempo sizes are independent and old local settings keep their ap
   assert.equal(oldLayout.tempoSize,41.6);
   assert.equal(normalizeFormat({tempoSize:-100}).tempoSize,14);
   assert.equal(normalizeFormat({tempoSize:10000}).tempoSize,64);
-  assert.equal(FORMAT_PRESETS.compact.tempoSize,21);
-  assert.equal(FORMAT_PRESETS.spacious.tempoSize,32);
+  assert.equal(FORMAT_PRESETS.compact.tempoSize,18);
+  assert.equal(FORMAT_PRESETS.spacious.tempoSize,25);
 });
 
 test('signed spacing options accept and persist negative values',()=>{
@@ -80,25 +80,25 @@ test('signed spacing options accept and persist negative values',()=>{
 test('octave dot offsets are independent, signed, bounded, and default to legacy geometry',()=>{
   const fields=Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field]));
   for(const key of ['highOctaveDotOffset','lowOctaveDotOffset']){
-    assert.equal(DEFAULT_FORMAT[key],0);
+    assert.equal(DEFAULT_FORMAT[key],key==='lowOctaveDotOffset'?-13:0);
     assert.ok(fields[key].min<0);
     assert.ok(fields[key].max>0);
     assert.equal(normalizeFormat({[key]:-22})[key],-22);
     assert.equal(normalizeFormat({[key]:55})[key],55);
     assert.equal(normalizeFormat({[key]:-10000})[key],fields[key].min);
     assert.equal(normalizeFormat({[key]:10000})[key],fields[key].max);
-    assert.equal(normalizeFormat({[key]:'not a number'})[key],0);
+    assert.equal(normalizeFormat({[key]:'not a number'})[key],DEFAULT_FORMAT[key]);
   }
   const settings=normalizeFormat({highOctaveDotOffset:31,lowOctaveDotOffset:-17,octaveDotSize:4.5});
   assert.equal(settings.highOctaveDotOffset,31);
   assert.equal(settings.lowOctaveDotOffset,-17);
   assert.equal(settings.octaveDotSize,4.5);
   assert.equal(normalizeFormat({noteSize:50}).highOctaveDotOffset,0);
-  assert.equal(normalizeFormat({noteSize:50}).lowOctaveDotOffset,0);
+  assert.equal(normalizeFormat({noteSize:50}).lowOctaveDotOffset,-13);
 });
 
 test('punctuation gap defaults to zero, accepts signed spacing and is independent of character spacing',()=>{
-  assert.equal(DEFAULT_FORMAT.punctuationGap,0);
+  assert.equal(DEFAULT_FORMAT.punctuationGap,2);
   const field=FORMAT_FIELDS.find(f=>f.key==='punctuationGap');
   assert.ok(field);
   assert.equal(field.min,-30);
@@ -107,11 +107,11 @@ test('punctuation gap defaults to zero, accepts signed spacing and is independen
   assert.equal(normalizeFormat({punctuationGap:55}).punctuationGap,55);
   assert.equal(normalizeFormat({punctuationGap:-10000}).punctuationGap,-30);
   assert.equal(normalizeFormat({punctuationGap:10000}).punctuationGap,80);
-  assert.equal(normalizeFormat({punctuationGap:'bad'}).punctuationGap,0);
+  assert.equal(normalizeFormat({punctuationGap:'bad'}).punctuationGap,2);
   const f=normalizeFormat({lyricLetterSpacing:-3,punctuationGap:23});
   assert.equal(f.lyricLetterSpacing,-3);
   assert.equal(f.punctuationGap,23);
-  assert.equal(normalizeFormat({lyricSize:52}).punctuationGap,0);
+  assert.equal(normalizeFormat({lyricSize:52}).punctuationGap,2);
 });
 
 test('portable score-style export roundtrips all appearance fields without song or playback data',()=>{
@@ -151,5 +151,19 @@ test('style imports validate file format, version, settings, and clamp unknown v
   assert.equal(imported.lyricFont,DEFAULT_FORMAT.lyricFont);
   assert.equal(Object.keys(imported).length,FORMAT_FIELDS.length);
   assert.equal('foreign' in imported,false);
-  assert.equal(imported.punctuationGap,0,'legacy styles receive missing defaults');
+  assert.equal(imported.punctuationGap,2,'legacy styles receive missing defaults');
+});
+
+test('the built-in standard preset matches the supplied SanPu appearance JSON exactly',()=>{
+  const saved=JSON.parse(readFileSync(new URL('../examples/standard.sanpu-style.json',import.meta.url),'utf8'));
+  assert.deepEqual(DEFAULT_FORMAT,saved.settings);
+  assert.deepEqual(importStyle(JSON.stringify(saved)),DEFAULT_FORMAT);
+  for(const key of Object.keys(DEFAULT_FORMAT)){
+    assert.equal(FORMAT_PRESETS.compact[key],key in FORMAT_PRESETS.compact?FORMAT_PRESETS.compact[key]:DEFAULT_FORMAT[key]);
+    assert.equal(FORMAT_PRESETS.spacious[key],key in FORMAT_PRESETS.spacious?FORMAT_PRESETS.spacious[key]:DEFAULT_FORMAT[key]);
+  }
+  assert.ok(FORMAT_PRESETS.compact.noteSize<DEFAULT_FORMAT.noteSize);
+  assert.ok(FORMAT_PRESETS.compact.lyricSize<DEFAULT_FORMAT.lyricSize);
+  assert.ok(FORMAT_PRESETS.spacious.noteSize>DEFAULT_FORMAT.noteSize);
+  assert.ok(FORMAT_PRESETS.spacious.lyricSize>DEFAULT_FORMAT.lyricSize);
 });
