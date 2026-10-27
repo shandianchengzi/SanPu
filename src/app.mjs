@@ -206,13 +206,18 @@ function lineWidth(elements,song) {
 function drawSystem(elements,song,width){
   const f=state.format;
   const notes=elements.filter(element=>element.kind==='note');
-  // Extra headroom for large numerals and up to three high-octave dots.
-  const lift=Math.max(0,Math.ceil(f.noteSize*.95+2*f.octaveDotSize+32-80));
+  // Reserve headroom when the high-octave dots move away from the numeral.
+  // With a zero offset this preserves the original rendering exactly.
+  const baseLift=Math.max(0,Math.ceil(f.noteSize*.95+2*f.octaveDotSize+32-80));
+  const highLift=notes.some(n=>n.octave>0)?Math.max(0,f.highOctaveDotOffset):0;
+  const lift=baseLift+highLift;
   const noteY=80+lift;
+  const highDotStart=noteY-f.noteSize*.95-7-f.highOctaveDotOffset;
   const underY=noteY+Math.max(12,Math.round(f.noteSize*.28));
   const underStep=Math.max(8,Math.round(f.rhythmStroke*3));
   const lowDotStart=n=>Math.max(noteY+f.noteSize*.77,
-    underY+Math.max(0,(n.suffix.match(/_/g)||[]).length-1)*underStep+19);
+    underY+Math.max(0,(n.suffix.match(/_/g)||[]).length-1)*underStep+19)
+    +f.lowOctaveDotOffset;
   const bottom=notes.reduce((max,n)=>{
     const under=(n.suffix.match(/_/g)||[]).length;
     const underlineEnd=under?underY+(under-1)*underStep+f.rhythmStroke:noteY;
@@ -241,7 +246,7 @@ function drawSystem(elements,song,width){
     g.append(svg('text',{x:cx,y:noteY,class:'note-num','text-anchor':'middle'},n.degree));
     if(n.octave>0){
       for(let k=0;k<Math.min(n.octave,3);k++)
-        g.append(svg('circle',{cx,cy:noteY-f.noteSize*.95-7-k*(f.octaveDotSize*2+2),r:f.octaveDotSize,class:'octave'}));
+        g.append(svg('circle',{cx,cy:highDotStart-k*(f.octaveDotSize*2+2),r:f.octaveDotSize,class:'octave'}));
     }else if(n.octave<0){
       for(let k=0;k<Math.min(-n.octave,3);k++)
         g.append(svg('circle',{cx,cy:lowDotStart(n)+k*9,r:f.octaveDotSize,class:'octave'}));
