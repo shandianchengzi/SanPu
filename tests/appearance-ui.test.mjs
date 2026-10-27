@@ -342,7 +342,7 @@ test('changing timbre during playback resumes at the same timeline position',asy
     createPeriodicWave(real,imag){return {real,imag}},
     createOscillator(){
       const osc={
-        frequency:{setValueAtTime(){}},setPeriodicWave(w){osc.wave=w},
+        frequency:{setValueAtTime(){},linearRampToValueAtTime(){}},setPeriodicWave(w){osc.wave=w},
         connect(){},start(){},stop(){osc.stopped=true},
         disconnect(){osc.disconnected=true}
       };
