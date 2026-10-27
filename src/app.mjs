@@ -1,4 +1,5 @@
 import {EXAMPLE, parseSong, noteFrequency} from './core.mjs';
+import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId} from './format.mjs';
 
 const $ = id => document.getElementById(id);
@@ -9,12 +10,12 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs')
+  formatTabs:$('format-tabs'),timbre:$('timbre')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine' };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -23,6 +24,7 @@ function load() {
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
   state.format=normalizeFormat(settings?.format);
+  state.timbre=normalizeTimbre(settings?.timbre);
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
@@ -32,6 +34,28 @@ function svg(tag,attrs={},text) {
   for(const [k,v] of Object.entries(attrs))el.setAttribute(k,String(v));
   if(text!==undefined)el.textContent=String(text);
   return el;
+}
+function buildTimbreSelect(){
+  for(const timbre of TIMBRES){
+    const option=document.createElement('option');
+    option.value=timbre.id;
+    option.textContent=timbre.label;
+    els.timbre.append(option);
+  }
+  els.timbre.value=state.timbre;
+}
+function changeTimbre(value){
+  state.timbre=normalizeTimbre(value);
+  els.timbre.value=state.timbre;
+  if(state.playing){
+    // Replace future scheduled notes without moving the playback cursor.
+    state.position=Math.max(0,state.audio.currentTime-state.origin);
+    state.playing=false;
+    cancelAnimationFrame(state.frame);
+    clearNodes();
+    runPlayback();
+  }
+  persist();
 }
 // Percent-based width keeps every SVG viewBox visible in the available preview width.
 // User zoom deliberately increases the SVG width; scrolling is enabled only when needed.
@@ -269,7 +293,7 @@ function refresh() {
   render();persist();
 }
 function buildSchedule(){let cursor=0;const sec=60/state.tempo;state.schedule=state.song.notes.map(n=>{const item={id:n.id,start:cursor,end:cursor+n.beats*sec,freq:noteFrequency(n,state.song.key)};cursor=item.end;return item;});state.total=cursor;}
-function clearNodes(){for(const n of state.nodes){try{n.stop();}catch{/* node already finished */}try{n.disconnect();}catch{}}state.nodes=[];}
+function clearNodes(){for(const voice of state.nodes)voice.stop();state.nodes=[];}
 function highlight(id) {
   state.active=id;
   for(const g of els.score.querySelectorAll('.note-click'))g.classList.toggle('active',Number(g.dataset.noteId)===id);
@@ -286,13 +310,8 @@ async function runPlayback() {
     if(ev.end<=state.position||!ev.freq)continue;
     const start=Math.max(ev.start,state.position);
     const begin=state.origin+start,end=state.origin+ev.end;
-    const oscillator=state.audio.createOscillator(), gain=state.audio.createGain();
-    oscillator.type='sine';oscillator.frequency.setValueAtTime(ev.freq,begin);
-    gain.gain.setValueAtTime(.0001,begin);gain.gain.linearRampToValueAtTime(.14,begin+.018);
-    gain.gain.setValueAtTime(.14,Math.max(begin+.019,end-.045));
-    gain.gain.exponentialRampToValueAtTime(.0001,end);
-    oscillator.connect(gain);gain.connect(state.audio.destination);
-    oscillator.start(begin);oscillator.stop(end+.01);state.nodes.push(oscillator);
+    const voice=createVoice(state.audio,{frequency:ev.freq,start:begin,end,timbre:state.timbre});
+    if(voice)state.nodes.push(voice);
   }
   state.playing=true;els.play.textContent='Ⅱ 暂停';
   const tick=()=>{
@@ -320,7 +339,7 @@ function readTextFile(file) {
   });
 }
 let saveTimer;
-load();buildAppearanceControls();state.song=parseSong(els.source.value);render();
+load();buildTimbreSelect();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
@@ -329,6 +348,7 @@ $('example-btn').addEventListener('click',()=>{if(els.source.value!==EXAMPLE&&!c
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',stopAudio);
+els.timbre.addEventListener('change',ev=>changeTimbre(ev.target.value));
 els.zoom.addEventListener('input',ev=>changePreviewZoom(ev.target.value));
 els.zoomFit.addEventListener('click',()=>changePreviewZoom(100));
 els.tempo.addEventListener('input',ev=>{state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
