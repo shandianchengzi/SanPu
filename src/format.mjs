@@ -18,7 +18,7 @@ export const FORMAT_GROUPS = [
     ]
   },
   {
-    title:'音符与歌词',hint:'音符、歌词、升降号、节奏线均可独立调整；歌词相对音符的位置可用负数上移。',
+    title:'音符与歌词',hint:'高低音点距离分别微调：正数远离音符，负数靠近；默认 0 保留原位置。',
     fields:[
       {key:'noteSize',label:'音符字号',min:24,max:80,step:1,unit:'px',default:43},
       {key:'noteWeight',label:'音符字重',choices:[['400','常规'],['500','中等'],['600','半粗'],['700','加粗'],['800','特粗']],default:'700'},
@@ -30,6 +30,8 @@ export const FORMAT_GROUPS = [
       {key:'lyricLetterSpacing',label:'歌词字符间距',min:-10,max:12,step:1,unit:'px',default:0},
       {key:'lyricOffset',label:'歌词与音符纵向间距',min:-70,max:110,step:1,unit:'px',default:0},
       {key:'octaveDotSize',label:'高低音点大小',min:2,max:6,step:.1,unit:'px',default:3.3},
+      {key:'highOctaveDotOffset',label:'高音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:0},
+      {key:'lowOctaveDotOffset',label:'低音点与音符距离微调',min:-50,max:80,step:1,unit:'px',default:0},
       {key:'rhythmStroke',label:'减时线/延长线粗细',min:1,max:6,step:.1,unit:'px',default:2.35},
       {key:'barStroke',label:'小节线粗细',min:1,max:6,step:.1,unit:'px',default:2.4}
     ]
