@@ -14,6 +14,7 @@ class FakeElement {
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value);if(key==='data-bar-id')this.dataset.barId=String(value);if(key==='data-note-id')this.dataset.noteId=String(value)}
   focus(){this.focused=true}
+  blur(){this.blurred=true;this.focused=false}
   setRangeText(text,start,end){
     this.value=this.value.slice(0,start)+text+this.value.slice(end);
     this.selectionStart=this.selectionEnd=start+text.length;
@@ -1701,4 +1702,54 @@ test('grand staff draws major-key accidentals, a 32nd-note flag, and silence sep
     'one eighth of a beat is a 32nd note requiring three flags');
   assert.ok(notes[3].children.some(e=>e.className==='alt-rest'),'rest does not receive a pitched notehead');
   assert.deepEqual(state.song.notes.map(n=>n.raw),['3','b3','1___','0']);
+});
+
+test('HTML contains one unambiguous score-type dropdown and no duplicated picker',()=>{
+  const html=read('index.html');
+  assert.equal((html.match(/id="score-type"/g)||[]).length,1);
+  assert.equal((html.match(/class="score-type-picker"/g)||[]).length,1);
+  assert.ok(html.includes('value="jianpu" selected>简谱'));
+});
+
+test('keyboard shortcuts resume after switching score type without select focus trapping Space',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,els,state}=boot({source,keyboardMode:true,pianoAudition:false,pianoContinuous:false});
+  const picker=document.getElementById('score-type');
+  picker.value='staff';picker.dispatch('change');
+  assert.equal(state.scoreType,'staff');
+  assert.equal(picker.blurred,true,'native picker must relinquish focus on change');
+  const fire=(code,ts)=>document.dispatch('keydown',{code,timeStamp:ts,
+    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}});
+  const space={code:'Space',timeStamp:500,target:els.score.children.find(x=>x.className==='score-line score-staff'),
+    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}};
+  document.dispatch('keydown',space);
+  assert.equal(space.prevented,true);
+  assert.equal(space.stopped,true);
+  assert.equal(state.song.elements.filter(x=>x.kind==='bar').length,1);
+  document.dispatch('keyup',{code:'Space',timeStamp:600,preventDefault(){},stopPropagation(){}});
+  const enter={code:'Enter',timeStamp:700,
+    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}};
+  document.dispatch('keydown',enter);
+  assert.equal(enter.prevented,true);assert.equal(enter.stopped,true);
+  assert.equal(state.song.elements.filter(x=>x.kind==='break').length,1);
+  document.dispatch('keyup',{code:'Enter',timeStamp:780,preventDefault(){},stopPropagation(){}});
+  assert.match(els.source.value,/1\s*\|\s*\$\(true)/);
+  assert.match(read('src/app.mjs'),/document\.addEventListener\('keydown',keyboardDown,true\)/);
+  assert.match(read('src/app.mjs'),/document\.addEventListener\('keyup',keyboardUp,true\)/);
+});
+
+test('custom lyrics sizing stays under the original appearance configuration on alternate scores',()=>{
+  const styles=read('styles.css');
+  assert.doesNotMatch(styles,/score-staff \.lyrics-text,.score-page \.score-guitar \.lyrics-text\{font-size:30px/);
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {document,els,state}=boot({source,scoreType:'staff'});
+  assert.equal(state.scoreType,'staff');
+  assert.ok(els.score.style.props['--lyric-size'],'font size variable still exists');
+  const original=els.score.style.props['--lyric-size'];
+  assert.equal(original,state.format.lyricSize+'px');
+  const sel=document.getElementById('score-type');
+  sel.value='guitar';sel.dispatch('change');
+  assert.equal(els.score.style.props['--lyric-size'],original);
+  sel.value='jianpu';sel.dispatch('change');
+  assert.equal(els.score.style.props['--lyric-size'],original);
 });

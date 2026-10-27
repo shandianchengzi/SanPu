@@ -498,10 +498,10 @@ function keyboardDown(ev){
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
   if(key==='Backspace'){
-    ev.preventDefault?.();deleteSelectedScoreItem();highlightKeyboardSpecial('Backspace',true);return;
+    ev.preventDefault?.();ev.stopPropagation?.();deleteSelectedScoreItem();highlightKeyboardSpecial('Backspace',true);return;
   }
   if(key==='Space'||key==='Enter'){
-    ev.preventDefault?.();
+    ev.preventDefault?.();ev.stopPropagation?.();
     // A layout token has no duration; the previous interval still ends
     // at the next pitched/rest onset, not at the separator.
     insertKeyboardMarker(key==='Space'?'|':'$(true)');
@@ -510,7 +510,7 @@ function keyboardDown(ev){
   }
   if(key==='`'){
     if(restPress)return;
-    ev.preventDefault?.();
+    ev.preventDefault?.();ev.stopPropagation?.();
     restKeyDown(ev);
     return;
   }
@@ -519,27 +519,27 @@ function keyboardDown(ev){
   const midi=PIANO_FIRST+position;
   const down=keyboardDownByMidi.get(midi);
   if(!down)return;
-  ev.preventDefault?.();
+  ev.preventDefault?.();ev.stopPropagation?.();
   activeKeyboardKeys.set(key,midi);
   down({type:'computer-keydown',timeStamp:ev.timeStamp});
 }
 function keyboardUp(ev){
   const key=keyboardEventCode(ev);
   if(key==='Backspace'){
-    if(state.keyboardMode){ev.preventDefault?.();highlightKeyboardSpecial('Backspace',false);}return;
+    if(state.keyboardMode&&!isEditingTarget(ev.target||document.activeElement)){ev.preventDefault?.();ev.stopPropagation?.();highlightKeyboardSpecial('Backspace',false);}return;
   }
   if(key==='Space'||key==='Enter'){
-    if(state.keyboardMode){ev.preventDefault?.();highlightKeyboardSpecial(key,false);}
+    if(state.keyboardMode&&!isEditingTarget(ev.target||document.activeElement)){ev.preventDefault?.();ev.stopPropagation?.();highlightKeyboardSpecial(key,false);}
     return;
   }
   if(key==='`'){
-    if(restPress){ev.preventDefault?.();restKeyUp(ev);}
+    if(restPress){ev.preventDefault?.();ev.stopPropagation?.();restKeyUp(ev);}
     return;
   }
   if(!activeKeyboardKeys.has(key))return;
   const midi=activeKeyboardKeys.get(key);
   activeKeyboardKeys.delete(key);
-  ev.preventDefault?.();
+  ev.preventDefault?.();ev.stopPropagation?.();
   keyboardUpByMidi.get(midi)?.({type:'computer-keyup',timeStamp:ev.timeStamp});
 }
 function releaseComputerKeys(){
@@ -1199,8 +1199,8 @@ function readTextFile(file) {
 }
 let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
-document.addEventListener('keydown',keyboardDown);
-document.addEventListener('keyup',keyboardUp);
+document.addEventListener('keydown',keyboardDown,true);
+document.addEventListener('keyup',keyboardUp,true);
 window.addEventListener('blur',releaseComputerKeys);
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 els.batchApply.addEventListener('click',()=>{
@@ -1240,7 +1240,11 @@ els.pianoTranspose.addEventListener('change',()=>{
 els.keyboardMode.addEventListener('change',()=>{
   releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
   els.source.disabled=state.keyboardMode;
-  if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
+  if(state.keyboardMode){
+    // The checkbox would otherwise eat Space as a toggle while the player
+    // expects it to write a barline. Capturing keydown prevents that default.
+    if(document.activeElement===els.source)els.source.blur?.();
+  }
   els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：36 个琴键；空格分小节、回车换行、· 记休止符；源码框禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
 });
@@ -1248,6 +1252,9 @@ els.scoreType.addEventListener('change',()=>{
   if(!['jianpu','staff','guitar'].includes(els.scoreType.value))return;
   state.scoreType=els.scoreType.value;
   render();persist();
+  // Once the native picker is closed, release its text-editing focus so
+  // Space/Enter immediately resume piano entry rather than reopening it.
+  if(state.keyboardMode)els.scoreType.blur?.();
 });
 els.pianoContinuous.addEventListener('change',()=>{
   clearPianoSequence();

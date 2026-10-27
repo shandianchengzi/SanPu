@@ -342,22 +342,10 @@ main{padding-top:23px}
 .keyboard-map-command-notation{font:11px "Microsoft YaHei",sans-serif}
 .keyboard-map-command.is-pressed rect{fill:#8ed5b4;stroke:#246f53;stroke-width:2.6}
 
-.score-page .score-line .bar-click{cursor:pointer;outline:none}
-.score-page .score-line .bar-click .bar-hit{fill:transparent}
-.score-page .score-line .bar-click:hover .bar-hit,.score-page .score-line .bar-click.active .bar-hit{fill:#def1e9}
-.score-page .score-line .bar-click.active .bar{stroke:#12856f;stroke-width:3.4}
-.score-page .score-line .bar-click:focus-visible .bar-hit{fill:#c1e7d5;stroke:#287e60}
-.score-type-picker{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#385a51;white-space:nowrap}
-.score-type-picker select{max-width:122px;background:#fff;color:#203e36;border:1px solid #cbdbd1;border-radius:6px;padding:5px}
+
 @media print{.score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}.score-page .score-line .bar-click.active .bar{stroke:#000!important}.score-type-picker{display:none!important}}
 
-.score-page .score-line .bar-click{cursor:pointer;outline:none}
-.score-page .score-line .bar-click .bar-hit{fill:transparent}
-.score-page .score-line .bar-click:hover .bar-hit,.score-page .score-line .bar-click.active .bar-hit{fill:#def1e9}
-.score-page .score-line .bar-click.active .bar{stroke:#12856f;stroke-width:3.4}
-.score-page .score-line .bar-click:focus-visible .bar-hit{fill:#c1e7d5;stroke:#287e60}
-.score-type-picker{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#385a51;white-space:nowrap}
-.score-type-picker select{max-width:122px;background:#fff;color:#203e36;border:1px solid #cbdbd1;border-radius:6px;padding:5px}
+
 @media print{
   .score-page .score-line .bar-click.active .bar-hit{fill:transparent!important}
   .score-page .score-line .bar-click.active .bar{stroke:#000!important}
@@ -380,7 +368,8 @@ main{padding-top:23px}
 .score-page .score-line .alt-caption{font:600 16px "Microsoft YaHei",sans-serif;fill:#526b60}
 .score-page .score-line .alt-duration{font:14px ui-monospace,monospace;fill:#5f756b}
 .score-page .score-line .alt-rest{font:31px "Noto Music","Segoe UI Symbol","Microsoft YaHei",sans-serif;fill:#20362f}
-.score-page .score-staff .lyrics-text,.score-page .score-guitar .lyrics-text{font-size:30px}
+/* Alternative score lyrics inherit the same user-configurable font, weight
+   and size as numbered notation. Do not impose a new 30px default. */
 .score-page .score-guitar .alt-string-label{font:600 17px ui-monospace,monospace;fill:#405e50;text-anchor:middle}
 .score-page .score-guitar .alt-tab-label{font:700 16px ui-monospace,monospace;fill:#557369}
 .score-page .score-guitar .alt-fret-bg{fill:#fff}
