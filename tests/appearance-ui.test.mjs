@@ -1338,8 +1338,9 @@ test('finite and infinite loop playback restart on the audio timeline, pause ret
   const starts=[];
   const audio={
     currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
     createOscillator(){
-      return {frequency:{setValueAtTime(){}},connect(){},
+      return {frequency:{setValueAtTime(){}},setPeriodicWave(){},connect(){},
         start(t){starts.push(t)},stop(){},disconnect(){}};
     },
     createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
