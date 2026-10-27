@@ -1668,3 +1668,37 @@ test('five-line and guitar score variants both allow selecting a note or bar',()
     assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,1);
   }
 });
+
+test('six-string fingerstyle TAB has correct standard-tuning string/fret choices and flags unplayable notes',()=>{
+  const source=".Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1, 1 1' 1'''";
+  const {state,els}=boot({source,scoreType:'guitar'});
+  assert.equal(state.scoreType,'guitar');
+  const line=els.score.children.find(e=>e.className==='score-line score-guitar');
+  const notes=line.children.filter(g=>g.className==='note-click');
+  assert.equal(notes.length,4);
+  const digit=i=>notes[i].children.find(c=>c.className==='alt-fret');
+  assert.equal(digit(0).textContent,'3','C3 is A string fret 3');
+  assert.equal(digit(0).attrs.y,'178');
+  assert.equal(digit(1).textContent,'1','C4 is B string fret 1');
+  assert.equal(digit(1).attrs.y,'109');
+  assert.equal(digit(2).textContent,'8','C5 is high E string fret 8');
+  assert.equal(digit(2).attrs.y,'86');
+  assert.ok(notes[3].children.some(c=>c.className==='alt-unplayable'&&c.textContent==='×'),
+    'C7 exceeds the standard-guitar 20-fret limit');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1,','1',"1'","1'''"]);
+});
+
+test('grand staff draws major-key accidentals, a 32nd-note flag, and silence separately',()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n3  b3  1___ 0';
+  const {state,els}=boot({source,scoreType:'staff'});
+  const line=els.score.children.find(e=>e.className==='score-line score-staff');
+  const notes=line.children.filter(e=>e.className==='note-click');
+  assert.equal(notes.length,4);
+  const symbols=i=>notes[i].children.filter(e=>e.className==='alt-accidental').map(e=>e.textContent);
+  assert.deepEqual(symbols(0),[],'F sharp is in the D-major key signature');
+  assert.deepEqual(symbols(1),['♮'],'flat-third of D is F natural, so a natural sign is required');
+  assert.equal(notes[2].children.filter(e=>e.className==='alt-flag').length,3,
+    'one eighth of a beat is a 32nd note requiring three flags');
+  assert.ok(notes[3].children.some(e=>e.className==='alt-rest'),'rest does not receive a pitched notehead');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['3','b3','1___','0']);
+});
