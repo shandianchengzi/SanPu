@@ -18,7 +18,7 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.transcriber,'shandianchengzi');
   assert.equal(song.composer,'');
   assert.equal(song.singer,'');
-  assert.equal(song.notes.length,90);
+  assert.equal(song.notes.length,91);
   assert.equal(song.elements.filter(e=>e.kind==='bar').length,21);
   assert.equal(song.elements.filter(e=>e.kind==='break').length,5);
   assert.deepEqual(song.notes.slice(0,4).map(n=>n.raw),['3,_','3,','#4,_','#4,']);
@@ -28,21 +28,19 @@ test('user supplied score parses without changing source',()=>{
   assert.equal(song.lyrics.get(37).text,'苦');
   assert.equal(song.lyrics.get(39).skip,true);
   assert.equal(song.lyrics.get(70).text,'份。');
-  assert.equal(song.lyrics.size,71);
+  assert.equal(song.lyrics.size,91);
   assert.equal(song.warnings.length,0);
   const spacerMarks=song.elements.filter(e=>e.kind==='spacer').map(e=>e.raw);
-  assert.deepEqual(spacerMarks.slice(0,26),
-    ['y','y10','y','y','y','y15','y','y','y','y','y','y','y','y','y','y','y40','y','y','y','y35','y30','y','y','y','y35']);
-  assert.deepEqual(spacerMarks.slice(26),['y30','y','y','y','y5']);
+  assert.deepEqual(spacerMarks,['y15','y15','y','y','y','y15','y','y','y','y','y15','y','y','y','y','y','y','y30','y','y','y','y35','y18','y15','y','y','y','y35','y','y10','y15']);
   assert.ok(EXAMPLE.includes('从前，现在,过去了再不来，红红落叶，长埋尘土里。'));
   assert.ok(EXAMPLE.includes('开始终结总是没变改，天边的你飘泊白云外。'));
   assert.ok(EXAMPLE.includes('{1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。'));
   assert.ok(EXAMPLE.includes('相亲/ 竟不可/接近,或我应该相信是缘份。'));
-  assert.ok(EXAMPLE.includes('5 3_ 2  7,-    y y y y y y y40|'));
+  assert.ok(EXAMPLE.includes('5 3_ 2  7,--    y y y y y y y30|'));
   assert.ok(EXAMPLE.includes('#4,... y y y y | 3, 2,_ 3,-'));
   assert.equal(song.notes[9].raw,'3,--');
   assert.ok(EXAMPLE.includes('6,. 6,_ 1. y30 | 7,__ 1__ 7,__ 6,__ 7,_ 5,_ 5,__ 6,__ 7,-'));
-  assert.ok(EXAMPLE.includes('1__. #1__ b3- | y 5 #4- | y  7,  3-- y5 |$(true)'));
+  assert.ok(EXAMPLE.includes('1__. #1__ b3- | 5 #4- | 5__. #4_ 3--  |$(true)'));
   assert.equal(EXAMPLES[0].source,EXAMPLE);
   assert.equal(EXAMPLES[0].title,song.title);
 });
