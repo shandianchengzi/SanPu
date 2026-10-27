@@ -15,6 +15,12 @@ W1@1,1:
 相亲/ 竟不可/接近，或我应该相信是缘份
 `;
 const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
+// ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
+// Widths use SVG user units (not musical beats) and are bounded to avoid
+// accidental enormous documents. Adjacent y marks may also be repeated.
+export const DEFAULT_SPACER_WIDTH = 20;
+export const MAX_SPACER_WIDTH = 2000;
+const SPACER = /^y(\d+)?(?=$|[\s|$:y])/;
 const BARS = ['|:', ':|:', ':|', '||', '|]', '[|]', '|'];
 export function durationFromSuffix(s='') {
   if (!s) return 1;
@@ -43,6 +49,16 @@ function readVoice(body, warnings) {
     if (bar) {
       const item = {kind:'bar', raw:bar, measure, row};
       elements.push(item); measure++; noteIndex=0; p+=bar.length; continue;
+    }
+    const spacer = SPACER.exec(remain);
+    if (spacer) {
+      const amount=spacer[1]===undefined?DEFAULT_SPACER_WIDTH:Number(spacer[1]);
+      const width=Math.min(MAX_SPACER_WIDTH,amount);
+      if(amount>MAX_SPACER_WIDTH)
+        warnings.push(`排版空位「${spacer[0]}」过宽，已限制为 ${MAX_SPACER_WIDTH}。`);
+      elements.push({kind:'spacer',raw:spacer[0],width,measure,row});
+      p+=spacer[0].length;
+      continue;
     }
     const m = NOTE.exec(remain);
     if (m && m[0]) {
