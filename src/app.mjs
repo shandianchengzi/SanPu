@@ -337,7 +337,7 @@ function keyboardDown(ev){
   if(!state.keyboardMode||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const letter=keyboardEventCode(ev),position=KEYBOARD_LAYOUT.indexOf(letter);
-  if(position<0||PIANO_FIRST+position>60||activeKeyboardKeys.has(letter))return;
+  if(position<0||PIANO_FIRST+position>KEYBOARD_LAST||activeKeyboardKeys.has(letter))return;
   const midi=PIANO_FIRST+position;
   const down=keyboardDownByMidi.get(midi);
   if(!down)return;

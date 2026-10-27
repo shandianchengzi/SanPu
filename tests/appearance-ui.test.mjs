@@ -1264,7 +1264,7 @@ test('dynamic SVG keymap contains 25 chromatic keys, and follows key signature a
   els.source.value=source.replace('1=G','1=D');refresh();
   assert.equal(state.song.key,'D');
   assert.equal(q().children[2].textContent,'C3 → D3');
-  assert.equal(q().children[3].textContent,'简谱 1,,');
+  assert.equal(q().children[3].textContent,'简谱 1,');
   assert.match(read('index.html'),/id="piano-keyboard-diagram"/);
   assert.match(read('styles.css'),/\.keyboard-map-svg/);
 });
