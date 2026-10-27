@@ -18,17 +18,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - name: Install packaging tools
+        run: npm ci
       - name: Run unit tests
-        run: node --test tests/*.test.mjs
+        run: npm test
+      - name: Prepare versioned web bundle
+        env:
+          SANPU_BUILD_COMMIT: ${{ github.sha }}
+        run: npm run build:web
       - name: Verify static assets
         run: |
-          test -s index.html
-          test -s styles.css
-          test -s src/app.mjs
-          test -s src/core.mjs
-          test -s src/timbres.mjs
-          test -s README.md
-          test -s LICENSE
+          test -s dist/index.html
+          test -s dist/styles.css
+          test -s dist/src/app.mjs
+          test -s dist/src/core.mjs
+          test -s dist/src/timbres.mjs
+          test -s dist/src/update.mjs
+          test -s dist/build-info.json
+          test -s dist/LICENSE
   deploy:
     if: github.event_name != 'pull_request'
     needs: verify
@@ -42,9 +50,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Prepare deployable web bundle
+        env:
+          SANPU_BUILD_COMMIT: ${{ github.sha }}
+        run: npm run build:web
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -8,6 +8,7 @@
   <title>散谱 SanPu · 自由节奏简谱编辑器</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
+  <script type="module" src="./src/update.mjs"></script>
   <script type="module" src="./src/app.mjs"></script>
 </head>
 <body>
@@ -16,7 +17,12 @@
       <span class="brand-icon" aria-hidden="true">♫</span>
       <div><strong>散谱 <span>SanPu</span></strong><small>Free rhythm · Numbered notation</small></div>
     </div>
-    <a class="repo-link" href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">开源仓库 <span aria-hidden="true">↗</span></a>
+    <div class="header-actions">
+      <button id="update-button" class="update-button" type="button" aria-haspopup="dialog">
+        <span class="update-dot" aria-hidden="true"></span><span id="update-label">检查更新</span>
+      </button>
+      <a class="repo-link" href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">开源仓库 <span aria-hidden="true">↗</span></a>
+    </div>
   </header>
   <main>
     <div class="intro">
@@ -78,6 +84,15 @@
       </div>
     </details>
   </main>
+  <dialog id="update-dialog" class="update-dialog" aria-labelledby="update-title">
+    <form method="dialog" class="update-card">
+      <div class="update-heading"><div><span class="eyebrow">SANPU UPDATE</span><h2 id="update-title">应用更新</h2></div><button class="update-close" value="close" aria-label="关闭更新窗口">×</button></div>
+      <p id="update-message" class="update-message" aria-live="polite">正在连接 GitHub 检查最新版本……</p>
+      <dl class="update-builds"><div><dt>当前版本</dt><dd id="update-current">—</dd></div><div><dt>仓库最新版</dt><dd id="update-latest">—</dd></div></dl>
+      <p class="update-privacy">同步时会在当前应用窗口载入 GitHub Pages 最新构建。当前谱稿与排版设置通过 URL 片段迁移，片段不会发送到服务器；安装包内置版本仍可离线使用。</p>
+      <div class="update-actions"><button id="update-recheck" class="btn secondary" type="button">重新检查</button><button id="update-sync" class="btn play" type="button" disabled>立即同步最新版</button></div>
+    </form>
+  </dialog>
   <footer>散谱 SanPu · GPL-3.0 · 纯浏览器运行 · <a href="https://github.com/shandianchengzi/SanPu" target="_blank" rel="noopener noreferrer">GitHub</a></footer>
 </body>
 </html>

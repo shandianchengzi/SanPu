@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SanPu",
+  "version": "../package.json",
+  "identifier": "com.shandianchengzi.sanpu",
+  "build": {
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "散谱 SanPu",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 390,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://shandianchengzi.github.io; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; media-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Music",
+    "shortDescription": "自由节奏数字简谱编辑器",
+    "longDescription": "免费、开源的散板数字简谱编辑器，支持歌词逐音对位、试听和 PDF 导出。",
+    "copyright": "Copyright (C) 2026 SanPu contributors",
+    "licenseFile": "../LICENSE",
+    "homepage": "https://shandianchengzi.github.io/SanPu/",
+    "android": {
+      "minSdkVersion": 24
+    },
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["SimpChinese", "English"],
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

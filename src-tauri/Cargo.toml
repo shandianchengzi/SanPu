@@ -1,0 +1,18 @@
+[package]
+name = "sanpu"
+version = "1.0.0"
+description = "SanPu free-rhythm numbered notation editor"
+authors = ["SanPu contributors"]
+license = "GPL-3.0-only"
+repository = "https://github.com/shandianchengzi/SanPu"
+edition = "2021"
+
+[lib]
+name = "sanpu_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.2", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.3", features = [] }

@@ -106,9 +106,29 @@ node --test tests/*.test.mjs
 
 ## GitHub Pages 自动部署
 
-工作流：`.github/workflows/pages.yml`。推送到 `main` 或手动运行 `workflow_dispatch` 会先运行解析测试，再通过官方 GitHub Pages Actions 发布静态网页。PR 只测试不部署。
+工作流：`.github/workflows/pages.yml`。推送到 `main` 或手动运行 `workflow_dispatch` 会先运行解析测试、生成包含 Git 提交号的版本清单，再通过官方 GitHub Pages Actions 发布静态网页。PR 只测试不部署。
 
 若首次启用 GitHub Pages，请在 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。无须 PAT 或额外 Secrets。
+
+## 一键打包 EXE 和 APK
+
+工作流：`.github/workflows/native-apps.yml`。每次推送到 `main` 会自动构建，也可以在 GitHub 的 **Actions → SanPu — EXE and APK packages → Run workflow** 中手动一键触发。工作流会：
+
+1. 运行全部单元测试并生成带提交版本的 Web 资源。
+2. 在 Windows Runner 上生成 NSIS `*-setup.exe` 安装程序。
+3. 在 Android Runner 上初始化 Tauri Android 工程并生成可安装 APK；APK 不在本地编译。
+4. 上传单独的 EXE、APK，以及包含两者的 `SanPu-EXE-and-APK-*` 汇总构建产物。
+
+当前 Windows 安装程序未配置商业代码签名，首次运行时 Windows 可能显示 SmartScreen 提醒。Android 工作流默认生成由 Runner 调试证书签名的可安装测试 APK；如需上架应用商店或让后续 APK 直接覆盖安装，应另外配置长期保管的 Android 发布签名密钥，密钥不得提交到仓库。
+
+### 应用内检查更新
+
+网页版、EXE 和 APK 共用同一套更新界面。应用启动后会读取安装包内的 `build-info.json`，并检查 GitHub Pages 上由 `main` 最新提交生成的版本清单：
+
+- 顶栏始终可以手动点击「检查更新」。
+- 发现新提交后，点击「立即同步最新版」会在当前应用窗口载入 GitHub Pages 最新构建，不必等待重新安装即可使用最新仓库功能。
+- 当前谱稿、速度、音色和排版设置会通过 URL 片段迁移到最新版；片段不会发送给 GitHub 服务器。
+- 无法联网时继续使用 EXE/APK 内置的完整版本。
 
 ## 项目结构
 
@@ -120,11 +140,15 @@ src/core.mjs                 源码解析与歌词对位
 src/app.mjs                  SVG、试听、导入导出与排版 UI
 src/format.mjs               排版选项校验、默认值与预设
 src/timbres.mjs              内置音色、波形合成与音频包络
+src/update.mjs               应用内版本检查、数据迁移与在线同步
+scripts/prepare-dist.mjs     生成网页/应用共用资源及版本清单
+src-tauri/                   Windows 与 Android 的 Tauri 应用壳
 tests/core.test.mjs          解析单元测试
 tests/format.test.mjs        排版选项单元测试
 tests/timbres.test.mjs       音色与振荡器测试
 tests/appearance-ui.test.mjs 排版控件与 SVG 交互测试
 .github/workflows/pages.yml 自动测试与部署
+.github/workflows/native-apps.yml GitHub Actions 一键构建 EXE 与 APK
 LICENSE                      GNU GPL v3
 ```
 
