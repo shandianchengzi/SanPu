@@ -65,6 +65,10 @@
           <label for="format-preset">排版预设</label>
           <select id="format-preset" aria-label="排版预设"><option value="standard">标准</option><option value="compact">紧凑</option><option value="spacious">宽松</option><option value="custom" disabled>自定义（已调整）</option></select>
           <button type="button" class="btn secondary" id="format-reset">恢复默认</button>
+          <button type="button" class="btn secondary" id="style-export-btn" title="将全部谱面样式参数另存为 JSON 文件">↓ 导出样式</button>
+          <button type="button" class="btn secondary" id="style-import-btn" title="从 JSON 文件恢复谱面样式，不修改当前乐谱">↥ 导入样式</button>
+          <input type="file" id="style-file-input" hidden accept=".json,application/json" aria-label="选择 SanPu 样式文件" />
+          <span id="style-transfer-status" class="style-transfer-status" role="status" aria-live="polite"></span>
           <span class="format-save-hint">修改即时生效 · 自动保存在本机</span>
         </div>
         <div id="format-tabs" class="format-tabs" role="tablist" aria-label="谱面样式分类"></div>
