@@ -77,10 +77,9 @@ function loadSelectedExample(){
   els.source.value=example.source;
   refresh();
 }
-// Physical QWERTY key ordering for three chromatic octaves. The final C6
-// is explicitly included because the requested C5 row has thirteen keys.
+// Three physical keyboard rows with exactly twelve chromatic semitones each.
 const PIANO_FIRST=48;
-const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/io0p-[=]']);
+const KEYBOARD_ROWS=Object.freeze(['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-']);
 const KEYBOARD_LAYOUT=KEYBOARD_ROWS.join('');
 const PIANO_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
 const KEYBOARD_LAST=PIANO_LAST;
@@ -113,13 +112,13 @@ function renderPianoKeyboardDiagram(){
   const width=1320,height=297,cell=94,gap=6,top=29,step=85;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
-    'aria-label':'键盘弹奏：C3至C6，37 个按键随调号和移调更新'});
+    'aria-label':'键盘弹奏：C3至B5，36 个按键随调号和移调更新'});
   const title=svg('title',{},'电脑键盘与钢琴键位对照（当前 1='+state.song.key+'，'+
     (state.pianoTranspose?'按调号移调':'固定音高')+'）');
   graphic.append(title);
   KEYBOARD_ROWS.forEach((keys,row)=>{
     graphic.append(svg('text',{x:12,y:top-9+row*step,
-      class:'keyboard-map-row-label'},'第 '+(row+1)+' 排'));
+      class:'keyboard-map-row-label'},'C'+(row+3)+' 八度'));
     for(let col=0;col<keys.length;col++){
       const letter=keys[col];
       const midi=PIANO_FIRST+KEYBOARD_LAYOUT.indexOf(letter);
