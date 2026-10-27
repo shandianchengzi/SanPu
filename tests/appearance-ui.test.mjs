@@ -40,7 +40,7 @@ function boot(saved,allowOverwrite=false){
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
-     'piano-keys','piano-audition','piano-status']){
+     'piano-keys','piano-audition','piano-transpose','piano-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -723,4 +723,53 @@ test('keyboard activation inserts exactly once at keyup and respects pressed dur
   key.dispatch('click');
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
   assert.equal(suppressed,3);
+});
+
+test('key-signature transposition checkbox retunes note entry and labels without touching source',()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1';
+  const {els,document,state,localStorage}=boot({source,pianoAudition:false});
+  const transpose=document.getElementById('piano-transpose');
+  const keyboard=document.getElementById('piano-keys').children;
+  const c4=keyboard.find(x=>x.dataset.midi==='60');
+  assert.equal(transpose.checked,false,'existing users keep untransposed keyboard');
+  assert.equal(state.pianoTranspose,false);
+  assert.equal(c4.attrs.title,'C4 · 7,');
+  transpose.checked=true;transpose.dispatch('change');
+  assert.equal(state.pianoTranspose,true);
+  assert.equal(c4.attrs.title,'C4 → D4 · 1');
+  assert.equal(c4.attrs['aria-label'],'C4 → D4，简谱 1');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoTranspose,true);
+  assert.equal(els.source.value,source,'checkbox must not modify score');
+  state.cursorNoteId=0;
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:1000,pointerId:7});
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:1850,pointerId:7});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1']);
+  transpose.checked=false;transpose.dispatch('change');
+  assert.equal(c4.attrs.title,'C4 · 7,');
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:2000,pointerId:7});
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:2850,pointerId:7});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1','7,']);
+  assert.equal(boot({source,pianoTranspose:true}).state.pianoTranspose,true);
+});
+test('piano audition uses the same transposed sounding pitch as notation',async()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1';
+  const {state,document}=boot({source,pianoAudition:true,pianoTranspose:true});
+  const frequencies=[];
+  state.audio={
+    currentTime:0,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){
+      return {frequency:{setValueAtTime(value){frequencies.push(value);}},
+        setPeriodicWave(){},connect(){},start(){},stop(){},disconnect(){}};
+    },
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  const c4=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
+  await Promise.resolve();await Promise.resolve();
+  assert.ok(frequencies.length>0);
+  assert.ok(Math.abs(frequencies[0]-440*Math.pow(2,(62-69)/12))<1e-8,'C4 sounds D4');
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:200});
+  assert.equal(state.song.notes.length,1,'audition never inserts');
 });

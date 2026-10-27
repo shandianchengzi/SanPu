@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -10,12 +10,12 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,pianoTranspose:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -28,6 +28,8 @@ function load() {
   state.zoom=Math.min(300,Math.max(50,Number(settings?.zoom)||100));
   state.pianoAudition=settings?.pianoAudition!==false;
   els.pianoAudition.checked=state.pianoAudition;
+  state.pianoTranspose=settings?.pianoTranspose===true;
+  els.pianoTranspose.checked=state.pianoTranspose;
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
 }
@@ -67,7 +69,25 @@ const PIANO_FIRST=48,PIANO_LAST=83;
 const PIANO_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const PIANO_BLACK=new Set([1,3,6,8,10]);
 function pianoLabel(midi){return PIANO_NAMES[midi%12]+String(Math.floor(midi/12)-1);}
+function pianoSoundMidi(midi){return pianoKeyMidi(midi,state.song.key,state.pianoTranspose);}
+function updatePianoLabels(){
+  if(!state.song)return;
+  for(const key of els.pianoKeys.children){
+    const baseMidi=Number(key.dataset.midi);
+    const soundMidi=pianoSoundMidi(baseMidi);
+    const base=pianoLabel(baseMidi);
+    const target=soundMidi===null?'不可用':pianoLabel(soundMidi);
+    const notation=soundMidi===null?'':pianoToNotation(soundMidi,state.song.key);
+    const label=state.pianoTranspose?base+' → '+target:base;
+    key.setAttribute('title',label+' · '+notation);
+    key.setAttribute('aria-label',label+'，简谱 '+notation);
+    for(const child of key.children)
+      if(child.className==='piano-key-name')child.textContent=target;
+  }
+}
 async function auditionPiano(midi){
+  const soundMidi=pianoSoundMidi(midi);
+  if(soundMidi===null)return;
   if(!state.audio){
     const Ctor=window.AudioContext||window.webkitAudioContext;
     if(!Ctor){els.pianoStatus.textContent='当前浏览器不支持 Web Audio。';return;}
@@ -76,12 +96,13 @@ async function auditionPiano(midi){
   try{await state.audio.resume();}
   catch{els.pianoStatus.textContent='浏览器未允许音频播放。';return;}
   const now=state.audio.currentTime;
-  const voice=createVoice(state.audio,{frequency:440*Math.pow(2,(midi-69)/12),
+  const voice=createVoice(state.audio,{frequency:440*Math.pow(2,(soundMidi-69)/12),
     start:now,end:now+.65,timbre:'piano'});
   if(!voice)els.pianoStatus.textContent='琴键未能发声。';
 }
 function insertFromPiano(midi,heldMs,recordedAnchor=null){
-  const degree=pianoToNotation(midi,state.song.key);
+  const soundMidi=pianoSoundMidi(midi);
+  const degree=soundMidi===null?null:pianoToNotation(soundMidi,state.song.key);
   if(!degree)return;
   const token=degree+pianoDurationSuffix(heldMs,state.tempo);
   const anchor=recordedAnchor??(state.playing&&state.active>=0?state.active:state.cursorNoteId);
@@ -94,7 +115,7 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   state.song=parseSong(els.source.value);
   render();highlight(result.noteId);
   persist();
-  els.pianoStatus.textContent=pianoLabel(midi)+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
+  els.pianoStatus.textContent=pianoLabel(midi)+' → '+pianoLabel(soundMidi)+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
 }
 function buildPiano(){
   let whites=0;
@@ -125,7 +146,8 @@ function buildPiano(){
       if(ev.type==='pointerdown'&&key.setPointerCapture&&ev.pointerId!==undefined)
         key.setPointerCapture(ev.pointerId);
       if(pressedAudition){
-        els.pianoStatus.textContent=label+' · '+(pianoToNotation(midi,state.song.key)||'?')+' · 试听';
+        const soundMidi=pianoSoundMidi(midi);
+        els.pianoStatus.textContent=label+' → '+(soundMidi===null?'不可用':pianoLabel(soundMidi))+' · '+(soundMidi===null?'?':pianoToNotation(soundMidi,state.song.key))+' · 试听';
         auditionPiano(midi);
       }
     };
@@ -430,6 +452,7 @@ function positionPunctuation(line){
   }
 }
 function render() {
+  updatePianoLabels();
   applyAppearance();
   applyPreviewZoom();
   const song=state.song;
@@ -510,6 +533,12 @@ let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 els.pianoAudition.addEventListener('change',()=>{state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'试听模式：按键发声，不修改源码':'录入模式：按住决定时值，松开后插入音符';persist();});
+els.pianoTranspose.addEventListener('change',()=>{
+  state.pianoTranspose=els.pianoTranspose.checked;
+  updatePianoLabels();
+  els.pianoStatus.textContent=state.pianoTranspose?'已按 1='+state.song.key+' 移调（C → '+pianoLabel(pianoSoundMidi(60))+'）':'已恢复固定音高键盘（C → C）';
+  persist();
+});
 $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));

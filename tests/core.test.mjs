@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -157,4 +157,25 @@ test('piano insertion uses exact note span, preserving source and lyrics',()=>{
   assert.equal(parseSong(empty.source).warnings.length,0);
   const crlf=insertPianoNote('.Voice\r\n1 2\r\n.Words\r\nW1@1,1:','3',0);
   assert.ok(crlf.source.includes('1 3  2\r\n.Words'));
+});
+
+test('optional keyboard transposition uses exact key-signature semitone offsets',()=>{
+  assert.equal(pianoKeyMidi(60,'D',false),60);
+  assert.equal(pianoKeyMidi(60,'D',true),62);
+  assert.equal(pianoKeyMidi(60,'C',true),60);
+  assert.equal(pianoKeyMidi(60,'F',true),65);
+  assert.equal(pianoKeyMidi(60,'bE',true),63);
+  assert.equal(pianoKeyMidi(60,'#F',true),66);
+  assert.equal(pianoKeyMidi(60,'B',true),71);
+  assert.equal(pianoKeyMidi(400,'D',true),null);
+  for(const key of ['C','D','F','#F','bE','B']){
+    for(let midi=48;midi<=83;midi++){
+      const transposed=pianoKeyMidi(midi,key,true);
+      const notation=pianoToNotation(transposed,key);
+      const song=parseSong('.Title\nKeyAndMeters = {1='+key+',3/4}\n.Voice\n'+notation);
+      const actual=noteFrequency(song.notes[0],key);
+      const expected=440*Math.pow(2,(transposed-69)/12);
+      assert.ok(Math.abs(actual-expected)<1e-6,`${key} ${midi} → ${notation}`);
+    }
+  }
 });

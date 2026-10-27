@@ -179,6 +179,15 @@ export function beatReport(song) {
   return [...song.measures].map(([index,beats])=>({index,beats,target,unequal:Math.abs(beats-target)>1e-6}));
 }
 
+/** Transpose the virtual keyboard upward from its C reference to the score tonic.
+ * C4 (MIDI 60) becomes D4 (62) for KeyAndMeters = {1=D,...}.
+ * When disabled, virtual keys retain their original absolute pitches.
+ */
+export function pianoKeyMidi(midi,key='C',transpose=false){
+  if(!Number.isInteger(midi)||midi<21||midi>108)return null;
+  const shifted=midi+(transpose?(ROOT[key]??0):0);
+  return shifted>=21&&shifted<=108?shifted:null;
+}
 /** Chromatic piano pitches are converted relative to the active major-key tonic. */
 const CHROMATIC_DEGREES=Object.freeze(['1','#1','2','b3','3','4','#4','5','b6','6','b7','7']);
 export function pianoToNotation(midi,key='C'){
