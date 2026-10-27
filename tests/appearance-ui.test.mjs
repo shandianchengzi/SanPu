@@ -681,9 +681,9 @@ test('piano keyboard and saved audition mode',()=>{
   const {document,state,els,localStorage}=boot();
   const keys=document.getElementById('piano-keys').children;
   assert.equal(keys.length,36);
-  assert.equal(keys[0].attrs.title,'C3');
-  assert.equal(keys[1].attrs.title,'C♯3');
-  assert.equal(keys.at(-1).attrs.title,'B5');
+  assert.equal(keys[0].attrs.title,'C3 · b7,,');
+  assert.equal(keys[1].attrs.title,'C♯3 · 7,,');
+  assert.equal(keys.at(-1).attrs.title,"B5 · 6'");
   const checkbox=document.getElementById('piano-audition');
   assert.equal(checkbox.checked,true);
   const before=els.source.value;
@@ -733,7 +733,7 @@ test('key-signature transposition checkbox retunes note entry and labels without
   const c4=keyboard.find(x=>x.dataset.midi==='60');
   assert.equal(transpose.checked,false,'existing users keep untransposed keyboard');
   assert.equal(state.pianoTranspose,false);
-  assert.equal(c4.attrs.title,'C4 · 7,');
+  assert.equal(c4.attrs.title,'C4 · b7,');
   transpose.checked=true;transpose.dispatch('change');
   assert.equal(state.pianoTranspose,true);
   assert.equal(c4.attrs.title,'C4 → D4 · 1');
@@ -745,10 +745,10 @@ test('key-signature transposition checkbox retunes note entry and labels without
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:1850,pointerId:7});
   assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1']);
   transpose.checked=false;transpose.dispatch('change');
-  assert.equal(c4.attrs.title,'C4 · 7,');
+  assert.equal(c4.attrs.title,'C4 · b7,');
   c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:2000,pointerId:7});
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:2850,pointerId:7});
-  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1','7,']);
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1','b7,']);
   assert.equal(boot({source,pianoTranspose:true}).state.pianoTranspose,true);
 });
 test('piano audition uses the same transposed sounding pitch as notation',async()=>{
