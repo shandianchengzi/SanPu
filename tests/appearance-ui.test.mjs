@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 function stripped(code){
-  return code.replace(/^import .*;\s*/gm,'').replaceAll('export const ','const ').replaceAll('export function ','function ');
+  return code.replace(/^import .*;\s*/gm,'').replaceAll('export const ','const ').replaceAll('export function ','function ').replaceAll('export async function ','async function ');
 }
 class FakeElement {
   constructor(tag){
@@ -37,7 +37,7 @@ class FakeElement {
 function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
-    'play-btn','stop-btn','saved','transcriber-input','format-controls','format-preset','format-reset',
+    'play-btn','stop-btn','mp3-btn','mp3-status','saved','transcriber-input','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
      'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-status']){
@@ -55,7 +55,7 @@ function boot(saved,allowOverwrite=false){
   };
   const window={addEventListener(){},print(){window.printed=true}};
   const code=[stripped(read('src/core.mjs')),stripped(read('src/format.mjs')),
-    stripped(read('src/timbres.mjs')),stripped(read('src/app.mjs')),
+    stripped(read('src/timbres.mjs')),stripped(read('src/mp3.mjs')),stripped(read('src/app.mjs')),
     'return {state,els,refresh,render};'].join('\n');
   const downloads=[];
   const fakeURL={

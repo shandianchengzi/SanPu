@@ -275,3 +275,7 @@ main{padding-top:23px}
 .transcriber-editor span{font-size:11px;color:var(--sub)}
 .transcriber-editor input:focus-visible{outline:2px solid #8fc6b3}
 @media print{.transcriber-editor{display:none!important}}
+
+.mp3-status{font-size:11px;color:#476b62;margin:2px 0 8px;line-height:1.5}
+.mp3-status:empty{display:none}
+@media print{.mp3-status{display:none!important}}

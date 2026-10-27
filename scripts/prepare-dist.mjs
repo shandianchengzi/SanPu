@@ -6,7 +6,7 @@ import packageInfo from '../package.json' with {type:'json'};
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const dist=path.join(root,'dist');
-const assets=['index.html','styles.css','favicon.svg','LICENSE','src'];
+const assets=['index.html','styles.css','favicon.svg','LICENSE','THIRD_PARTY_LICENSES.md','src'];
 const encoderDir=path.join(root,'node_modules','@breezystack','lamejs');
 
 function gitCommit(){
