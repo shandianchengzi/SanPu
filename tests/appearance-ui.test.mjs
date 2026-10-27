@@ -169,7 +169,7 @@ test('saved SVG zoom preference is bounded independently from score formatting',
 test('score metadata supports separate tonic and tempo type sizes and weights, including printing',()=>{
   const {state,els}=boot({tempo:80});
   const meta=els.score.children.find(el=>el.className==='score-meta');
-  assert.equal(meta.children[0].textContent,'1 = D');
+  assert.equal(meta.children[0].textContent,'1 = G');
   assert.equal(meta.children[1].textContent,'♩ = 80');
   const tonic=field(els,'metaSize');
   tonic.value='48';tonic.dispatch('input');
@@ -689,9 +689,9 @@ test('piano keyboard and saved audition mode',()=>{
   const {document,state,els,localStorage}=boot();
   const keys=document.getElementById('piano-keys').children;
   assert.equal(keys.length,36);
-  assert.equal(keys[0].attrs.title,'C3 · b7,,');
-  assert.equal(keys[1].attrs.title,'C♯3 · 7,,');
-  assert.equal(keys.at(-1).attrs.title,"B5 · 6'");
+  assert.equal(keys[0].attrs.title,'C3 · 4,,');
+  assert.equal(keys[1].attrs.title,'C♯3 · #4,,');
+  assert.equal(keys.at(-1).attrs.title,"B5 · 3'");
   const checkbox=document.getElementById('piano-audition');
   assert.equal(checkbox.checked,true);
   const before=els.source.value;
