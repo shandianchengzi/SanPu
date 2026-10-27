@@ -34,7 +34,7 @@ class FakeElement {
     walk(this);return found;
   }
 }
-function boot(saved){
+function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
@@ -67,11 +67,12 @@ function boot(saved){
   class FakeDecoder{
     decode(buffer){return Array.from(new Uint8Array(buffer),value=>String.fromCharCode(value)).join('');}
   }
+  const confirmations=[];
   const api=new Function('document','window','localStorage',
-    'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','TextDecoder',code)(
-    document,window,localStorage,()=>{},()=>0,fakeURL,FakeBlob,()=>0,FakeDecoder
+    'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','TextDecoder','confirm',code)(
+    document,window,localStorage,()=>{},()=>0,fakeURL,FakeBlob,()=>0,FakeDecoder,(msg)=>{confirmations.push(msg);return allowOverwrite;}
   );
-  return {...api,document,window,localStorage,head,downloads};
+  return {...api,document,window,localStorage,head,downloads,confirmations};
 }
 const field=(els,key,suffix='')=>els.formatControls.querySelectorAll('[data-format-key]')
   .find(el=>el.id==='format-'+key+suffix);
@@ -124,8 +125,8 @@ test('reset restores standard preset without changing the input source',()=>{
   const before=els.source.value;
   assert.equal(state.format.noteSize,70);
   document.getElementById('format-reset').dispatch('click');
-  assert.equal(state.format.noteSize,43);
-  assert.equal(state.format.systemGap,17);
+  assert.equal(state.format.noteSize,50);
+  assert.equal(state.format.systemGap,-5);
   assert.equal(els.formatPreset.value,'standard');
   assert.equal(els.source.value,before);
 });
@@ -163,13 +164,13 @@ test('saved SVG zoom preference is bounded independently from score formatting',
 test('score metadata supports separate tonic and tempo type sizes and weights, including printing',()=>{
   const {state,els}=boot({tempo:80});
   const meta=els.score.children.find(el=>el.className==='score-meta');
-  assert.equal(meta.children[0].textContent,'1 = C');
+  assert.equal(meta.children[0].textContent,'1 = D');
   assert.equal(meta.children[1].textContent,'♩ = 80');
   const tonic=field(els,'metaSize');
   tonic.value='48';tonic.dispatch('input');
   assert.equal(state.format.metaSize,48);
   assert.equal(els.score.style.props['--meta-size'],'48px');
-  assert.equal(els.score.style.props['--tempo-size'],'26px');
+  assert.equal(els.score.style.props['--tempo-size'],'21px');
   const tempo=field(els,'tempoSize','-value');
   tempo.value='37';tempo.dispatch('change');
   assert.equal(state.format.tempoSize,37);
@@ -179,9 +180,9 @@ test('score metadata supports separate tonic and tempo type sizes and weights, i
   weight.value='700';weight.dispatch('change');
   assert.equal(els.score.style.props['--tempo-weight'],'700');
   const css=read('styles.css');
-  assert.match(css,/\.score-page \.score-tonic\{font-size:var\(--meta-size,33px\)/);
-  assert.match(css,/\.score-page \.score-tempo\{font-size:var\(--tempo-size,26px\)/);
-  assert.match(css,/@media print\{[\s\S]*?\.score-page \.score-tempo\{font-size:var\(--tempo-size,26px\)!important/);
+  assert.match(css,/\.score-page \.score-tonic\{font-size:var\(--meta-size,21px\)/);
+  assert.match(css,/\.score-page \.score-tempo\{font-size:var\(--tempo-size,21px\)/);
+  assert.match(css,/@media print\{[\s\S]*?\.score-page \.score-tempo\{font-size:var\(--tempo-size,21px\)!important/);
   assert.match(css,/\.format-panel\{display:none!important\}/);
 });
 
@@ -247,8 +248,8 @@ test('negative lyric-to-lyric spacing updates layout variables, print and local 
   assert.equal(saved.format.lyricLineGap,-115);
   assert.deepEqual(els.score.children.filter(el=>el.className==='score-line').map(el=>el.attrs.viewBox),before);
   const css=read('styles.css');
-  assert.match(css,/margin-bottom:calc\(var\(--system-gap,17px\) \+ var\(--lyric-line-gap,0px\)\)/);
-  assert.match(css,/margin-bottom:calc\(var\(--system-gap,17px\) \+ var\(--lyric-line-gap,0px\)\)!important/);
+  assert.match(css,/margin-bottom:calc\(var\(--system-gap,-5px\) \+ var\(--lyric-line-gap,0px\)\)/);
+  assert.match(css,/margin-bottom:calc\(var\(--system-gap,-5px\) \+ var\(--lyric-line-gap,0px\)\)!important/);
 });
 
 test('signed distances can be negative through sliders, numeric inputs, and saved settings',()=>{
@@ -272,7 +273,7 @@ test('signed distances can be negative through sliders, numeric inputs, and save
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.noteSpacing,-25);
   const css=read('styles.css');
   assert.match(css,/\.score-page \.score-meta\{[\s\S]*?gap:0;/);
-  assert.match(css,/\.score-page \.score-tempo\{[^}]*margin-left:var\(--meta-gap,11px\)/);
+  assert.match(css,/\.score-page \.score-tempo\{[^}]*margin-left:var\(--meta-gap,9px\)/);
 });
 
 test('negative note and lyric offsets change actual SVG coordinates',()=>{
@@ -382,7 +383,7 @@ test('high and low octave dot offsets change distance independently without alte
   const distanceBelow=()=>Number(dots(1)[0].attrs.cy)-numeralY(1);
   assert.equal(dots(0).length,2);
   assert.equal(dots(1).length,2);
-  const initialHigh=distanceAbove(),initialLow=distanceBelow();
+  const initialHigh=distanceAbove(),initialLow=distanceBelow(),defaultLow=state.format.lowOctaveDotOffset;
   const highSlider=field(els,'highOctaveDotOffset');
   const highNumber=field(els,'highOctaveDotOffset','-value');
   const lowSlider=field(els,'lowOctaveDotOffset');
@@ -397,18 +398,18 @@ test('high and low octave dot offsets change distance independently without alte
   lowNumber.value='30';lowNumber.dispatch('change');
   assert.equal(state.format.lowOctaveDotOffset,30);
   assert.equal(lowSlider.value,'30');
-  assert.ok(Math.abs(distanceBelow()-(initialLow+30))<.001);
+  assert.ok(Math.abs(distanceBelow()-(initialLow+30-defaultLow))<.001);
   assert.ok(Math.abs(distanceAbove()-(initialHigh+45))<.001);
   highNumber.value='-20';highNumber.dispatch('change');
   lowSlider.value='-15';lowSlider.dispatch('input');
   assert.ok(Math.abs(distanceAbove()-(initialHigh-20))<.001);
-  assert.ok(Math.abs(distanceBelow()-(initialLow-15))<.001);
+  assert.ok(Math.abs(distanceBelow()-(initialLow-15-defaultLow))<.001);
   assert.equal(els.source.value,source);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.highOctaveDotOffset,-20);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.lowOctaveDotOffset,-15);
   document.getElementById('format-reset').dispatch('click');
   assert.equal(state.format.highOctaveDotOffset,0);
-  assert.equal(state.format.lowOctaveDotOffset,0);
+  assert.equal(state.format.lowOctaveDotOffset,-13);
   assert.ok(Math.abs(distanceAbove()-initialHigh)<.001);
   assert.ok(Math.abs(distanceBelow()-initialLow)<.001);
 });
@@ -458,7 +459,7 @@ test('trailing punctuation is rendered to the right without shifting lyric body 
     assert.equal(main(idx).attrs['text-anchor'],'middle');
     assert.equal(mark(idx).attrs['text-anchor'],'start');
   }
-  const baseBodyX=Number(main(0).attrs.x),baseMarkX=Number(mark(0).attrs.x);
+  const baseBodyX=Number(main(0).attrs.x),baseMarkX=Number(mark(0).attrs.x),baseGap=state.format.punctuationGap;
   const gapInput=field(els,'punctuationGap','-value');
   const slider=field(els,'punctuationGap');
   assert.equal(gapInput.min,'-30');
@@ -466,12 +467,12 @@ test('trailing punctuation is rendered to the right without shifting lyric body 
   gapInput.value='-13';gapInput.dispatch('change');
   assert.equal(state.format.punctuationGap,-13);
   assert.equal(Number(main(0).attrs.x),baseBodyX);
-  assert.equal(Number(mark(0).attrs.x),baseMarkX-13);
+  assert.equal(Number(mark(0).attrs.x),baseMarkX-13-baseGap);
   assert.equal(slider.value,'-13');
   slider.value='37';slider.dispatch('input');
   assert.equal(state.format.punctuationGap,37);
   assert.equal(Number(main(0).attrs.x),baseBodyX);
-  assert.equal(Number(mark(0).attrs.x),baseMarkX+37);
+  assert.equal(Number(mark(0).attrs.x),baseMarkX+37-baseGap);
   assert.equal(gapInput.value,'37');
   assert.equal(els.source.value,source);
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.punctuationGap,37);
@@ -617,11 +618,12 @@ test('style file controls are in the existing collapsible appearance panel',()=>
 
 test('layout-only y spacers align barlines across SVG rows without touching notes or PDF',()=>{
   const plain='.Title\nTitle = 空位测试\n.Voice\n1 2 | 3 4 $(true)\n1 | 3 4\n.Words\nW1@1,1:\n天地玄黄宇宙洪';
-  const spaced=plain.replace('1 | 3 4','1 y65 | 3 4');
   const noGap=boot({source:plain});
-  const withGap=boot({source:spaced});
   const lines=app=>app.els.score.children.filter(el=>el.className==='score-line');
   const firstBar=el=>Number(el.children.find(x=>x.className==='bar').attrs.x1);
+  const correction=firstBar(lines(noGap)[0])-firstBar(lines(noGap)[1]);
+  const spaced=plain.replace('1 | 3 4',`1 y${correction} | 3 4`);
+  const withGap=boot({source:spaced});
   assert.equal(lines(noGap).length,2);
   assert.equal(lines(withGap).length,2);
   assert.equal(lines(withGap)[0].attrs.viewBox,lines(withGap)[1].attrs.viewBox);
@@ -658,11 +660,18 @@ test('insert layout gap button places y40 at source caret and saves original tex
 
 test('example library initializes with the provided score, preserving previously saved drafts',()=>{
   const initial=boot();
-  assert.equal(initial.els['example-select'].children.length,1);
-  assert.equal(initial.els['example-select'].value,'yi-sheng-suo-ai');
+  assert.equal(initial.document.getElementById('example-select').children.length,1);
+  assert.equal(initial.document.getElementById('example-select').value,'yi-sheng-suo-ai');
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=D,3\/4\}/);
   assert.ok(initial.els.source.value.includes('y y y y y y30|'));
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.state.format.titleSize,62);
+  draft.document.getElementById('example-btn').click();
+  assert.equal(draft.els.source.value,'.Voice\n1 2');
+  assert.equal(draft.confirmations.length,1);
+  const approved=boot({source:'.Voice\n1 2'},true);
+  approved.document.getElementById('example-btn').click();
+  assert.match(approved.els.source.value,/Title = 一生所爱/);
+  assert.equal(approved.state.song.key,'D');
 });

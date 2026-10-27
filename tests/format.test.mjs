@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {FORMAT_FIELDS,DEFAULT_FORMAT,FORMAT_PRESETS,FONTS,normalizeFormat,formatPresetId,exportStyle,importStyle,STYLE_FILE_TYPE,STYLE_FILE_VERSION} from '../src/format.mjs';
 
 test('appearance options have unique keys and usable values',()=>{
@@ -158,9 +159,9 @@ test('the built-in standard preset matches the supplied SanPu appearance JSON ex
   const saved=JSON.parse(readFileSync(new URL('../examples/standard.sanpu-style.json',import.meta.url),'utf8'));
   assert.deepEqual(DEFAULT_FORMAT,saved.settings);
   assert.deepEqual(importStyle(JSON.stringify(saved)),DEFAULT_FORMAT);
-  for(const key of Object.keys(DEFAULT_FORMAT)){
-    assert.equal(FORMAT_PRESETS.compact[key],key in FORMAT_PRESETS.compact?FORMAT_PRESETS.compact[key]:DEFAULT_FORMAT[key]);
-    assert.equal(FORMAT_PRESETS.spacious[key],key in FORMAT_PRESETS.spacious?FORMAT_PRESETS.spacious[key]:DEFAULT_FORMAT[key]);
+  for(const key of ['titleFont','metaFont','noteFont','lyricFont','lowOctaveDotOffset','punctuationGap']){
+    assert.equal(FORMAT_PRESETS.compact[key],DEFAULT_FORMAT[key]);
+    assert.equal(FORMAT_PRESETS.spacious[key],DEFAULT_FORMAT[key]);
   }
   assert.ok(FORMAT_PRESETS.compact.noteSize<DEFAULT_FORMAT.noteSize);
   assert.ok(FORMAT_PRESETS.compact.lyricSize<DEFAULT_FORMAT.lyricSize);

@@ -81,44 +81,44 @@
 /* Score appearance — the same variables drive live preview and PDF output. */
 .score-page{padding:var(--preview-padding,48px)!important}
 .score-page .score-title{
-  font-family:var(--title-font,Arial,sans-serif);font-size:var(--title-size,65px);
-  font-weight:var(--title-weight,800);letter-spacing:var(--title-spacing,1px);
-  margin:0 0 var(--title-bottom,42px)
+  font-family:var(--title-font,Arial,sans-serif);font-size:var(--title-size,38px);
+  font-weight:var(--title-weight,800);letter-spacing:var(--title-spacing,6px);
+  margin:0 0 var(--title-bottom,19px)
 }
 .score-page .score-meta{
-  font-family:var(--meta-font,Arial,sans-serif);font-size:var(--meta-size,33px);
-  gap:0;margin:0 0 var(--meta-bottom,22px)
+  font-family:var(--meta-font,"Songti SC","SimSun","Noto Serif CJK SC",serif);font-size:var(--meta-size,21px);
+  gap:0;margin:0 0 var(--meta-bottom,-1px)
 }
-.score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px));max-width:none}
+.score-page .score-line{width:var(--preview-width,100%);height:auto;min-width:0;margin-bottom:calc(var(--system-gap,-5px) + var(--lyric-line-gap,0px));max-width:none}
 /* Only gaps between neighboring systems belong to lyric-line spacing. */
 .score-page .score-line:last-child{margin-bottom:0}
 .score-page .score-line .note-num{
-  font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,43px);
+  font-family:var(--note-font,Arial,sans-serif);font-size:var(--note-size,50px);
   font-weight:var(--note-weight,700)
 }
 .score-page .score-line .lyrics-text{
-  font-family:var(--lyric-font,"Microsoft YaHei",sans-serif);font-size:var(--lyric-size,34px);
-  font-weight:var(--lyric-weight,400);letter-spacing:var(--lyric-spacing,0px)
+  font-family:var(--lyric-font,"KaiTi","STKaiti","Kaiti SC",serif);font-size:var(--lyric-size,51px);
+  font-weight:var(--lyric-weight,400);letter-spacing:var(--lyric-spacing,-4px)
 }
 .score-page .score-line .accidental{font-size:var(--accidental-size,23px)}
-.score-page .score-line .bar{stroke-width:var(--bar-stroke,2.4)}
+.score-page .score-line .bar{stroke-width:var(--bar-stroke,2.9)}
 .score-page .score-line .rhythm{stroke-width:var(--rhythm-stroke,2.35)}
 /* At print size preserve all user-chosen font sizes / spacing. The browser scales
    each complete SVG system into the physical page width without horizontal clipping. */
 @media print{
   .score-page{padding:0!important;overflow:visible!important}
   .score-page .score-title{
-    font-size:var(--title-size,65px)!important;
-    margin:0 0 var(--title-bottom,42px)!important;
-    letter-spacing:var(--title-spacing,1px)!important
+    font-size:var(--title-size,38px)!important;
+    margin:0 0 var(--title-bottom,19px)!important;
+    letter-spacing:var(--title-spacing,6px)!important
   }
   .score-page .score-meta{
-    font-size:var(--meta-size,33px)!important;
-    margin:0 0 var(--meta-bottom,22px)!important
+    font-size:var(--meta-size,21px)!important;
+    margin:0 0 var(--meta-bottom,-1px)!important
   }
   .score-page .score-line{
     width:100%!important;min-width:0!important;
-    margin-bottom:calc(var(--system-gap,17px) + var(--lyric-line-gap,0px))!important
+    margin-bottom:calc(var(--system-gap,-5px) + var(--lyric-line-gap,0px))!important
   }
   .score-page .score-line:last-child{margin-bottom:0!important}
 }
@@ -152,16 +152,16 @@ main{padding-top:23px}
 .compact-zoom{font-size:11px;display:flex;align-items:center;gap:5px;white-space:nowrap;color:var(--sub)}
 .compact-zoom output{font-variant-numeric:tabular-nums;color:var(--ink);min-width:32px}
 .score-page .score-meta{font-weight:var(--meta-weight,400)}
-.score-page .score-tonic{font-size:var(--meta-size,33px)}
-.score-page .score-tempo{font-size:var(--tempo-size,26px);font-weight:var(--tempo-weight,500);margin-left:var(--meta-gap,11px)}
+.score-page .score-tonic{font-size:var(--meta-size,21px)}
+.score-page .score-tempo{font-size:var(--tempo-size,21px);font-weight:var(--tempo-weight,500);margin-left:var(--meta-gap,9px)}
 @media(max-width:1100px){.intro-pills{display:none}.preview-toolbar .preview-tools{margin-left:0}}
 @media(max-width:640px){.site-header{height:60px}.intro h1{font-size:25px}.editor-pane,.preview-pane{padding:13px}.preview-toolbar .preview-tools{flex-wrap:wrap}}
 /* Printing never includes editable styling controls, and honors user-controlled
    tonic/tempo sizes instead of the historical fixed 16pt tempo print rule. */
 @media print{
   .format-panel{display:none!important}
-  .score-page .score-tonic{font-size:var(--meta-size,33px)!important}
-  .score-page .score-tempo{font-size:var(--tempo-size,26px)!important;font-weight:var(--tempo-weight,500)!important}
+  .score-page .score-tonic{font-size:var(--meta-size,21px)!important}
+  .score-page .score-tempo{font-size:var(--tempo-size,21px)!important;font-weight:var(--tempo-weight,500)!important}
   .score-page .score-meta{font-weight:var(--meta-weight,400)!important}
 }
 
