@@ -40,7 +40,7 @@ function boot(saved,allowOverwrite=false){
     'play-btn','stop-btn','saved','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
-     'piano-keys','piano-audition','piano-transpose','piano-status']){
+     'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
   }
   const head=new FakeElement('head');
@@ -69,11 +69,15 @@ function boot(saved,allowOverwrite=false){
     decode(buffer){return Array.from(new Uint8Array(buffer),value=>String.fromCharCode(value)).join('');}
   }
   const confirmations=[];
+  const timers=new Map();let nextTimer=1;
+  const setTimer=(fn,delay)=>{const id=nextTimer++;timers.set(id,{fn,delay});return id;};
+  const clearTimer=id=>timers.delete(id);
   const api=new Function('document','window','localStorage',
-    'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','TextDecoder','confirm',code)(
-    document,window,localStorage,()=>{},()=>0,fakeURL,FakeBlob,()=>0,FakeDecoder,(msg)=>{confirmations.push(msg);return allowOverwrite;}
+    'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','clearTimeout','TextDecoder','confirm',code)(
+    document,window,localStorage,()=>{},()=>0,fakeURL,FakeBlob,setTimer,clearTimer,FakeDecoder,(msg)=>{confirmations.push(msg);return allowOverwrite;}
   );
-  return {...api,document,window,localStorage,head,downloads,confirmations};
+  return {...api,document,window,localStorage,head,downloads,confirmations,timers,
+    fireTimer(id){const item=timers.get(id);timers.delete(id);item?.fn();}};
 }
 const field=(els,key,suffix='')=>els.formatControls.querySelectorAll('[data-format-key]')
   .find(el=>el.id==='format-'+key+suffix);
@@ -772,4 +776,90 @@ test('piano audition uses the same transposed sounding pitch as notation',async(
   assert.ok(Math.abs(frequencies[0]-440*Math.pow(2,(62-69)/12))<1e-8,'C4 sounds D4');
   c4.dispatch('pointerup',{type:'pointerup',timeStamp:200});
   assert.equal(state.song.notes.length,1,'audition never inserts');
+});
+
+test('continuous mode measures note-on to next note-on, not mouse-up, and finalizes the last held note',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | y40 2\n.Words\nW1@1,1:\n甲乙';
+  const {els,document,state,localStorage,timers,fireTimer}=boot({source,pianoAudition:false,pianoContinuous:true,tempo:120});
+  const keys=document.getElementById('piano-keys').children;
+  const c4=keys.find(k=>k.dataset.midi==='60');
+  const d4=keys.find(k=>k.dataset.midi==='62');
+  assert.equal(document.getElementById('piano-continuous').checked,true);
+  state.cursorNoteId=0;
+  c4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100,pointerId:1});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2']);
+  c4.dispatch('pointerup',{type:'pointerup',timeStamp:200,pointerId:1});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1___','2'],'short hold is provisional');
+  const oldTimer=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
+  assert.ok(oldTimer);
+  // One beat after first key-down, despite releasing early to move mouse.
+  d4.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600,pointerId:2});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2','2']);
+  assert.equal(timers.has(oldTimer),false,'next onset cancels previous idle timeout');
+  d4.dispatch('pointerup',{type:'pointerup',timeStamp:850,pointerId:2});
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2__','2']);
+  const idleId=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
+  assert.ok(idleId);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+  fireTimer(idleId);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1','2__','2']);
+  assert.match(document.getElementById('piano-status').textContent,/末音/);
+  assert.ok(els.source.value.includes(' | y40 2'));
+  assert.ok(els.source.value.endsWith('.Words\nW1@1,1:\n甲乙'));
+});
+test('continuous mode survives overlapping holds and does not rewrite finalized notes',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,document,timers,fireTimer}=boot({source,pianoAudition:false,pianoContinuous:true,tempo:120});
+  const keys=document.getElementById('piano-keys').children;
+  const c=keys.find(x=>x.dataset.midi==='60'),e=keys.find(x=>x.dataset.midi==='64'),g=keys.find(x=>x.dataset.midi==='67');
+  state.cursorNoteId=0;
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
+  e.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:1100});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3']);
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:1300});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3'],'late release must not overwrite inter-onset duration');
+  e.dispatch('pointerup',{type:'pointerup',timeStamp:1500});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.']);
+  const timeout=[...timers.entries()].find(([,v])=>v.delay>=1800)?.[0];
+  fireTimer(timeout);
+  g.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
+  g.dispatch('pointerup',{type:'pointerup',timeStamp:5250});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1-','3_.','5__'],'next phrase cannot retime old last note');
+});
+test('continuous mode ignored during audition and preference transitions stop pending rewrites',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,els,document,localStorage}=boot({source,pianoContinuous:false,pianoAudition:false,tempo:100});
+  const mode=document.getElementById('piano-continuous');
+  assert.equal(mode.checked,false,'new feature is opt-in');
+  mode.checked=true;mode.dispatch('change');
+  assert.equal(state.pianoContinuous,true);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoContinuous,true);
+  const c=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:300});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__']);
+  // Switch off before another event; first note keeps its held duration.
+  mode.checked=false;mode.dispatch('change');
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:600});
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:1200});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1__','1']);
+  const audition=document.getElementById('piano-audition');
+  audition.checked=true;audition.dispatch('change');
+  const before=els.source.value;
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:1300});
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:1600});
+  assert.equal(els.source.value,before);
+  assert.equal(boot({source,pianoContinuous:true}).state.pianoContinuous,true);
+});
+test('new onset after idle threshold does not retroactively expand final note even before throttled timer',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {state,document}=boot({source,pianoContinuous:true,pianoAudition:false,tempo:120});
+  const c=document.getElementById('piano-keys').children.find(x=>x.dataset.midi==='60');
+  state.cursorNoteId=0;
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:100});
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:225});
+  c.dispatch('pointerdown',{type:'pointerdown',button:0,timeStamp:5000});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1___','1']);
+  c.dispatch('pointerup',{type:'pointerup',timeStamp:5500});
+  assert.deepEqual(state.song.notes.map(x=>x.raw),['1','1___','1']);
 });

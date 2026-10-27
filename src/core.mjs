@@ -69,7 +69,7 @@ function readVoice(body, warnings) {
     if (m && m[0]) {
       const raw = m[0], suffix = m[4] || '';
       const octave = [...m[3]].reduce((n,c)=>n+(c === "'" ? 1 : -1),0);
-      const note = {kind:'note', raw, degree:Number(m[2]), accidental:m[1], octave, suffix, beats:durationFromSuffix(suffix), measure, noteIndex:++noteIndex, row, id:notes.length, sourceEnd:p+raw.length};
+      const note = {kind:'note', raw, degree:Number(m[2]), accidental:m[1], octave, suffix, beats:durationFromSuffix(suffix), measure, noteIndex:++noteIndex, row, id:notes.length, sourceStart:p, sourceEnd:p+raw.length};
       notes.push(note); elements.push(note);
       measures.set(measure,(measures.get(measure)||0)+note.beats);
       p += raw.length; continue;
@@ -235,4 +235,23 @@ export function insertPianoNote(source,token,afterId=-1,caret=-1){
   const inserted=chosen?' '+token+' ':token+(text.slice(at).startsWith('.')?'\n':' ');
   return {source:text.slice(0,at)+inserted+text.slice(at),
     noteId:chosen?chosen.id+1:0,caret:at+inserted.length};
+}
+
+// Rewrite only the duration marker of a piano-inserted note. A guard against
+// the original raw token prevents touching a note changed manually meanwhile.
+export function revisePianoNoteDuration(source,noteId,expectedRaw,suffix){
+  const text=String(source??'');
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
+  const index=headings.findIndex(h=>h[1]==='Voice');
+  if(index<0||!Number.isInteger(noteId)||noteId<0)return null;
+  const begin=headings[index].index+headings[index][0].length;
+  const end=headings[index+1]?.index??text.length;
+  const note=readVoice(text.slice(begin,end),[]).notes[noteId];
+  if(!note||note.raw!==expectedRaw)return null;
+  const pitch=/^([#b]{0,2}[1-7][,']*)/.exec(note.raw)?.[1];
+  if(!pitch||!PIANO_BEATS.some(option=>option[1]===suffix))return null;
+  const raw=pitch+suffix;
+  const from=begin+note.sourceStart,to=begin+note.sourceEnd;
+  return {source:text.slice(0,from)+raw+text.slice(to),raw,noteId,
+    from,to,delta:raw.length-note.raw.length};
 }

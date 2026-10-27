@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
@@ -10,12 +10,12 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,pianoTranspose:false,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'sine',pianoAudition:true,pianoTranspose:false,pianoContinuous:false,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -30,6 +30,8 @@ function load() {
   els.pianoAudition.checked=state.pianoAudition;
   state.pianoTranspose=settings?.pianoTranspose===true;
   els.pianoTranspose.checked=state.pianoTranspose;
+  state.pianoContinuous=settings?.pianoContinuous===true;
+  els.pianoContinuous.checked=state.pianoContinuous;
   els.tempo.value=String(state.tempo);
   els.tempoValue.textContent=String(state.tempo);
 }
@@ -100,6 +102,56 @@ async function auditionPiano(midi){
     start:now,end:now+.65,timbre:'piano'});
   if(!voice)els.pianoStatus.textContent='琴键未能发声。';
 }
+// The interval from one key-down to the next key-down, not the pointer-up time,
+// determines the preceding note's rhythm. Only the final idle note uses its hold.
+let pianoPending=null,pianoIdleTimer=null;
+function pianoIdleMs(tempo){return Math.max(1800,4*60000/tempo);}
+function clearPianoSequence(){
+  clearTimeout(pianoIdleTimer);
+  pianoIdleTimer=null;
+  pianoPending=null;
+}
+function revisePending(ms){
+  if(!pianoPending)return false;
+  const pending=pianoPending;
+  const suffix=pianoDurationSuffix(ms,pending.tempo);
+  const edit=revisePianoNoteDuration(els.source.value,pending.noteId,pending.raw,suffix);
+  if(!edit){clearPianoSequence();return false;}
+  if(edit.raw!==pending.raw){
+    const oldCaret=els.source.selectionStart;
+    const nextCaret=oldCaret>=edit.to?oldCaret+edit.delta:
+      oldCaret>edit.from?edit.from+edit.raw.length:oldCaret;
+    els.source.value=edit.source;
+    if(Number.isInteger(nextCaret))els.source.selectionStart=els.source.selectionEnd=nextCaret;
+    pending.raw=edit.raw;
+    state.song=parseSong(els.source.value);
+    render();highlight(pending.noteId);
+    persist();
+  }
+  return true;
+}
+function closePianoInterval(nextStartedAt){
+  if(!pianoPending)return;
+  const pending=pianoPending;
+  // Browser background throttling may delay an idle timer: timestamps still win.
+  const shouldJoin=pending.releasedAt===null ||
+    nextStartedAt-pending.releasedAt<=pianoIdleMs(pending.tempo);
+  if(shouldJoin){
+    revisePending(Math.max(0,nextStartedAt-pending.startedAt));
+    els.pianoStatus.textContent='上一音符 '+pianoPending?.raw+' · 已按两次按键的起始间隔修正节奏';
+  }
+  clearPianoSequence();
+}
+function armPianoIdle(pending){
+  clearTimeout(pianoIdleTimer);
+  const threshold=pianoIdleMs(pending.tempo);
+  pianoIdleTimer=setTimeout(()=>{
+    if(pianoPending!==pending)return;
+    // Its held duration was already provisionally written at pointer-up.
+    els.pianoStatus.textContent='末音 '+pending.raw+' · 无后续按键，按按住时长确定节奏';
+    clearPianoSequence();
+  },threshold);
+}
 function insertFromPiano(midi,heldMs,recordedAnchor=null){
   const soundMidi=pianoSoundMidi(midi);
   const degree=soundMidi===null?null:pianoToNotation(soundMidi,state.song.key);
@@ -116,6 +168,7 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   render();highlight(result.noteId);
   persist();
   els.pianoStatus.textContent=pianoLabel(midi)+' → '+pianoLabel(soundMidi)+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
+  return {noteId:result.noteId,raw:token};
 }
 function buildPiano(){
   let whites=0;
@@ -135,16 +188,27 @@ function buildPiano(){
         caption.textContent=label;caption.className='piano-key-name';key.append(caption);
       }
     }
-    let pressedAt=null,ignoreClick=false,pressedAnchor=null,pressedAudition=true;
+    let pressedAt=null,ignoreClick=false,pressedAnchor=null,pressedAudition=true,pressedContinuous=false,pressedTempo=72,pressedPending=null;
     const down=ev=>{
       if(ev.type==='pointerdown'&&ev.button!==0)return;
       if(ev.repeat||pressedAt!==null)return;
       pressedAt=Number.isFinite(ev.timeStamp)?ev.timeStamp:Date.now();
       pressedAnchor=state.playing&&state.active>=0?state.active:state.cursorNoteId;
       pressedAudition=state.pianoAudition;
+      pressedContinuous=!pressedAudition&&state.pianoContinuous;
+      pressedTempo=state.tempo;
       key.classList.toggle('is-pressed',true);
       if(ev.type==='pointerdown'&&key.setPointerCapture&&ev.pointerId!==undefined)
         key.setPointerCapture(ev.pointerId);
+      if(pressedContinuous){
+        closePianoInterval(pressedAt);
+        const inserted=insertFromPiano(midi,60000/pressedTempo,pressedAnchor);
+        if(inserted){
+          pianoPending={...inserted,startedAt:pressedAt,releasedAt:null,tempo:pressedTempo};
+          pressedPending=pianoPending;
+          els.pianoStatus.textContent=label+' · 已记下起始时间，等待后续按键决定节奏';
+        }
+      }
       if(pressedAudition){
         const soundMidi=pianoSoundMidi(midi);
         els.pianoStatus.textContent=label+' → '+(soundMidi===null?'不可用':pianoLabel(soundMidi))+' · '+(soundMidi===null?'?':pianoToNotation(soundMidi,state.song.key))+' · 试听';
@@ -157,9 +221,23 @@ function buildPiano(){
       const duration=Math.max(0,stamp-pressedAt);
       pressedAt=null;key.classList.toggle('is-pressed',false);
       ignoreClick=true;
-      if(!pressedAudition)insertFromPiano(midi,duration,pressedAnchor);
+      if(pressedContinuous){
+        if(pressedPending && pianoPending===pressedPending){
+          pressedPending.releasedAt=stamp;
+          revisePending(duration);
+          if(pianoPending===pressedPending){
+            els.pianoStatus.textContent='当前末音 '+pressedPending.raw+' · 等待下一键修正节奏';
+            armPianoIdle(pressedPending);
+          }
+        }
+        pressedPending=null;
+      }else if(!pressedAudition)insertFromPiano(midi,duration,pressedAnchor);
     };
-    const cancel=()=>{pressedAt=null;key.classList.toggle('is-pressed',false);ignoreClick=true;};
+    const cancel=()=>{
+      if(pressedPending&&pianoPending===pressedPending)clearPianoSequence();
+      pressedPending=null;pressedAt=null;
+      key.classList.toggle('is-pressed',false);ignoreClick=true;
+    };
     key.addEventListener('pointerdown',down);
     key.addEventListener('pointerup',up);
     key.addEventListener('pointercancel',cancel);
@@ -176,7 +254,16 @@ function buildPiano(){
     key.addEventListener('click',()=>{
       if(ignoreClick){ignoreClick=false;return;}
       if(state.pianoAudition)auditionPiano(midi);
-      else insertFromPiano(midi,60000/state.tempo);
+      else{
+        const now=typeof performance!=='undefined'?performance.now():Date.now();
+        if(state.pianoContinuous)closePianoInterval(now);
+        const inserted=insertFromPiano(midi,60000/state.tempo);
+        // Assistive click-only activation has no meaningful hold time.
+        if(state.pianoContinuous&&inserted){
+          pianoPending={...inserted,startedAt:now,releasedAt:now,tempo:state.tempo};
+          armPianoIdle(pianoPending);
+        }
+      }
     });
     els.pianoKeys.append(key);
   }
@@ -480,7 +567,7 @@ function render() {
   highlight(state.active);
 }
 function refresh() {
-  stopAudio();state.cursorNoteId=-1;state.song=parseSong(els.source.value);
+  clearPianoSequence();stopAudio();state.cursorNoteId=-1;state.song=parseSong(els.source.value);
   render();persist();
 }
 function buildSchedule(){let cursor=0;const sec=60/state.tempo;state.schedule=state.song.notes.map(n=>{const item={id:n.id,start:cursor,end:cursor+n.beats*sec,freq:noteFrequency(n,state.song.key)};cursor=item.end;return item;});state.total=cursor;}
@@ -531,12 +618,21 @@ function readTextFile(file) {
 }
 let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
-els.source.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
-els.pianoAudition.addEventListener('change',()=>{state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'试听模式：按键发声，不修改源码':'录入模式：按住决定时值，松开后插入音符';persist();});
+els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
+els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'试听模式：按键发声，不修改源码':'录入模式：按住决定时值，松开后插入音符';persist();});
 els.pianoTranspose.addEventListener('change',()=>{
+  clearPianoSequence();
   state.pianoTranspose=els.pianoTranspose.checked;
   updatePianoLabels();
   els.pianoStatus.textContent=state.pianoTranspose?'已按 1='+state.song.key+' 移调（C → '+pianoLabel(pianoSoundMidi(60))+'）':'已恢复固定音高键盘（C → C）';
+  persist();
+});
+els.pianoContinuous.addEventListener('change',()=>{
+  clearPianoSequence();
+  state.pianoContinuous=els.pianoContinuous.checked;
+  els.pianoStatus.textContent=state.pianoContinuous?
+    '延音连续：下一键的按下时间决定上一音时值；末音长时间无下一键时按按住时长结算':
+    '普通模式：每个音符按住多久，就记多长时值';
   persist();
 });
 $('import-btn').addEventListener('click',()=>$('file-input').click());
@@ -581,11 +677,11 @@ $('style-file-input').addEventListener('change',async ev=>{
 });
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
 els.play.addEventListener('click',runPlayback);
-els.stop.addEventListener('click',stopAudio);
+els.stop.addEventListener('click',()=>{clearPianoSequence();stopAudio();});
 els.timbre.addEventListener('change',ev=>changeTimbre(ev.target.value));
 els.zoom.addEventListener('input',ev=>changePreviewZoom(ev.target.value));
 els.zoomFit.addEventListener('click',()=>changePreviewZoom(100));
-els.tempo.addEventListener('input',ev=>{state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
+els.tempo.addEventListener('input',ev=>{clearPianoSequence();state.tempo=Number(ev.target.value);els.tempoValue.textContent=String(state.tempo);render();if(state.playing){const id=state.active;playFrom(Math.max(id,0));}persist();});
 let resizeTimer;
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,120);});
 window.addEventListener('beforeprint',()=>{render();});

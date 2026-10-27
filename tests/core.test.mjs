@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -178,4 +178,23 @@ test('optional keyboard transposition uses exact key-signature semitone offsets'
       assert.ok(Math.abs(actual-expected)<1e-6,`${key} ${midi} → ${notation}`);
     }
   }
+});
+
+test('continuous mode backpatches only a generated note suffix',()=>{
+  const source='.Voice\n1_ y30 | 2 3 2\n.Words\nW1@1,1:\n天/地玄黄';
+  const inserted=insertPianoNote(source,'#4__',1);
+  assert.ok(inserted.source.includes('| 2 #4__  3 2'));
+  const revised=revisePianoNoteDuration(inserted.source,2,'#4__','.');
+  assert.ok(revised);
+  assert.equal(revised.raw,'#4.');
+  assert.ok(revised.source.includes('| 2 #4.  3 2'));
+  assert.ok(revised.source.endsWith('.Words\nW1@1,1:\n天/地玄黄'));
+  assert.deepEqual(parseSong(revised.source).notes.map(n=>n.raw),['1_','2','#4.','3','2']);
+  assert.equal(revised.delta,-1);
+  assert.equal(revisePianoNoteDuration(revised.source,2,'#4__','--'),null);
+  assert.equal(revisePianoNoteDuration(revised.source,0,'1_', 'invalid'),null);
+  assert.equal(revisePianoNoteDuration(source,42,'1_', '_'),null);
+  const same=revisePianoNoteDuration(source,0,'1_','_');
+  assert.equal(same.source,source);
+  assert.equal(same.delta,0);
 });
