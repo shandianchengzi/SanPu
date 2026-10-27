@@ -417,3 +417,84 @@ test('large positive octave dot offsets remain inside SVG viewBox and leave lyri
   assert.equal(state.song.notes[0].octave,3);
   assert.equal(state.song.notes[1].octave,-3);
 });
+
+test('trailing punctuation is rendered to the right without shifting lyric body off its note',()=>{
+  const source='.Title\nTitle = 标点对齐\n.Voice\n1 2 3 4\n.Words\nW1@1,1:\n天，海。你好！';
+  const {state,els,localStorage,document}=boot({source});
+  const groups=()=>scoreLine(els).children.filter(el=>el.className==='note-click');
+  const notes=()=>groups().map(g=>g.children.find(x=>x.className==='note-num'));
+  const main=idx=>groups()[idx].children.find(x=>x.className==='lyrics-text');
+  const mark=idx=>groups()[idx].children.find(x=>x.className==='lyrics-text lyric-punctuation');
+  assert.equal(groups().length,4);
+  assert.equal(main(0).textContent,'天');
+  assert.equal(mark(0).textContent,'，');
+  assert.equal(main(1).textContent,'海');
+  assert.equal(mark(1).textContent,'。');
+  assert.equal(main(2).textContent,'你');
+  assert.equal(mark(2),undefined);
+  assert.equal(main(3).textContent,'好');
+  assert.equal(mark(3).textContent,'！');
+  for(const idx of [0,1,3]){
+    assert.equal(Number(main(idx).attrs.x),Number(notes()[idx].attrs.x),'body centered under note');
+    assert.ok(Number(mark(idx).attrs.x)>Number(main(idx).attrs.x),'mark on right');
+    assert.equal(main(idx).attrs['text-anchor'],'middle');
+    assert.equal(mark(idx).attrs['text-anchor'],'start');
+  }
+  const baseBodyX=Number(main(0).attrs.x),baseMarkX=Number(mark(0).attrs.x);
+  const gapInput=field(els,'punctuationGap','-value');
+  const slider=field(els,'punctuationGap');
+  assert.equal(gapInput.min,'-30');
+  assert.equal(slider.min,'-30');
+  gapInput.value='-13';gapInput.dispatch('change');
+  assert.equal(state.format.punctuationGap,-13);
+  assert.equal(Number(main(0).attrs.x),baseBodyX);
+  assert.equal(Number(mark(0).attrs.x),baseMarkX-13);
+  assert.equal(slider.value,'-13');
+  slider.value='37';slider.dispatch('input');
+  assert.equal(state.format.punctuationGap,37);
+  assert.equal(Number(main(0).attrs.x),baseBodyX);
+  assert.equal(Number(mark(0).attrs.x),baseMarkX+37);
+  assert.equal(gapInput.value,'37');
+  assert.equal(els.source.value,source);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).format.punctuationGap,37);
+  document.getElementById('format-reset').dispatch('click');
+  assert.equal(state.format.punctuationGap,0);
+  assert.equal(Number(mark(0).attrs.x),baseMarkX);
+});
+
+test('paired quotation marks keep the body centered with punctuation outside both sides',()=>{
+  const source='.Voice\n1 2\n.Words\nW1@1,1:\n“天”海，';
+  const {els}=boot({source});
+  const groups=scoreLine(els).children.filter(el=>el.className==='note-click');
+  const g=groups[0];
+  const main=g.children.find(x=>x.className==='lyrics-text');
+  const punctuation=g.children.filter(x=>x.className==='lyrics-text lyric-punctuation');
+  assert.equal(main.textContent,'天');
+  assert.equal(punctuation.length,2);
+  const [prefix,suffix]=punctuation;
+  assert.equal(prefix.textContent,'“');
+  assert.equal(suffix.textContent,'”');
+  assert.ok(Number(prefix.attrs.x)<Number(main.attrs.x));
+  assert.ok(Number(suffix.attrs.x)>Number(main.attrs.x));
+  assert.equal(main.attrs.x,g.children.find(x=>x.className==='note-num').attrs.x);
+  assert.equal(groups[1].children.find(x=>x.className==='lyrics-text').textContent,'海');
+});
+
+test('punctuation placement uses the measured SVG lyric width where available',()=>{
+  const original=FakeElement.prototype.getComputedTextLength;
+  FakeElement.prototype.getComputedTextLength=function(){
+    return this.className==='lyrics-text'?112:0;
+  };
+  try{
+    const source='.Voice\n1\n.Words\nW1@1,1:\n你好！';
+    const {els}=boot({source,format:{punctuationGap:14}});
+    const g=scoreLine(els).children.find(el=>el.className==='note-click');
+    const main=g.children.find(el=>el.className==='lyrics-text');
+    const mark=g.children.find(el=>el.className==='lyrics-text lyric-punctuation');
+    assert.equal(main.textContent,'你');
+    assert.equal(Number(mark.attrs.x),Number(main.attrs.x)+112/2+14);
+  }finally{
+    if(original===undefined)delete FakeElement.prototype.getComputedTextLength;
+    else FakeElement.prototype.getComputedTextLength=original;
+  }
+});
