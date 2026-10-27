@@ -76,3 +76,23 @@ test('signed spacing options accept and persist negative values',()=>{
     assert.ok(fields[key].min>=0,key);
   }
 });
+
+test('octave dot offsets are independent, signed, bounded, and default to legacy geometry',()=>{
+  const fields=Object.fromEntries(FORMAT_FIELDS.map(field=>[field.key,field]));
+  for(const key of ['highOctaveDotOffset','lowOctaveDotOffset']){
+    assert.equal(DEFAULT_FORMAT[key],0);
+    assert.ok(fields[key].min<0);
+    assert.ok(fields[key].max>0);
+    assert.equal(normalizeFormat({[key]:-22})[key],-22);
+    assert.equal(normalizeFormat({[key]:55})[key],55);
+    assert.equal(normalizeFormat({[key]:-10000})[key],fields[key].min);
+    assert.equal(normalizeFormat({[key]:10000})[key],fields[key].max);
+    assert.equal(normalizeFormat({[key]:'not a number'})[key],0);
+  }
+  const settings=normalizeFormat({highOctaveDotOffset:31,lowOctaveDotOffset:-17,octaveDotSize:4.5});
+  assert.equal(settings.highOctaveDotOffset,31);
+  assert.equal(settings.lowOctaveDotOffset,-17);
+  assert.equal(settings.octaveDotSize,4.5);
+  assert.equal(normalizeFormat({noteSize:50}).highOctaveDotOffset,0);
+  assert.equal(normalizeFormat({noteSize:50}).lowOctaveDotOffset,0);
+});
