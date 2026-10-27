@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,insertPianoMarker} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,insertPianoMarker,voiceEditItems,deleteVoiceItem} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -392,4 +392,42 @@ test('repeated markers before the first note preserve CRLF and stay inside Voice
   assert.ok(note.source.includes('\r\n'));
   assert.equal(insertPianoMarker(original,'*'),null);
   assert.equal(insertPianoMarker('.Title\nTitle = A','|'),null);
+});
+
+test('voice source locations identify notes, barlines and explicit system breaks',()=>{
+  const source='.Title\r\nTitle = A\r\n.Voice\r\n1 | $(true)\r\n2 | 3\r\n.Words\r\nW1@1,1:\r\n甲乙丙';
+  const items=voiceEditItems(source);
+  assert.deepEqual(items.map(item=>item.kind),['note','bar','break','note','bar','note']);
+  assert.deepEqual(items.map(item=>item.raw),['1','|','$(true)','2','|','3']);
+  assert.deepEqual(items.filter(i=>i.kind==='bar').map(i=>i.index),[0,1]);
+  assert.equal(items[2].index,0);
+  assert.ok(items.every(i=>source.slice(i.from,i.to)===i.raw));
+  const deleted=deleteVoiceItem(source,'bar',0);
+  assert.ok(deleted);
+  assert.equal(deleted.removed.raw,'|');
+  assert.equal(deleted.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.equal(parseSong(deleted.source).notes.length,3);
+  assert.equal(parseSong(deleted.source).elements.filter(i=>i.kind==='bar').length,1);
+  const br=deleteVoiceItem(source,'break',0);
+  assert.equal(br.removed.raw,'$(true)');
+  assert.equal(parseSong(br.source).elements.filter(i=>i.kind==='break').length,0);
+  const note=deleteVoiceItem(source,'note',1);
+  assert.deepEqual(parseSong(note.source).notes.map(n=>n.raw),['1','3']);
+  assert.equal(deleteVoiceItem(source,'bar',20),null);
+  assert.equal(deleteVoiceItem(source,'header',0),null);
+});
+
+test('selected barline caret anchors a new pitch or separator before the next existing note',()=>{
+  const src='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n| 1 | 2\n.Words\nW1@1,1:\n你好';
+  const [first,second]=voiceEditItems(src).filter(i=>i.kind==='bar');
+  const inserted=insertPianoNote(src,'3',-1,first.to,true);
+  assert.ok(inserted);
+  assert.deepEqual(parseSong(inserted.source).notes.map(n=>n.raw),['3','1','2']);
+  assert.match(inserted.source,/\.Voice\s+\|\s+3\s+1\s+\|\s+2/);
+  assert.equal(inserted.noteId,0);
+  const m=insertPianoMarker(src,'$(true)',-1,second.to,true);
+  assert.ok(m);
+  assert.match(m.source,/\|\s+\$\(true\)\s+2/);
+  assert.equal(parseSong(m.source).elements.filter(i=>i.kind==='break').length,1);
+  assert.equal(m.source.split('.Words')[1],src.split('.Words')[1]);
 });

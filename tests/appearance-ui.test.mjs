@@ -29,6 +29,7 @@ class FakeElement {
     const walk=node=>{for(const child of node.children){
       if(selector==='[data-format-key]' && child.dataset?.formatKey)found.push(child);
       if(selector==='.note-click' && child.className==='note-click')found.push(child);
+      if(selector==='.bar-click' && child.className==='bar-click')found.push(child);
       walk(child);
     }};
     walk(this);return found;
@@ -1574,4 +1575,94 @@ test('keyboard shortcut modifiers, repeat, edit targets and disabled keyboard mo
   send('Space');send('Enter');send('Backquote');
   assert.equal(els.source.value,source);
   assert.equal(state.song.notes.length,1);
+});
+
+test('score type selector persists and staff / guitar views draw from the same source',()=>{
+  const source='.Title\nTitle = Variants\nKeyAndMeters = {1=D,3/4}\n.Voice\n1 2_ | 3 0 5- $(true)\n6 7\n.Words\nW1@1,1:\n你好吗朋友啊';
+  const app=boot({source,scoreType:'jianpu'}),{document,els,state,localStorage}=app;
+  const type=document.getElementById('score-type');
+  assert.equal(type.value,'jianpu');
+  assert.equal(state.scoreType,'jianpu');
+  const original=els.source.value;
+  const notes=state.song.notes.map(n=>n.raw);
+  const lines=()=>els.score.children.filter(node=>node.tag==='svg');
+  type.value='staff';type.dispatch('change');
+  assert.equal(state.scoreType,'staff');
+  assert.equal(lines().length,2);
+  assert.equal(lines()[0].className,'score-line score-staff');
+  assert.equal(lines()[0].children.filter(node=>node.className==='alt-staff-line').length,10);
+  assert.ok(lines()[0].children.some(node=>node.className==='alt-clef'&&node.textContent==='𝄞'));
+  assert.ok(lines()[0].children.some(node=>node.className==='alt-clef alt-bass-clef'));
+  assert.ok(lines()[0].children.some(node=>node.className==='bar-click'));
+  assert.ok(lines()[0].children.some(node=>node.className==='note-click'));
+  assert.equal(els.source.value,original);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).scoreType,'staff');
+  type.value='guitar';type.dispatch('change');
+  assert.equal(lines()[0].className,'score-line score-guitar');
+  assert.equal(lines()[0].children.filter(node=>node.className==='alt-staff-line alt-tab-line').length,6);
+  assert.ok(lines()[0].children.some(node=>node.className==='alt-tab-label'));
+  assert.ok(lines()[0].children.some(node=>node.className==='note-click'
+    &&node.children.some(c=>c.className==='alt-fret')));
+  assert.equal(els.source.value,original);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),notes);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).scoreType,'guitar');
+  type.value='jianpu';type.dispatch('change');
+  assert.equal(lines()[0].className,'score-line');
+  assert.equal(boot({scoreType:'guitar'}).state.scoreType,'guitar');
+  assert.equal(boot({scoreType:'unrecognized'}).state.scoreType,'jianpu');
+  assert.match(read('index.html'),/value="staff">五线谱/);
+  assert.match(read('index.html'),/value="guitar">吉他指弹谱/);
+});
+
+test('barline can be selected on screen and removed with Backspace, without touching lyrics',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2\n.Words\nW1@1,1:\n你好';
+  const {els,document,state}=boot({source,keyboardMode:true,pianoAudition:false});
+  const bar=els.score.querySelectorAll('.bar-click')[0];
+  assert.ok(bar,'SVG must expose interactive barlines');
+  bar.dispatch('click');
+  assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+  assert.equal(bar.classList.contains('active'),true);
+  const before=els.source.value;
+  const press={code:'Backspace',timeStamp:100,preventDefault(){press.prevented=true}};
+  document.dispatch('keydown',press);
+  assert.equal(press.prevented,true);
+  assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,0);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','2']);
+  assert.equal(els.source.value.split('.Words')[1],before.split('.Words')[1]);
+  document.dispatch('keyup',{code:'Backspace',timeStamp:120,preventDefault(){}});
+});
+
+test('Backspace after keyboard-entered barline or system break deletes that exact marker',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
+  const {els,state,document}=boot({source,keyboardMode:true,pianoAudition:false,pianoContinuous:false});
+  const send=(type,code,t)=>document.dispatch(type,{code,timeStamp:t,preventDefault(){}});
+  send('keydown','Space',100);send('keyup','Space',200);
+  assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,1);
+  assert.equal(state.selectedItem.kind,'bar');
+  send('keydown','Backspace',300);send('keyup','Backspace',340);
+  assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,0);
+  send('keydown','Enter',400);send('keyup','Enter',440);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,1);
+  assert.equal(state.selectedItem.kind,'break');
+  send('keydown','Backspace',470);send('keyup','Backspace',490);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,0);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1']);
+  assert.equal(els.source.disabled,true);
+});
+
+test('five-line and guitar score variants both allow selecting a note or bar',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2';
+  for(const type of ['staff','guitar']){
+    const {els,document,state}=boot({source,scoreType:type,pianoAudition:false,keyboardMode:true});
+    const bar=els.score.querySelectorAll('.bar-click')[0];
+    assert.ok(bar);
+    bar.dispatch('click');
+    assert.equal(state.selectedItem.kind,'bar');
+    const note=els.score.querySelectorAll('.note-click')[0];
+    note.dispatch('click');
+    assert.deepEqual(state.selectedItem,{kind:'note',index:0});
+    document.dispatch('keydown',{code:'Backspace',timeStamp:200,preventDefault(){}});
+    assert.deepEqual(state.song.notes.map(n=>n.raw),['2']);
+    assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,1);
+  }
 });
