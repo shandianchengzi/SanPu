@@ -4,7 +4,8 @@ export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.5
 .Title
 Title = 一生所爱
 KeyAndMeters = {1=G,3/4}
-WordsByAndMusicBy =
+WordsByAndMusicBy = 唐书琛（词）／卢冠廷（曲）
+Singer = 周深（原唱：卢冠廷、莫文蔚）
 .Voice
 3,_   3, |#4,_ #4, |5,_ 5, (5,_ 6,) 7,_ 3,-- |3,_ 3, #4,_ #4, 5,_ 5,  6,_ 2 7,- y15|$(true)
 1_ 7,_ 6,_ 5,_ 6, #4,- | 5, 6,_ 7,-- y15 | y y  y15 1_ 7,_ 6,_ 5,_ 6, #4,-- y  y| 3, 2,_ 3,- y15| $(true)
