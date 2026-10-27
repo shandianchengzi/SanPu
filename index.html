@@ -51,7 +51,7 @@
             <label class="piano-audition"><input id="piano-audition" type="checkbox" checked /> 仅试听（取消勾选可边听边录）</label>
             <label class="piano-transpose" title="勾选后虚拟 C 键按当前调号移调，例如 1=D 时按 C 发出 D 的音高，并写入简谱 1"><input id="piano-transpose" type="checkbox" checked /> 按谱面调号移调</label>
             <label class="piano-continuous" title="录入时，按下一琴键的时间确定上一音符的时值；长时间没有下一键时，末音按自身按住时长结算"><input id="piano-continuous" type="checkbox" checked /> 延音连续模式</label>
-            <label class="piano-keyboard-mode" title="勾选后可使用计算机键盘 Q 至 N 的 25 个字母依次弹奏 C3 至 C5"><input id="piano-keyboard-mode" type="checkbox" /> 键盘模式</label>
+            <label class="piano-keyboard-mode" title="勾选后可使用 1234567890qwertyuiopasdfghjklzxcvbnm 共 36 个键弹奏 C3 至 B5，源谱输入框暂时禁用"><input id="piano-keyboard-mode" type="checkbox" /> 键盘模式</label>
             <span id="piano-status" role="status" aria-live="polite">按住琴键决定时值 · 按当前 BPM 换算为简谱</span>
           </div>
           <div class="piano-scroll" aria-label="三组八度钢琴按键">
@@ -62,7 +62,7 @@
         <textarea id="source" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="source-hint"></textarea>
         <div class="editor-foot"><span id="source-hint">歌词中的 <code>/</code> 表示延续上一字、跳过一个音符，而不是分句。</span><span id="saved" aria-live="polite">自动保存已开启</span></div>
         <details class="syntax-help"><summary>快速记谱说明 <span aria-hidden="true">＋</span></summary><div class="help-content"><p><code>3_</code> 半拍 · <code>3</code> 一拍 · <code>3-</code> 两拍 · <code>3--</code> 三拍 · <code>3.</code> 1.5 拍</p><p><code>7,</code> 低八度 · <code>1'</code> 高八度 · <code>0</code> 休止 · <code>|</code> 小节/分句 · <code>$(true)</code> 换行</p><p><code>y</code> 横向留白 20 单位 · <code>y40</code> 留白 40 单位 · <code>y80</code> 留白 80 单位。可插入小节线前将不等拍小节的线条对齐；不增加音符、不占拍数、不消耗歌词。直接敲空格只是分隔记号，不能改变谱面横向位置。</p><p><code>(3 4 5)</code> 在音符上方绘制圆滑线，可跨行；<code>3-</code> 仍是两拍音符而不是连音符号。</p><p><code>.Words</code> 中的汉字逐音对齐，标点、空格不占音符；<code>/</code> 占一个音符位置，用于一字多音。<code>{词组}</code> 作为一个歌词单位。</p><p>散板模式允许任意小节长度。试听按照你写的音符时值演奏，不模拟歌手自由伸缩。</p>
-          <section class="keyboard-help" aria-label="计算机键盘与钢琴音符的对应关系"><h3>⌨ 键盘弹奏对照 · C3～C5</h3><p>勾选「键盘模式」后，按 <code>QWERTYUIOPASDFGHJKLZXCVBN</code> 的顺序映射到 25 个半音键；末尾 <code>M</code> 暂不绑定。黑色代表钢琴黑键。下图随调号、移调设置及源谱实时变化；编辑文字时不会触发弹奏。</p>
+          <section class="keyboard-help" aria-label="计算机键盘与钢琴音符的对应关系"><h3>⌨ 键盘弹奏对照 · C3～B5</h3><p>勾选「键盘模式」后，按 <code>1234567890QWERTYUIOPASDFGHJKLZXCVBNM</code> 的顺序依次映射到屏幕钢琴全部 36 个半音键。黑色代表钢琴黑键。下图随谱面调号及移调设置实时更新。键盘模式下源谱输入框暂时禁用，关闭后恢复编辑；钢琴录入仍可自动写入源码。</p>
           <div class="keyboard-diagram-scroll"><div id="piano-keyboard-diagram" aria-live="polite" aria-label="键位、实际音高和简谱音名动态对照图"></div></div>
           </section></div></details>
       </div>

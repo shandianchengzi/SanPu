@@ -35,6 +35,7 @@ function load() {
   els.pianoContinuous.checked=state.pianoContinuous;
   state.keyboardMode=settings?.keyboardMode===true;
   els.keyboardMode.checked=state.keyboardMode;
+  els.source.disabled=state.keyboardMode;
   els.tempo.value=String(state.tempo);
   els.tempoValue.value=String(state.tempo);
 }
@@ -71,7 +72,7 @@ function loadSelectedExample(){
   refresh();
 }
 const PIANO_FIRST=48,PIANO_LAST=83;
-const KEYBOARD_LAYOUT='qwertyuiopasdfghjklzxcvbn';
+const KEYBOARD_LAYOUT='1234567890qwertyuiopasdfghjklzxcvbnm';
 const KEYBOARD_LAST=PIANO_FIRST+KEYBOARD_LAYOUT.length-1;
 const keyboardDownByMidi=new Map(),keyboardUpByMidi=new Map(),keyboardCancelByMidi=new Map();
 const activeKeyboardKeys=new Map();
@@ -99,14 +100,14 @@ function updatePianoLabels(){
 function renderPianoKeyboardDiagram(){
   if(!state.song)return;
   const host=els.keyboardDiagram;
-  const width=1010,height=297,cols=10,cell=94,gap=6,top=29,step=85;
+  const width=1010,height=382,cell=94,gap=6,top=29,step=85;
   const graphic=svg('svg',{viewBox:`0 0 ${width} ${height}`,
     class:'keyboard-map-svg',role:'img',
-    'aria-label':'键盘弹奏：C3至C5，键位跟随调号和移调更新'});
+    'aria-label':'键盘弹奏：C3至B5，36 个按键随调号和移调更新'});
   const title=svg('title',{},'电脑键盘与钢琴键位对照（当前 1='+state.song.key+'，'+
     (state.pianoTranspose?'按调号移调':'固定音高')+'）');
   graphic.append(title);
-  ['QWERTYUIOP','ASDFGHJKL','ZXCVBN'].forEach((keys,row)=>{
+  ['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].forEach((keys,row)=>{
     graphic.append(svg('text',{x:12,y:top-9+row*step,
       class:'keyboard-map-row-label'},'第 '+(row+1)+' 排'));
     for(let col=0;col<keys.length;col++){
@@ -324,7 +325,8 @@ function buildPiano(){
 }
 function keyboardEventCode(ev){
   if(typeof ev.code==='string'&&/^Key[A-Z]$/.test(ev.code))return ev.code.slice(3).toLowerCase();
-  if(typeof ev.key==='string'&&/^[a-z]$/i.test(ev.key))return ev.key.toLowerCase();
+  if(typeof ev.code==='string'&&/^(Digit|Numpad)[0-9]$/.test(ev.code))return ev.code.at(-1);
+  if(typeof ev.key==='string'&&/^[a-z0-9]$/i.test(ev.key))return ev.key.toLowerCase();
   return null;
 }
 function isEditingTarget(target){
@@ -792,7 +794,9 @@ els.pianoTranspose.addEventListener('change',()=>{
 });
 els.keyboardMode.addEventListener('change',()=>{
   releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
-  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：使用 Q～N 的 25 个字母弹奏 C3～C5（M 未绑定）':'键盘模式已关闭';
+  els.source.disabled=state.keyboardMode;
+  if(state.keyboardMode&&document.activeElement===els.source)els.source.blur?.();
+  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：使用 1～0 和 Q～M 的 36 个按键弹奏 C3～B5，源谱输入框已禁用':'键盘模式已关闭：源谱输入框可编辑';
   persist();
 });
 els.pianoContinuous.addEventListener('change',()=>{
