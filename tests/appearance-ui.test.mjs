@@ -670,7 +670,7 @@ test('example library initializes with the provided score, preserving previously
   assert.equal(initial.document.getElementById('example-select').children.length,1);
   assert.equal(initial.document.getElementById('example-select').value,'yi-sheng-suo-ai');
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=G,3\/4\}/);
-  assert.ok(initial.els.source.value.includes('y y y y y y y40|'));
+  assert.ok(initial.els.source.value.includes('y y y y y y y30|'));
   assert.ok(initial.els.source.value.includes('从前，现在,过去了再不来'));
   assert.equal(initial.state.song.notes.length,91);
   assert.equal(initial.state.song.warnings.length,0);

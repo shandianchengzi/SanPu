@@ -39,7 +39,7 @@ test('user supplied score parses without changing source',()=>{
   assert.ok(EXAMPLE.includes('5 3_ 2  7,--    y y y y y y y30|'));
   assert.ok(EXAMPLE.includes('#4,... y y y y | 3, 2,_ 3,-'));
   assert.equal(song.notes[9].raw,'3,--');
-  assert.ok(EXAMPLE.includes('6,. 6,_ 1. y30 | 7,__ 1__ 7,__ 6,__ 7,_ 5,_ 5,__ 6,__ 7,-'));
+  assert.ok(EXAMPLE.includes('6,. 6,_ 1.  | 7,__ 1__ 7,__ 6,__ 7,_ 5,_ 5,__ 6,__ 7,-'));
   assert.ok(EXAMPLE.includes('1__. #1__ b3- | 5 #4- | 5__. #4_ 3--  |$(true)'));
   assert.equal(EXAMPLES[0].source,EXAMPLE);
   assert.equal(EXAMPLES[0].title,song.title);
