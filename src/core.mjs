@@ -311,3 +311,19 @@ export function updateTranscriber(source,value){
   const newline=text.includes('\r\n')?'\r\n':'\n';
   return text.slice(0,end)+'Transcriber = '+name+newline+text.slice(end);
 }
+
+/** Shared single-source timeline for live playback and offline MP3 rendering. */
+export function songSchedule(song,tempo){
+  const sec=60/tempo;
+  const slurs=song.slurs||[];
+  let cursor=0;
+  const timeline=song.notes.map((note,index)=>{
+    const start=cursor;
+    cursor+=note.beats*sec;
+    const next=song.notes[index+1];
+    const legato=!!next&&slurs.some(slur=>slur.startId<=index&&slur.endId>=index+1);
+    return {id:note.id,start,end:cursor,freq:noteFrequency(note,song.key),
+      legatoToNext:legato&&note.degree!==0&&next.degree!==0};
+  });
+  return {timeline,total:cursor};
+}

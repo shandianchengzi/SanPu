@@ -73,8 +73,10 @@
             <input id="preview-zoom" type="range" min="50" max="300" step="10" value="100" aria-label="乐谱预览缩放百分比" />
             <button type="button" class="btn secondary" id="zoom-fit" title="完整显示谱面">适应</button>
             <button class="btn export" id="pdf-btn" type="button">↗ 导出 PDF</button>
+            <button class="btn secondary" id="mp3-btn" type="button" title="按当前速度、音色与谱面时值，离线生成 MP3">↓ 导出 MP3</button>
           </div>
         </div>
+        <p id="mp3-status" class="mp3-status" role="status" aria-live="polite"></p>
         <div id="score" class="score-page" aria-label="数字简谱预览"></div>
         <div id="warnings" class="warnings" role="status" aria-live="polite"></div>
         <p class="preview-note">提示：单击谱中音符可从该位置试听。PDF 通过浏览器打印对话框选择「另存为 PDF」生成，无水印。</p>

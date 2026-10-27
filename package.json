@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"
+  },
+  "dependencies": {
+    "@breezystack/lamejs": "1.2.7"
   }
 }

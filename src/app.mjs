@@ -1,5 +1,6 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice} from './timbres.mjs';
+import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
 
 const $ = id => document.getElementById(id);
@@ -620,7 +621,7 @@ function refresh() {
   clearPianoSequence();stopAudio();state.cursorNoteId=-1;state.song=parseSong(els.source.value);
   render();persist();
 }
-function buildSchedule(){let cursor=0;const sec=60/state.tempo;state.schedule=state.song.notes.map(n=>{const item={id:n.id,start:cursor,end:cursor+n.beats*sec,freq:noteFrequency(n,state.song.key)};cursor=item.end;return item;});state.total=cursor;}
+function buildSchedule(){const schedule=songSchedule(state.song,state.tempo);state.schedule=schedule.timeline;state.total=schedule.total;}
 function clearNodes(){for(const voice of state.nodes)voice.stop();state.nodes=[];}
 function highlight(id) {
   state.active=id;
@@ -637,7 +638,7 @@ async function runPlayback() {
   for(const ev of state.schedule){
     if(ev.end<=state.position||!ev.freq)continue;
     const start=Math.max(ev.start,state.position);
-    const begin=state.origin+start,end=state.origin+ev.end;
+    const begin=state.origin+start,end=state.origin+ev.end+(ev.legatoToNext?.035:0);
     const voice=createVoice(state.audio,{frequency:ev.freq,start:begin,end,timbre:state.timbre});
     if(voice)state.nodes.push(voice);
   }
@@ -752,6 +753,24 @@ $('style-file-input').addEventListener('change',async ev=>{
   }
 });
 $('pdf-btn').addEventListener('click',()=>{if(!state.song.notes.length)return;window.print();});
+$('mp3-btn').addEventListener('click',async()=>{
+  const button=$('mp3-btn'),status=$('mp3-status');
+  if(button.disabled||!state.song?.notes.length)return;
+  button.disabled=true;button.textContent='正在导出…';status.textContent='正在离线生成音频…';
+  try{
+    const bytes=await renderScoreToMp3({
+      song:state.song,tempo:state.tempo,timbre:state.timbre,
+      OfflineContext:window.OfflineAudioContext||window.webkitOfflineAudioContext,
+      onProgress:percent=>{status.textContent='MP3 编码 '+percent+'%';}
+    });
+    download(fileName()+'.mp3',bytes,'audio/mpeg');
+    status.textContent='MP3 已生成 · '+state.tempo+' BPM · '+state.timbre;
+  }catch(error){
+    status.textContent='MP3 导出失败：'+(error?.message||String(error));
+  }finally{
+    button.disabled=false;button.textContent='↓ 导出 MP3';
+  }
+});
 els.play.addEventListener('click',runPlayback);
 els.stop.addEventListener('click',()=>{clearPianoSequence();stopAudio();});
 els.timbre.addEventListener('change',ev=>changeTimbre(ev.target.value));

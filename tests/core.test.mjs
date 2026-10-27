@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -270,4 +270,13 @@ test('transcriber update preserves source and permits an explicitly blank credit
   assert.equal((blank.match(/Transcriber =/g)||[]).length,1);
   assert.equal(updateTranscriber(blank,'另一位'),named.replace('王小明','另一位'));
   assert.equal(updateTranscriber('.Voice\n1','no-title'),null);
+});
+
+test('shared playback schedule preserves notation lengths and marks legato boundaries',()=>{
+  const song=parseSong('.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n(1_ 2_ 3) 0 (4 5) 6');
+  const {timeline,total}=songSchedule(song,120);
+  assert.deepEqual(timeline.map(x=>x.end-x.start),[.25,.25,.5,.5,.5,.5,.5]);
+  assert.deepEqual(timeline.map(x=>x.legatoToNext),[true,true,false,false,true,false,false]);
+  assert.equal(total,3);
+  assert.equal(timeline[3].freq,0);
 });
