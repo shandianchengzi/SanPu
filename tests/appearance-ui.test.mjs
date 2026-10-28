@@ -1056,7 +1056,7 @@ test('recording-mode rest is silent; stale score previews cannot overlap newer c
   state.audio.resume=async()=>{};
   els.play.dispatch('click');await Promise.resolve();await Promise.resolve();
   assert.equal(state.playing,true,'the explicit Play button still starts the whole song');
-  assert.equal(starts.length,5,'four notes minus one rest in the playback schedule, plus prior one-note preview');
+  assert.equal(starts.length,4,'three sounding song notes plus the one earlier single-note preview');
   els.stop.dispatch('click');
 });
 test('clicking score note in audition mode continues playing from selected note and focuses source',async()=>{
@@ -2347,4 +2347,26 @@ test('fractional rhythm labels show exact beat count on all score types while cl
   const css=read('styles.css');
   assert.match(css,/\.exact-duration-label/);
   assert.match(css,/@media print\{\s*\.score-page \.score-line \.exact-duration-label/);
+});
+
+test('opening a partially filled lyric row does not show right-hand placeholders',()=>{
+  const firstRow='1 2 3 4 5 6 7 1 2 3 4 5';
+  const source='.Voice\n'+firstRow+' |$(true)\n6 7\n.Words\nW1@1,1:\n//花'+'/'.repeat(9)+'月';
+  const {state,els,document}=boot({source});
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[2].dispatch('click');
+  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
+  const editor=state.lyricDraft.input;
+  assert.equal(editor.value,'//花','only the two prefix gaps should appear before note three');
+  assert.equal(editor.selectionStart,3,'caret directly follows the third note existing word');
+  assert.equal(editor.value.includes('////'),false,'do not show unused note 4-12 padding');
+  editor.value='//花开';editor.dispatch('input');
+  assert.equal(els.source.value,source,'draft changes must not update .Words while typing');
+  document.dispatch('keydown',{code:'ArrowUp',target:editor,preventDefault(){}});
+  assert.equal(state.song.lyrics.get(12)?.text,'月','later row remains aligned and intact');
+  assert.equal(state.song.lyrics.get(3)?.text,'开');
+  const again=els.score.querySelectorAll('.note-click');
+  again[2].dispatch('click');
+  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
+  assert.equal(state.lyricDraft.input.value,'//花开','saving must not reintroduce right padding');
 });
