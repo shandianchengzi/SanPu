@@ -470,15 +470,24 @@ export function copyVoiceSelection(source,selectedNoteIds,selectedItem=null){
     if(!target)return null;
     return {text:target.raw,noteCount:0,items:[target]};
   }
-  const parts=[];
+  const slurs=parseSong(text).slurs,parts=[];
+  const copyGroup=group=>{
+    const first=group[0],last=group.at(-1);
+    // The opening '(' can occur before the first selected note and the
+    // closing ')' after its last note. Preserve fully selected phrases,
+    // without copying an unmatched slur from a partially selected phrase.
+    const opening=slurs.filter(s=>s.startId===first.index&&s.endId<=last.index).length;
+    const closing=slurs.filter(s=>s.endId===last.index&&s.startId>=first.index).length;
+    return '('.repeat(opening)+text.slice(first.from,last.to)+')'.repeat(closing);
+  };
   let group=[notes[0]];
   for(const item of notes.slice(1)){
     if(item.index===group.at(-1).index+1)group.push(item);
     else{
-      parts.push(text.slice(group[0].from,group.at(-1).to));group=[item];
+      parts.push(copyGroup(group));group=[item];
     }
   }
-  parts.push(text.slice(group[0].from,group.at(-1).to));
+  parts.push(copyGroup(group));
   return {text:parts.join(' '),noteCount:notes.length,items:notes};
 }
 /** Paste only known .Voice symbols immediately after the selected score item.
