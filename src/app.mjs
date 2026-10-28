@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem, setLyricForNote} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, setSongNoteBeats, beatDurationSuffix, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem, setLyricForNote} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -11,7 +11,7 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),scoreType:$('score-type'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchBeatsPreview:$('batch-beats-preview'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
 const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,lyricDraft:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
@@ -1429,6 +1429,24 @@ function refresh(keepSelection=true) {
 }
 function buildSchedule(){const schedule=songSchedule(state.song,state.tempo);state.schedule=schedule.timeline;state.total=schedule.total;}
 function clearNodes(){for(const voice of state.nodes)voice.stop();state.nodes=[];}
+function showBeatTargetPreview(){
+  const raw=els.batchRhythm.value;
+  if(raw.trim()===''){els.batchBeatsPreview.textContent='';return;}
+  try{
+    const suffix=beatDurationSuffix(Number(raw));
+    els.batchBeatsPreview.textContent='记号：'+(suffix||'无后缀');
+  }catch{
+    els.batchBeatsPreview.textContent='不能精确表示此拍数';
+  }
+}
+function syncSelectedBeatTarget(){
+  if(state.selectedNoteIds.size!==1)return;
+  const id=[...state.selectedNoteIds][0];
+  const note=state.song?.notes[id];
+  if(!note)return;
+  els.batchRhythm.value=String(note.beats);
+  showBeatTargetPreview();
+}
 function updateSelectedVisuals(){
   const count=state.selectedNoteIds.size;
   for(const g of els.score.querySelectorAll('.note-click')){
@@ -1447,7 +1465,7 @@ function updateSelectedVisuals(){
     g.setAttribute('aria-pressed',String(selected));
   }
   $('batch-target-label').textContent=count?'选中音符偏移':'全谱音程偏移';
-  $('batch-rhythm-target').textContent=count?'选中音符节奏偏移':'全谱节奏偏移';
+  $('batch-rhythm-target').textContent=count?'选中音符设置时值':'全谱设置时值';
   $('batch-selection-count').textContent=count?'已选中 '+count+' 个音符':
     state.selectedItem?.kind==='bar'?'已选中小节线':
       state.selectedItem?.kind==='break'?'已选中换行符':'未选中音符';
@@ -1489,6 +1507,7 @@ function selectScoreRange(from,to){
   if(caret!==null)els.source.selectionStart=els.source.selectionEnd=caret;
   if(canceled){render();focusScoreSelection();}
   else updateSelectedVisuals();
+  syncSelectedBeatTarget();
 }
 function highlight(id) {
   state.active=id;
@@ -1575,6 +1594,7 @@ function selectScoreNavigationItem(item){
   }
   // Re-render only when necessary to update a provisional-break hint.
   render();
+  syncSelectedBeatTarget();
   focusScoreSelection();
 }
 function moveScoreSelection(step){
@@ -1638,9 +1658,6 @@ function applyBatchEdit(field,operation,action){
   if(raw.trim()===''||!Number.isSafeInteger(n)){
     els.batchStatus.textContent='请输入有效的整数'+(operation==='移调'?'半音':'半拍')+'数。';return;
   }
-  if(operation==='节奏偏移'&&n===0){
-    els.batchStatus.textContent='节奏偏移为 0，谱面不需要修改。';return;
-  }
   if(operation==='移调'&&n===0){
     els.batchStatus.textContent='音程为 0，谱面不需要修改。';return;
   }
@@ -1661,7 +1678,31 @@ function applyBatchEdit(field,operation,action){
   els.batchStatus.textContent='已将'+target+operation+'：'+instruction+'，共修改 '+changed.count+' 个音符。';
 }
 els.batchApply.addEventListener('click',()=>applyBatchEdit(els.batchShift,'移调',transposeSongSemitones));
-els.batchRhythmApply.addEventListener('click',()=>applyBatchEdit(els.batchRhythm,'节奏偏移',adjustSongRhythmHalfBeats));
+els.batchRhythm.addEventListener('input',showBeatTargetPreview);
+showBeatTargetPreview();
+els.batchRhythmApply.addEventListener('click',()=>{
+  const raw=els.batchRhythm.value.trim();
+  if(raw===''||!Number.isFinite(Number(raw))){
+    els.batchStatus.textContent='请输入要设置的目标拍数。';return;
+  }
+  const beats=Number(raw);
+  const selection=state.selectedNoteIds.size?new Set(state.selectedNoteIds):null;
+  let changed;
+  try{changed=setSongNoteBeats(els.source.value,beats,selection);}
+  catch(err){els.batchStatus.textContent='设置时值失败：'+err.message;return;}
+  if(changed.count===0){
+    els.batchStatus.textContent='目标音符已是 '+beats+' 拍，无需修改。';return;
+  }
+  const target=selection?'选中的 '+selection.size+' 个音符':'全谱';
+  if(!confirm('确认将'+target+'中 '+changed.count+' 个音符或休止符的时值设置为 '+beats+
+    ' 拍吗？\\n记号：'+(changed.suffix||'无')+'；其他内容保持不变。')){
+    els.batchStatus.textContent='已取消，谱面未修改。';return;
+  }
+  clearPianoSequence();
+  els.source.value=changed.source;
+  refresh(true);
+  els.batchStatus.textContent='已将'+target+'中的 '+changed.count+' 个音符设置为 '+beats+' 拍。';
+});
 els.batchSlur.addEventListener('click',()=>{
   if(state.selectedNoteIds.size<2)return;
   let changed;
