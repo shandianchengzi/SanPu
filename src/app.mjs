@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem, setLyricForNote} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -13,7 +13,7 @@ const els = {
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,lyricDraft:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
@@ -583,10 +583,129 @@ function deleteSelectedScoreItem(direction='self'){
   els.pianoStatus.textContent='已删除'+targets.length+' 个'+(direction==='before'?'前置':direction==='after'?'后置':'选中')+'记谱对象';
   persist();
 }
+// Lyrics are edited in an HTML input embedded under the selected SVG note.
+// Never reparse or save the source during composition: only commit on ↑,
+// focus loss, or after 30 seconds without a new lyric input event.
+const LYRIC_IDLE_MS=30000;
+let lyricIdleTimer=null;
+function scheduleLyricCommit(){
+  clearTimeout(lyricIdleTimer);
+  if(!state.lyricDraft)return;
+  lyricIdleTimer=setTimeout(()=>{
+    if(!state.lyricDraft)return;
+    if(state.lyricDraft.composing){scheduleLyricCommit();return;}
+    commitLyricDraft(false);
+  },LYRIC_IDLE_MS);
+}
+function commitLyricDraft(returnToNote=false){
+  const draft=state.lyricDraft;
+  if(!draft)return;
+  if(draft.composing){
+    draft.exitAfterComposition=returnToNote?'note':'blur';
+    return;
+  }
+  state.lyricDraft=null;
+  clearTimeout(lyricIdleTimer);lyricIdleTimer=null;
+  let changed=false;
+  if(draft.value!==draft.original){
+    try{
+      const next=setLyricForNote(els.source.value,draft.noteId,draft.value);
+      els.source.value=next.source;
+      state.song=parseSong(next.source);
+      persist();
+      changed=true;
+    }catch(error){
+      els.pianoStatus.textContent='歌词更新失败：'+error.message;
+    }
+  }
+  // Keep editing the note even if the active SVG input is about to be removed.
+  if(state.selectedItem?.kind==='note'&&state.selectedItem.index===draft.noteId){
+    state.selectedNoteIds=new Set([draft.noteId]);
+  }
+  render();
+  if(returnToNote)focusScoreSelection();
+  if(changed)els.pianoStatus.textContent='歌词已回填到源谱';
+}
+function makeLyricEditor(noteGroup,noteId){
+  const draft=state.lyricDraft;
+  if(!draft||draft.noteId!==noteId)return;
+  const bg=noteGroup.children?.[0];
+  const attr=(el,key)=>Number(el?.getAttribute?.(key)??el?.attrs?.[key]);
+  const x=attr(bg,'x'),w=attr(bg,'width'),h=attr(bg,'height');
+  if(!Number.isFinite(x)||!Number.isFinite(w)||!Number.isFinite(h))return;
+  const lyricY=state.scoreType==='staff'?341:state.scoreType==='guitar'?292:
+    h+9-Math.max(31,state.format.lyricSize*.95);
+  const editorWidth=Math.max(110,Math.min(210,w+55));
+  const inputHeight=Math.max(28,Math.min(54,state.format.lyricSize+9));
+  const foreign=svg('foreignObject',{class:'lyric-edit-foreign',
+    x:x+w/2-editorWidth/2,y:lyricY-inputHeight+7,
+    width:editorWidth,height:inputHeight+6});
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='lyric-inline-input';
+  input.value=draft.value;
+  input.setAttribute('aria-label','编辑第 '+(noteId+1)+' 个音符下方的歌词；按上箭头完成');
+  input.setAttribute('autocomplete','off');
+  input.setAttribute('spellcheck','false');
+  input.addEventListener('compositionstart',()=>{draft.composing=true;});
+  input.addEventListener('input',()=>{
+    draft.value=input.value;
+    draft.dirty=draft.value!==draft.original;
+    scheduleLyricCommit();
+  });
+  input.addEventListener('compositionend',()=>{
+    draft.composing=false;
+    draft.value=input.value;
+    draft.dirty=draft.value!==draft.original;
+    if(draft.exitAfterComposition){
+      const exit=draft.exitAfterComposition;
+      draft.exitAfterComposition=null;
+      commitLyricDraft(exit==='note');
+    }else scheduleLyricCommit();
+  });
+  input.addEventListener('blur',()=>{
+    if(state.lyricDraft===draft)commitLyricDraft(false);
+  });
+  foreign.append(input);
+  noteGroup.append(foreign);
+  draft.input=input;
+}
+function enterLyricEditing(){
+  const noteId=state.selectedItem?.kind==='note'?state.selectedItem.index:null;
+  if(!Number.isInteger(noteId))return;
+  if(state.lyricDraft&&state.lyricDraft.noteId===noteId){
+    state.lyricDraft.input?.focus?.({preventScroll:true});
+    return;
+  }
+  if(state.lyricDraft)commitLyricDraft(false);
+  const lyric=state.song.lyrics.get(noteId);
+  state.lyricDraft={noteId,original:lyric?.text??'',value:lyric?.text??'',
+    dirty:false,composing:false,input:null,exitAfterComposition:null};
+  render();
+  state.lyricDraft.input?.focus?.({preventScroll:true});
+  state.lyricDraft.input?.select?.();
+  els.pianoStatus.textContent='正在编辑第 '+(noteId+1)+' 个音符的歌词（↑ 保存，离开或空闲 30 秒自动回填）';
+}
 function keyboardDown(ev){
+  // The IME owns composition keys. In the lyric input, only ↑ leaves editing.
+  if(state.lyricDraft&&document.activeElement===state.lyricDraft.input){
+    if(!ev.isComposing&&!state.lyricDraft.composing&&
+      (ev.code==='ArrowUp'||ev.key==='ArrowUp')){
+      ev.preventDefault?.();ev.stopPropagation?.();
+      commitLyricDraft(true);
+    }
+    return;
+  }
   if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
+  if(ev.code==='ArrowDown'||ev.key==='ArrowDown'){
+    if(state.selectedItem?.kind==='note'){
+      ev.preventDefault?.();ev.stopPropagation?.();
+      enterLyricEditing();
+    }
+    return;
+  }
   if(key==='ArrowLeft'||key==='ArrowRight'){
     ev.preventDefault?.();ev.stopPropagation?.();
     moveScoreSelection(key==='ArrowRight'?1:-1);
@@ -1011,6 +1130,8 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
+    makeLyricEditor(g,n.id);
+    makeLyricEditor(g,n.id);
     g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     score.append(g);x+=w;
@@ -1265,9 +1386,10 @@ function render() {
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
   highlight(state.active);
   updateSelectedVisuals();
-  if(restoreScoreFocus)focusScoreSelection();
+  if(restoreScoreFocus&&!state.lyricDraft)focusScoreSelection();
 }
 function refresh(keepSelection=true) {
+  if(state.lyricDraft)commitLyricDraft(false);
   clearPianoSequence();stopAudio();
   if(!keepSelection||!pendingTerminalBreakValid())state.pendingTerminalBreak=null;
   if(!keepSelection){
@@ -1320,6 +1442,7 @@ function focusScoreSelection(){
   target?.focus?.({preventScroll:true});
 }
 function clearScoreSelection(){
+  if(state.lyricDraft)commitLyricDraft(false);
   if(state.pendingTerminalBreak){
     cancelPendingTerminalBreak();
     render();
@@ -1394,6 +1517,7 @@ async function runPlayback() {
 }
 function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
+  if(state.lyricDraft)commitLyricDraft(false);
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
@@ -1406,6 +1530,7 @@ function selectScoreNote(id){
   note?.focus?.({preventScroll:true});
 }
 function selectScoreNavigationItem(item){
+  if(state.lyricDraft)commitLyricDraft(false);
   if(!item)return;
   const old=state.pendingTerminalBreak;
   if(old&&(item.kind!=='break'||item.index!==old.breakIndex)){
@@ -1446,6 +1571,7 @@ function moveScoreSelection(step){
   if(target)selectScoreNavigationItem(target);
 }
 function selectScoreBar(index){
+  if(state.lyricDraft)commitLyricDraft(false);
   const canceled=!!state.pendingTerminalBreak&&cancelPendingTerminalBreak();
   const item=voiceEditItems(els.source.value).find(e=>e.kind==='bar'&&e.index===index);
   if(!item)return;
@@ -1479,7 +1605,10 @@ let saveTimer;
 load();buildTimbreSelect();buildExampleLibrary();buildPiano();buildAppearanceControls();state.song=parseSong(els.source.value);render();
 document.addEventListener('keydown',keyboardDown,true);
 document.addEventListener('keyup',keyboardUp,true);
-window.addEventListener('blur',releaseComputerKeys);
+window.addEventListener('blur',()=>{
+  if(state.lyricDraft)commitLyricDraft(false);
+  releaseComputerKeys();
+});
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
 function applyBatchEdit(field,operation,action){
   const raw=field.value,n=Number(raw);
