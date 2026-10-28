@@ -13,7 +13,7 @@ const els = {
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchBeatsPreview:$('batch-beats-preview'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,lyricDraft:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,lyricDraft:null,notePreviewRequest:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
@@ -1573,7 +1573,7 @@ function highlight(id) {
   for(const g of els.score.querySelectorAll('.bar-click'))
     g.classList.toggle('active',state.selectedItem?.kind==='bar'&&Number(g.dataset.barId)===state.selectedItem.index);
 }
-function stopAudio(){cancelAnimationFrame(state.frame);clearNodes();state.playing=false;state.position=0;state.loopsDone=0;highlight(-1);els.play.textContent='▶ 播放';}
+function stopAudio(){state.notePreviewRequest++;cancelAnimationFrame(state.frame);clearNodes();state.playing=false;state.position=0;state.loopsDone=0;highlight(-1);els.play.textContent='▶ 播放';}
 function scheduleAudioPass(position=0){
   for(const group of groupPlaybackEvents(state.schedule,position)){
     const events=group.map(ev=>({...ev,start:state.origin+ev.start,end:state.origin+ev.end}));
@@ -1615,17 +1615,39 @@ async function runPlayback() {
     state.frame=requestAnimationFrame(tick);
   };tick();
 }
-function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
+function playFrom(id){state.notePreviewRequest++;state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
+/** In recording mode a score click is a selection + one short note preview,
+ * never a request to play the remaining melody. A new click or Stop cancels it.
+ */
+async function previewScoreNote(id){
+  const note=state.song.notes[id],frequency=note?noteFrequency(note,state.song.key):0;
+  if(!frequency)return; // rests select silently
+  if(!state.audio){
+    const Ctor=window.AudioContext||window.webkitAudioContext;
+    if(!Ctor){els.pianoStatus.textContent='当前浏览器不支持 Web Audio，已定位选中音符。';return;}
+    state.audio=new Ctor();
+  }
+  const request=state.notePreviewRequest;
+  try{await state.audio.resume();}
+  catch{if(request===state.notePreviewRequest)els.pianoStatus.textContent='浏览器未允许音频播放。';return;}
+  // If the AudioContext was resuming while another note or Play was clicked,
+  // do not start a stale voice after the newer action.
+  if(request!==state.notePreviewRequest||state.pianoAudition)return;
+  const now=state.audio.currentTime;
+  const seconds=Math.min(1.25,Math.max(.18,note.beats*60/state.tempo));
+  const voice=createVoice(state.audio,{frequency,start:now,end:now+seconds,timbre:state.timbre});
+  if(voice)state.nodes.push(voice);
+}
 function selectScoreNote(id){
-  if(state.lyricDraft)commitLyricDraft(false);
+  if(state.lyricDraft&&!commitLyricDraft(false))return;
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
+  if(!state.pianoAudition)stopAudio();
   selectScoreRange(id,id);
-  // A click always starts playback from this note, including recording mode;
-  // pianoAudition controls only whether piano key presses write source notes.
   highlight(id);
-  playFrom(id);
+  if(state.pianoAudition)playFrom(id);
+  else void previewScoreNote(id);
   const note=[...els.score.querySelectorAll('.note-click')].find(g=>Number(g.dataset.noteId)===id);
   note?.focus?.({preventScroll:true});
 }
