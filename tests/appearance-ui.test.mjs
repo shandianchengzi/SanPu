@@ -2370,3 +2370,90 @@ test('opening a partially filled lyric row does not show right-hand placeholders
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
   assert.equal(state.lyricDraft.input.value,'//花开','saving must not reintroduce right padding');
 });
+
+test('Tab toggles only-audition without leaving the focused score note, persists each state',()=>{
+  const source='.Voice\n1 2 |$(true)\n3';
+  const {els,state,document,localStorage}=boot({source,pianoAudition:true});
+  const first=els.score.querySelectorAll('.note-click')[0];
+  first.dispatch('click');
+  assert.equal(document.activeElement,first);
+  const send=(props={})=>{
+    const ev={code:'Tab',key:'Tab',preventDefault(){ev.prevented=true;},
+      stopPropagation(){ev.stopped=true;},...props};
+    document.dispatch('keydown',ev);
+    return ev;
+  };
+  const original=els.source.value;
+  const before=send();
+  assert.equal(before.prevented,true);
+  assert.equal(before.stopped,true);
+  assert.equal(state.pianoAudition,false);
+  assert.equal(els.pianoAudition.checked,false);
+  assert.equal(document.activeElement,first,'Tab should preserve the score keyboard focus');
+  assert.equal(els.pianoStatus.textContent,'边听边录：按键发声，并按节奏写入音符');
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoAudition,false);
+  assert.equal(els.source.value,original,'mode toggle does not change the source');
+  const repeated=send({repeat:true});
+  assert.equal(repeated.prevented,undefined,'key repeat must not flip the mode repeatedly');
+  assert.equal(state.pianoAudition,false);
+  send();
+  assert.equal(state.pianoAudition,true);
+  assert.equal(els.pianoAudition.checked,true);
+  assert.equal(document.activeElement,first);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).pianoAudition,true);
+  assert.equal(els.pianoStatus.textContent,'仅试听：按键发声，不修改源码');
+  const backwards=send({shiftKey:true});
+  assert.equal(backwards.prevented,undefined,'Shift+Tab retains native backwards focus');
+  assert.equal(state.pianoAudition,true);
+  for(const modifiers of [{ctrlKey:true},{altKey:true},{metaKey:true},{isComposing:true}]){
+    assert.equal(send(modifiers).prevented,undefined);
+    assert.equal(state.pianoAudition,true);
+  }
+  const checked=els.pianoAudition;
+  checked.checked=false;checked.dispatch('change');
+  assert.equal(state.pianoAudition,false,'checkbox remains synced with the Tab shortcut');
+  send();
+  assert.equal(checked.checked,true,'shortcut follows direct checkbox changes');
+});
+
+test('Tab toggles audition on barlines and line breaks but not in text inputs or lyric editing',()=>{
+  const source='.Voice\n1 | 2 $(true)\n3 4';
+  const {els,state,document}=boot({source,pianoAudition:true});
+  const key=(target=null)=>{
+    const ev={code:'Tab',key:'Tab',target,preventDefault(){ev.prevented=true;},
+      stopPropagation(){}};
+    document.dispatch('keydown',ev);return ev;
+  };
+  const bar=els.score.querySelectorAll('.bar-click')[0];
+  const marker=els.score.querySelectorAll('.break-click')[0];
+  assert.ok(bar&&marker);
+  bar.dispatch('click');
+  assert.equal(document.activeElement,bar);
+  assert.equal(key().prevented,true);
+  assert.equal(state.pianoAudition,false);
+  assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+  assert.equal(document.activeElement,bar);
+  marker.dispatch('click');
+  assert.equal(document.activeElement,marker);
+  assert.equal(key().prevented,true);
+  assert.equal(state.pianoAudition,true);
+  assert.deepEqual(state.selectedItem,{kind:'break',index:0});
+  assert.equal(document.activeElement,marker);
+
+  const sourceInput=els.source;
+  sourceInput.tag='textarea';
+  sourceInput.focus();
+  assert.equal(key(sourceInput).prevented,undefined,'source textarea retains native Tab');
+  assert.equal(state.pianoAudition,true);
+  const picker=els.scoreType;
+  picker.tag='select';picker.focus();
+  assert.equal(key(picker).prevented,undefined);
+  assert.equal(state.pianoAudition,true);
+  els.score.querySelectorAll('.note-click')[0].dispatch('click');
+  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
+  const lyricInput=state.lyricDraft.input;
+  assert.equal(document.activeElement,lyricInput);
+  assert.equal(key(lyricInput).prevented,undefined,'lyric input preserves native Tab and its composition');
+  assert.equal(state.pianoAudition,true);
+  document.dispatch('keydown',{code:'ArrowUp',preventDefault(){}});
+});
