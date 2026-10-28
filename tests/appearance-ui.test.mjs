@@ -1971,7 +1971,7 @@ test('relative Delete and Backspace process note, bar and system break in source
 });
 
 test('absolute fractional rhythm input edits selection or whole score without rounding',()=>{
-  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2_ 0 |$(true)\\n3.\\n.Words\\nW1@1,1:\\n甲乙丙丁';
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2_ 0 |$(true)\n3.\n.Words\nW1@1,1:\n甲乙丙丁';
   const {els,state,document,confirmations}=boot({source},true);
   const rhythm=document.getElementById('batch-rhythm'),apply=document.getElementById('batch-rhythm-apply');
   const label=document.getElementById('batch-rhythm-target');
