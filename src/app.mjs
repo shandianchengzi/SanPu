@@ -1358,6 +1358,7 @@ function render() {
   applyPreviewZoom();
   const song=state.song;
   const restoreScoreFocus=scoreFocused();
+  const restoreLyricFocus=!!state.lyricDraft&&document.activeElement===state.lyricDraft.input;
   els.transcriber.value=song.transcriber;
   els.score.replaceChildren();
   els.noteCount.textContent=`${song.notes.length} 个音符`;
@@ -1407,7 +1408,8 @@ function render() {
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
   highlight(state.active);
   updateSelectedVisuals();
-  if(restoreScoreFocus&&!state.lyricDraft)focusScoreSelection();
+  if(restoreLyricFocus)state.lyricDraft?.input?.focus?.({preventScroll:true});
+  else if(restoreScoreFocus&&!state.lyricDraft)focusScoreSelection();
 }
 function refresh(keepSelection=true) {
   if(state.lyricDraft)commitLyricDraft(false);
