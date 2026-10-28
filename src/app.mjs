@@ -481,24 +481,50 @@ function cancelRestPress(){
   restPress=null;
   highlightKeyboardSpecial('`',false);
 }
-function deleteSelectedScoreItem(){
+function deleteSelectedScoreItem(direction='self'){
   const items=voiceEditItems(els.source.value);
-  const selected=state.selectedItem&&items.find(e=>
-    e.kind===state.selectedItem.kind&&e.index===state.selectedItem.index);
-  const caret=els.source.selectionStart;
-  const target=selected??items.filter(e=>!Number.isInteger(caret)||e.to<=caret).at(-1)??items.at(-1);
-  if(!target)return;
-  const changed=deleteVoiceItem(els.source.value,target.kind,target.index);
-  if(!changed)return;
+  if(!state.selectedItem)return;
+  const anchor=items.findIndex(item=>item.kind===state.selectedItem.kind&&
+    item.index===state.selectedItem.index);
+  if(anchor<0)return;
+  let from=anchor,to=anchor;
+  if(state.selectedNoteIds.size){
+    const indices=items.map((item,i)=>item.kind==='note'&&state.selectedNoteIds.has(item.index)?i:-1).filter(i=>i>=0);
+    if(indices.length){from=indices[0];to=indices.at(-1);}
+  }
+  const targets=direction==='before'?[items[from-1]]:direction==='after'?[items[to+1]]:
+    state.selectedNoteIds.size>1?items.filter(item=>item.kind==='note'&&state.selectedNoteIds.has(item.index)):[items[anchor]];
+  if(targets.some(item=>!item)){
+    els.pianoStatus.textContent=direction==='before'?'选区前面没有记谱符号':
+      '选区后面没有记谱符号';
+    return;
+  }
   clearPianoSequence();cancelRestPress();stopAudio();
-  els.source.value=changed.source;
-  els.source.selectionStart=els.source.selectionEnd=changed.caret;
-  state.song=parseSong(changed.source);
-  state.selectedItem=changed.previous;
-  const previousNote=voiceEditItems(changed.source).filter(e=>e.kind==='note'&&e.to<=changed.caret).at(-1);
-  state.cursorNoteId=previousNote?.index??-1;
+  let changedSource=els.source.value;
+  for(const item of [...targets].sort((a,b)=>b.from-a.from))
+    changedSource=changedSource.slice(0,item.from)+changedSource.slice(item.to);
+  const removedNotes=targets.filter(item=>item.kind==='note').map(item=>item.index);
+  const previousSelection=[...state.selectedNoteIds];
+  state.selectedNoteIds=new Set(previousSelection.filter(id=>!removedNotes.includes(id))
+    .map(id=>id-removedNotes.filter(removed=>removed<id).length));
+  const oldAnchor=items[anchor];
+  if(targets.some(item=>item.kind===oldAnchor.kind&&item.index===oldAnchor.index)){
+    const nextItems=voiceEditItems(changedSource);
+    const closest=nextItems.filter(item=>item.from<=targets[0].from).at(-1)??nextItems[0]??null;
+    state.selectedItem=closest?{kind:closest.kind,index:closest.index}:null;
+    state.selectedNoteIds=closest?.kind==='note'?new Set([closest.index]):new Set();
+  }else{
+    const removedBefore=targets.filter(item=>item.kind===oldAnchor.kind&&item.index<oldAnchor.index).length;
+    state.selectedItem={kind:oldAnchor.kind,index:oldAnchor.index-removedBefore};
+  }
+  els.source.value=changedSource;
+  const caret=targets.reduce((min,item)=>Math.min(min,item.from),Infinity);
+  els.source.selectionStart=els.source.selectionEnd=caret;
+  state.song=parseSong(changedSource);
+  const previousNote=voiceEditItems(changedSource).filter(item=>item.kind==='note'&&item.to<=caret).at(-1);
+  state.cursorNoteId=state.selectedItem?.kind==='note'?state.selectedItem.index:previousNote?.index??-1;
   render();
-  els.pianoStatus.textContent='已删除'+(target.kind==='note'?'音符':target.kind==='bar'?'小节线':'换行标记');
+  els.pianoStatus.textContent='已删除'+targets.length+' 个'+(direction==='before'?'前置':direction==='after'?'后置':'选中')+'记谱对象';
   persist();
 }
 function keyboardDown(ev){
@@ -1240,7 +1266,7 @@ function advanceLoop(){
 async function runPlayback() {
   if(!state.song?.notes.length)return;
   if(state.playing){state.position=Math.max(0,state.audio.currentTime-state.origin);state.playing=false;clearNodes();cancelAnimationFrame(state.frame);els.play.textContent='▶ 继续';return;}
-  if(!state.audio){const Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor){alert('当前浏览器不支持 Web Audio。');return;}state.audio=new Ctor();}
+  if(!state.audio){const Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor){els.pianoStatus.textContent='当前浏览器不支持 Web Audio，已定位选中音符。';return;}state.audio=new Ctor();}
   try{await state.audio.resume();}catch{alert('浏览器无法启用音频。');return;}
   buildSchedule();if(state.position>=state.total-.01)state.position=0;
   if(state.total<=0)return;
@@ -1303,31 +1329,54 @@ document.addEventListener('keydown',keyboardDown,true);
 document.addEventListener('keyup',keyboardUp,true);
 window.addEventListener('blur',releaseComputerKeys);
 els.source.addEventListener('input',()=>{clearPianoSequence();clearTimeout(saveTimer);saveTimer=setTimeout(refresh,180);});
-els.batchApply.addEventListener('click',()=>{
-  const raw=els.batchShift.value,n=Number(raw);
+function applyBatchEdit(field,operation,action){
+  const raw=field.value,n=Number(raw);
   if(raw.trim()===''||!Number.isSafeInteger(n)){
-    els.batchStatus.textContent='请输入有效的整数半音数（支持负数）。';return;
+    els.batchStatus.textContent='请输入有效的整数'+(operation==='移调'?'半音':'半拍')+'数。';return;
   }
-  if(n===0){els.batchStatus.textContent='音程为 0，谱面不需要修改。';return;}
+  if(operation==='节奏增快'&&n<=0){
+    els.batchStatus.textContent='增快节奏的半拍数必须是正整数。';return;
+  }
+  if(operation==='移调'&&n===0){
+    els.batchStatus.textContent='音程为 0，谱面不需要修改。';return;
+  }
+  const selection=state.selectedNoteIds.size?new Set(state.selectedNoteIds):null;
   let changed;
-  try{changed=transposeSongSemitones(els.source.value,n);}
+  try{changed=action(els.source.value,n,selection);}
   catch(err){els.batchStatus.textContent='批量编辑未生效：'+err.message;return;}
-  if(changed.count===0){els.batchStatus.textContent='谱面没有需要移调的发声音符。';return;}
-  const direction=n>0?'升高 '+n:'降低 '+Math.abs(n);
-  if(!confirm('确认将全谱 '+changed.count+' 个音符'+direction+'个半音吗？\\n歌词、时值、圆滑线、排版空位与调号保持不变。')) {
+  if(changed.count===0){els.batchStatus.textContent='谱面没有需要修改的音符。';return;}
+  const target=selection?'选中的 '+selection.size+' 个音符':'全谱';
+  const instruction=operation==='移调'?(n>0?'升高 '+n:'降低 '+Math.abs(n))+' 个半音':
+    '缩短 '+n+' 个半拍';
+  if(!confirm('确认将'+target+'中 '+changed.count+' 个音符'+instruction+'吗？\\n未选中音符、歌词、调号和排版空位保持不变。')){
     els.batchStatus.textContent='已取消，谱面未修改。';return;
   }
   clearPianoSequence();
   els.source.value=changed.source;
-  refresh();
-  els.batchStatus.textContent='已'+direction+'个半音，共修改 '+changed.count+' 个音符。';
+  refresh(true);
+  els.batchStatus.textContent='已将'+target+operation+'：'+instruction+'，共修改 '+changed.count+' 个音符。';
+}
+els.batchApply.addEventListener('click',()=>applyBatchEdit(els.batchShift,'移调',transposeSongSemitones));
+els.batchRhythmApply.addEventListener('click',()=>applyBatchEdit(els.batchRhythm,'节奏增快',speedUpSongHalfBeats));
+els.batchSlur.addEventListener('click',()=>{
+  if(state.selectedNoteIds.size<2)return;
+  let changed;
+  try{changed=addSlurToSelectedNotes(els.source.value,state.selectedNoteIds);}
+  catch(error){els.batchStatus.textContent='添加连音失败：'+error.message;return;}
+  els.source.value=changed.source;
+  refresh(true);
+  els.batchStatus.textContent='已为 '+changed.count+' 个音符添加连音。';
+});
+els.batchClear.addEventListener('click',()=>{
+  clearScoreSelection();
+  els.batchStatus.textContent='已清除选中状态。';
 });
 els.transcriber.addEventListener('change',()=>{
   const updated=updateTranscriber(els.source.value,els.transcriber.value);
   if(updated===null){message('源码缺少 .Title 段，无法保存记谱人');return;}
   if(updated===els.source.value)return;
   els.source.value=updated;
-  refresh();
+  refresh(true);
 });
 els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';persist();});
 els.pianoTranspose.addEventListener('change',()=>{
