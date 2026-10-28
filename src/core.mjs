@@ -494,7 +494,8 @@ export function pasteVoiceSelection(source,clipboard,selection=null){
     throw new Error('剪贴板包含非音符内容，无法粘贴。');
   const check=parseSong('.Voice\n'+raw);
   const stripped=raw.replace(/\$\([^)]*\)|\$\b|\|\:\||\:\||\|\:|\|\||\|\]|\[\|\]|\||(?:#{0,2}|b{0,2})[0-7][,']*(?:_+\.*|\.+_+|-+|\.+|[_*-]+)?|y\d*|[()\s]/g,'');
-  if(stripped.trim()||(!check.notes.length&&!check.elements.some(e=>e.kind==='bar'||e.kind==='break')))
+  if(stripped.trim()||(!check.notes.length&&!check.elements.some(e=>e.kind==='bar'||e.kind==='break')&&
+    !/^\$\([^)]*\)$/.test(raw.trim())))
     throw new Error('只允许粘贴音符、小节线、换行及排版记号。');
   const begin=headers[voice].index+headers[voice][0].length;
   const end=headers[voice+1]?.index??text.length;
