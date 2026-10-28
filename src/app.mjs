@@ -659,6 +659,10 @@ function makeLyricEditor(noteGroup,noteId){
   input.setAttribute('aria-label','编辑第 '+(noteId+1)+' 个音符下方的歌词；按上箭头完成');
   input.setAttribute('autocomplete','off');
   input.setAttribute('spellcheck','false');
+  // Do not bubble IME Enter, caret clicks, or text selection into the note
+  // click handler (which deliberately starts playback).
+  for(const eventName of ['click','dblclick','pointerdown','mousedown','keydown','keyup'])
+    input.addEventListener(eventName,ev=>ev.stopPropagation?.());
   input.addEventListener('compositionstart',()=>{draft.composing=true;});
   input.addEventListener('input',()=>{
     draft.value=input.value;
