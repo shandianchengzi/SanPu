@@ -392,6 +392,8 @@ function buildPiano(){
 function keyboardEventCode(ev){
   if(ev.code==='Backspace'||ev.key==='Backspace')return 'Backspace';
   if(ev.code==='Delete'||ev.key==='Delete'||ev.key==='Del')return 'Delete';
+  if(['ArrowLeft','ArrowRight'].includes(ev.code))return ev.code;
+  if(['ArrowLeft','ArrowRight'].includes(ev.key))return ev.key;
   if(ev.code==='Space'||ev.key===' ')return 'Space';
   if(ev.code==='Enter'||ev.code==='NumpadEnter'||ev.key==='Enter')return 'Enter';
   if(ev.code==='Backquote'||['·','`','~'].includes(ev.key))return '`';
@@ -1329,10 +1331,7 @@ function clearScoreSelection(){
   highlight(state.active);
 }
 function selectScoreRange(from,to){
-  if(state.pendingTerminalBreak){
-    cancelPendingTerminalBreak();
-    render();
-  }
+  const canceled=!!state.pendingTerminalBreak&&cancelPendingTerminalBreak();
   if(!Number.isInteger(from)||!Number.isInteger(to))return;
   const max=state.song.notes.length-1;
   if(from<0||to<0||from>max||to>max)return;
@@ -1342,7 +1341,8 @@ function selectScoreRange(from,to){
   state.cursorNoteId=to;
   const caret=noteSourceCaret(els.source.value,to);
   if(caret!==null)els.source.selectionStart=els.source.selectionEnd=caret;
-  updateSelectedVisuals();
+  if(canceled){render();focusScoreSelection();}
+  else updateSelectedVisuals();
 }
 function highlight(id) {
   state.active=id;
@@ -1394,7 +1394,6 @@ async function runPlayback() {
 }
 function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
-  if(state.pendingTerminalBreak)cancelPendingTerminalBreak();
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
@@ -1438,16 +1437,16 @@ function moveScoreSelection(step){
   if(state.pendingTerminalBreak&&state.selectedItem?.kind==='break'){
     cancelPendingTerminalBreak();
     const updated=voiceEditItems(els.source.value);
-    const target=step<0?updated.at(-1):null;
+    const target=updated.at(-1);
     if(target)selectScoreNavigationItem(target);
-    else {state.selectedItem=null;state.selectedNoteIds.clear();render();}
+    else clearScoreSelection();
     return;
   }
   const target=items[current+step];
   if(target)selectScoreNavigationItem(target);
 }
 function selectScoreBar(index){
-  if(state.pendingTerminalBreak)cancelPendingTerminalBreak();
+  const canceled=!!state.pendingTerminalBreak&&cancelPendingTerminalBreak();
   const item=voiceEditItems(els.source.value).find(e=>e.kind==='bar'&&e.index===index);
   if(!item)return;
   clearPianoSequence();stopAudio();
@@ -1457,7 +1456,8 @@ function selectScoreBar(index){
   state.cursorNoteId=previous?.index??-1;
   els.source.selectionStart=els.source.selectionEnd=item.to;
   highlight(-1);
-  updateSelectedVisuals();
+  if(canceled)render();
+  else updateSelectedVisuals();
   [...els.score.querySelectorAll('.bar-click')].find(g=>Number(g.dataset.barId)===index)?.focus?.({preventScroll:true});
   els.pianoStatus.textContent='已选中小节线：可用 Delete 删除后一个符号，Backspace 默认删除前一个';
 }
