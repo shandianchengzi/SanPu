@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -490,4 +490,38 @@ test('signed rhythm adjustment preserves positive shortening and rejects invalid
   assert.throws(()=>adjustSongRhythmHalfBeats(source,NaN,[0]),/整数半拍/);
   assert.throws(()=>adjustSongRhythmHalfBeats(source,-3,[0]),/无法精确表示/);
   assert.equal(parseSong(source).notes[0].raw,'1-','failed operation does not mutate input');
+});
+
+test('single-note lyric editing fills blank slots on both sides and preserves later values',()=>{
+  const original='.Title\nTitle = 新曲\n.Voice\n1 2 |$(true)\n3 4 5';
+  const result=setLyricForNote(original,2,'春');
+  const parsed=parseSong(result.source);
+  assert.deepEqual([...Array(5)].map((_,i)=>parsed.lyrics.get(i)?.text??''),
+    ['','','春','','']);
+  assert.equal(parsed.lyrics.get(0)?.skip,true);
+  assert.equal(parsed.lyrics.get(1)?.skip,true);
+  assert.equal(parsed.lyrics.get(3)?.skip,true);
+  assert.equal(parsed.lyrics.get(4)?.skip,true);
+  assert.match(result.source,/\.Words\nW1@1,1:\n\/ \/ \{春\} \/ \//);
+  const next=setLyricForNote(result.source,4,'光');
+  assert.deepEqual([...Array(5)].map((_,i)=>parseSong(next.source).lyrics.get(i)?.text??''),
+    ['','','春','','光']);
+  const overwritten=setLyricForNote(next.source,2,'夜');
+  assert.equal(parseSong(overwritten.source).lyrics.get(2).text,'夜');
+  assert.equal(parseSong(overwritten.source).lyrics.get(4).text,'光');
+  assert.deepEqual(parseSong(overwritten.source).notes.map(n=>n.raw),['1','2','3','4','5']);
+});
+
+test('lyric replacement preserves punctuation, skip placeholders, other verses and source sections',()=>{
+  const original='.Title\nTitle = 例子\n.Voice\n1 2 | 3 4\n.Words\nW1@1,1:\n{风，}/ 雨{天。}\nW2@1,1:\nABCD\n.Layout\nx = y';
+  const edited=setLyricForNote(original,1,'你好！');
+  const song=parseSong(edited.source);
+  assert.deepEqual([0,1,2,3].map(i=>song.lyrics.get(i)?.text??''),['风，','你好！','雨','天。']);
+  assert.ok(edited.source.includes('W2@1,1:\nABCD'));
+  assert.ok(edited.source.endsWith('.Layout\nx = y'));
+  const clear=setLyricForNote(edited.source,1,'');
+  assert.equal(parseSong(clear.source).lyrics.get(1).skip,true);
+  assert.equal(parseSong(clear.source).lyrics.get(2).text,'雨');
+  assert.throws(()=>setLyricForNote(original,10,'未'),/没有对应的音符/);
+  assert.throws(()=>setLyricForNote(original,0,'多\n行'),/不可包含换行/);
 });
