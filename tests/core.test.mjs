@@ -650,9 +650,9 @@ test('lyric row editor removes trailing generated skips, not structural gaps bef
   assert.equal(start.caret,3,'cursor stays immediately after the selected lyric');
   assert.deepEqual(start.ids,Array.from({length:12},(_,i)=>i));
   const mid=lyricRowDraft(alone,5);
-  assert.equal(mid.value,'//春///','only before-or-at the selected note is padded');
+  assert.equal(mid.value,'//春//','only missing slots before the selected blank note are padded');
   assert.equal(mid.caret,5);
-  assert.equal(mid.selectionEnd,6);
+  assert.equal(mid.selectionEnd,5,'the empty selected note has no trailing slash to select');
   const blank=lyricRowDraft(parseSong(prefix+'//'+('/'.repeat(10))),2);
   assert.equal(blank.value,'//','a blank third slot does not force extra right-hand placeholders');
   const later=parseSong(prefix+'//春'+skipToEnd+'月');
