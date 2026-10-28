@@ -55,7 +55,7 @@ class FakeElement {
 function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
-    'play-btn','stop-btn','loop-count','score-type','mp3-btn','mp3-status','batch-shift','batch-apply','batch-status','batch-rhythm','batch-rhythm-apply','batch-slur','batch-clear','batch-target-label','batch-rhythm-target','batch-selection-count','backspace-previous','saved','transcriber-input','format-controls','format-preset','format-reset',
+    'play-btn','stop-btn','loop-count','score-type','mp3-btn','mp3-status','batch-shift','batch-apply','batch-status','batch-rhythm','batch-beats-preview','batch-rhythm-apply','batch-slur','batch-clear','batch-target-label','batch-rhythm-target','batch-selection-count','backspace-previous','saved','transcriber-input','format-controls','format-preset','format-reset',
     'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
      'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-keyboard-diagram','piano-status']){
@@ -1891,7 +1891,7 @@ test('mouse drag selects a contiguous note range across bar and line break; batc
   assert.equal(state.selectedItem.index,3);
   assert.equal(els.batchSlur.disabled,false);
   assert.equal(document.getElementById('batch-target-label').textContent,'选中音符偏移');
-  assert.equal(document.getElementById('batch-rhythm-target').textContent,'选中音符节奏偏移');
+  assert.equal(document.getElementById('batch-rhythm-target').textContent,'选中音符设置时值');
   assert.equal(document.getElementById('batch-selection-count').textContent,'已选中 4 个音符');
   assert.equal(els.score.querySelectorAll('.note-click').filter(x=>x.classList.contains('is-selected')).length,4);
   document.getElementById('score-type').value='staff';document.getElementById('score-type').dispatch('change');
@@ -1901,7 +1901,7 @@ test('mouse drag selects a contiguous note range across bar and line break; batc
   els.batchShift.value='2';els.batchApply.dispatch('click');
   assert.deepEqual(state.song.notes.map(n=>n.raw),['2-','3-','#4-','5-']);
   assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'batch pitch edit must preserve note selection');
-  document.getElementById('batch-rhythm').value='1';
+  document.getElementById('batch-rhythm').value='1.5';
   document.getElementById('batch-rhythm-apply').dispatch('click');
   assert.deepEqual(state.song.notes.map(n=>n.raw),['2.','3.','#4.','5.']);
   assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
@@ -1970,43 +1970,46 @@ test('relative Delete and Backspace process note, bar and system break in source
     'Delete on bar when nothing follows must not delete the previous note');
 });
 
-test('signed rhythm batch edit lengthens whole score or selection, keeps state, and handles zero and unrepresentable cases',()=>{
-  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2_ 0 |$(true)\n3.\n.Words\nW1@1,1:\n甲乙丙丁';
+test('absolute fractional rhythm input edits selection or whole score without rounding',()=>{
+  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2_ 0 |$(true)\\n3.\\n.Words\\nW1@1,1:\\n甲乙丙丁';
   const {els,state,document,confirmations}=boot({source},true);
   const rhythm=document.getElementById('batch-rhythm'),apply=document.getElementById('batch-rhythm-apply');
   const label=document.getElementById('batch-rhythm-target');
+  const preview=document.getElementById('batch-beats-preview');
   const html=read('index.html');
-  assert.match(html,/id="batch-rhythm"[^>]*step="1"[^>]*value="0"/);
-  assert.doesNotMatch(html,/id="batch-rhythm"[^>]*min="1"/);
-  assert.equal(label.textContent,'全谱节奏偏移');
-  rhythm.value='-1';apply.dispatch('click');
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1.','2','0.','3-']);
-  assert.match(confirmations[0],/延长 1 个半拍/);
-  assert.match(els.batchStatus.textContent,/延长 1 个半拍/);
+  assert.match(html,/id="batch-rhythm"[^>]*step="any"[^>]*value="1"/);
+  assert.equal(label.textContent,'全谱设置时值');
+  rhythm.value='2.5';rhythm.dispatch('input');
+  assert.match(preview.textContent,/记号：\*-$/);
+  apply.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.beats),[2.5,2.5,2.5,2.5]);
+  assert.equal(state.song.notes[0].raw,'1*-');
+  assert.match(confirmations[0],/设置为 2.5 拍/);
   assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
   const notes=els.score.querySelectorAll('.note-click');
   notes[0].dispatch('click');
-  assert.equal(label.textContent,'选中音符节奏偏移');
-  rhythm.value='-1';apply.dispatch('click');
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1-','2','0.','3-']);
+  assert.equal(label.textContent,'选中音符设置时值');
+  assert.equal(rhythm.value,'2.5','choosing one note displays its current beat count');
+  rhythm.value='1.25';rhythm.dispatch('input');
+  assert.match(preview.textContent,/记号：\*-_$/);
+  apply.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.beats),[1.25,2.5,2.5,2.5]);
+  assert.equal(state.song.notes[0].raw,'1*-_');
   assert.deepEqual([...state.selectedNoteIds],[0]);
   assert.match(confirmations[1],/选中的 1 个音符/);
   const count=confirmations.length,unchanged=els.source.value;
-  rhythm.value='0';apply.dispatch('click');
+  rhythm.value='1.25';apply.dispatch('click');
   assert.equal(els.source.value,unchanged);
   assert.equal(confirmations.length,count);
-  assert.match(els.batchStatus.textContent,/偏移为 0/);
-  rhythm.value='-1';apply.dispatch('click');
-  assert.equal(els.source.value,unchanged,'cannot represent a 2.5-beat note: reject atomically');
+  assert.match(els.batchStatus.textContent,/无需修改/);
+  rhythm.value='0.1';rhythm.dispatch('input');apply.dispatch('click');
+  assert.equal(els.source.value,unchanged,'non-dyadic value must not be rounded');
+  assert.match(els.batchStatus.textContent,/分母为 2/);
+  assert.match(preview.textContent,/不能精确表示/);
+  rhythm.value='0';apply.dispatch('click');
+  assert.match(els.batchStatus.textContent,/大于 0/);
   assert.equal(confirmations.length,count);
-  assert.match(els.batchStatus.textContent,/无法精确表示/);
-  rhythm.value='1';apply.dispatch('click');
-  assert.equal(state.song.notes[0].raw,'1.');
-  assert.match(confirmations[2],/缩短 1 个半拍/);
-  rhythm.value='1.5';apply.dispatch('click');
-  assert.match(els.batchStatus.textContent,/整数半拍/);
 });
-
 test('arrow keys navigate through notes, barline, explicit line break and next note',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |$(true)\n2 3';
   const {els,state,document}=boot({source,pianoAudition:false});
