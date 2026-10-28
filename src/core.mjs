@@ -355,7 +355,18 @@ export function revisePianoNoteDuration(source,noteId,expectedRaw,suffix){
  * slurs, layout spacers, bars, and whitespace. Rests are unchanged.
  * No partial update is returned if any destination pitch is unrepresentable.
  */
-export function transposeSongSemitones(source,semitones){
+function selectEditableNotes(notes,selectedNoteIds=null){
+  if(selectedNoteIds===null)return notes;
+  if(!Array.isArray(selectedNoteIds)&&!(selectedNoteIds instanceof Set))
+    throw new Error('选中音符列表无效。');
+  const wanted=new Set(selectedNoteIds);
+  const chosen=notes.filter(note=>wanted.has(note.id));
+  if(!chosen.length)throw new Error('请先选中需要编辑的音符。');
+  if(chosen.length!==wanted.size)throw new Error('谱面已改变，请重新选择音符。');
+  return chosen;
+}
+
+export function transposeSongSemitones(source,semitones,selectedNoteIds=null){
   const text=String(source??'');
   if(!Number.isSafeInteger(semitones))
     throw new Error('音程必须是整数半音数。');
@@ -366,11 +377,12 @@ export function transposeSongSemitones(source,semitones){
   const limit=heading[voiceAt+1]?.index??text.length;
   const notes=readVoice(text.slice(offset,limit),[]).notes;
   if(!notes.length)throw new Error('没有可移调的音符。');
-  if(semitones===0)return {source:text,count:0,total:notes.length};
+  const chosen=selectEditableNotes(notes,selectedNoteIds);
+  if(semitones===0)return {source:text,count:0,total:chosen.length};
   const key=parseSong(text).key;
   const root=ROOT[key]??0;
   const changes=[];
-  for(const note of notes){
+  for(const note of chosen){
     if(note.degree===0)continue; // rest
     const accidental=note.accidental.includes('#')?1:note.accidental.includes('b')?-1:0;
     const midi=60+root+MAJOR[note.degree-1]+note.octave*12+accidental+semitones;
@@ -387,7 +399,63 @@ export function transposeSongSemitones(source,semitones){
   let result=text;
   for(const {from,to,replacement} of changes.reverse())
     result=result.slice(0,from)+replacement+result.slice(to);
-  return {source:result,count:changes.length,total:notes.length};
+  return {source:result,count:changes.length,total:chosen.length};
+}
+
+/** Shorten each selected note/rest by N half beats, leaving all other source
+ * bytes untouched. Reject the whole operation if any duration is invalid or
+ * cannot be represented exactly in JPW-ABC; never silently round rhythms. */
+export function speedUpSongHalfBeats(source,halfBeats,selectedNoteIds=null){
+  const text=String(source??'');
+  if(!Number.isSafeInteger(halfBeats)||halfBeats<=0)
+    throw new Error('请输入正整数半拍数。');
+  const selected=voiceEditItems(text).filter(item=>item.kind==='note');
+  if(!selected.length)throw new Error('没有可编辑的音符。');
+  const chosen=selectEditableNotes(selected.map(item=>({id:item.index})),selectedNoteIds);
+  const wanted=new Set(chosen.map(note=>note.id));
+  const changes=[];
+  for(const item of selected){
+    if(!wanted.has(item.index))continue;
+    const note=NOTE.exec(item.raw);
+    if(!note)throw new Error('第 '+(item.index+1)+' 个音符无法解析。');
+    const previous=durationFromSuffix(note[4]||'');
+    const next=previous-halfBeats*.5;
+    if(next<=0)throw new Error('第 '+(item.index+1)+' 个音符仅 '+previous+' 拍，无法再缩短 '+halfBeats+' 个半拍。');
+    let suffix=PIANO_BEATS.find(entry=>Math.abs(entry[0]-next)<1e-8)?.[1];
+    if(suffix===undefined&&Number.isSafeInteger(next)&&next>=9&&next<=1024)
+      suffix='-'.repeat(next-1);
+    if(suffix===undefined)
+      throw new Error('第 '+(item.index+1)+' 个音符缩短后为 '+next+' 拍，JPW-ABC 无法精确表示；未修改谱面。');
+    changes.push({from:item.from,to:item.to,replacement:note[1]+note[2]+note[3]+suffix});
+  }
+  let result=text;
+  for(const item of changes.reverse())
+    result=result.slice(0,item.from)+item.replacement+result.slice(item.to);
+  return {source:result,count:changes.length,total:chosen.length};
+}
+
+/** Insert a single phrasing slur over the selected interval. Both endpoints
+ * must be sounding notes. Existing crossing/duplicate slurs are rejected. */
+export function addSlurToSelectedNotes(source,selectedNoteIds){
+  const text=String(source??'');
+  const selected=voiceEditItems(text).filter(item=>item.kind==='note');
+  const chosen=selectEditableNotes(selected.map(item=>({id:item.index})),selectedNoteIds);
+  if(chosen.length<2)throw new Error('请至少选中两个音符再添加连音。');
+  const start=Math.min(...chosen.map(n=>n.id)),end=Math.max(...chosen.map(n=>n.id));
+  const song=parseSong(text);
+  if(song.notes.slice(start,end+1).some(note=>note.degree===0))
+    throw new Error('连音范围不能包含休止符。');
+  for(const slur of song.slurs){
+    if(slur.startId===start&&slur.endId===end)throw new Error('这段音符已有连音符号。');
+    if((slur.startId<start&&start<=slur.endId&&slur.endId<end)||
+       (start<slur.startId&&slur.startId<=end&&end<slur.endId))
+      throw new Error('连音与已有连音范围交叉，无法正确嵌套。');
+  }
+  const first=selected[start],last=selected[end];
+  if(!first||!last)throw new Error('无法定位选中的音符。');
+  const changed=text.slice(0,last.to)+')'+text.slice(last.to);
+  return {source:changed.slice(0,first.from)+'('+changed.slice(first.from),
+    count:end-start+1,start,end};
 }
 
 // Source-editor caret after the exact indexed note, even with duplicate notes.
