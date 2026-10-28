@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, setSongNoteBeats, beatDurationSuffix, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem, setLyricForNote, lyricRowDraft, setLyricRow} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, setSongNoteBeats, beatDurationSuffix, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem, setLyricForNote, lyricRowDraft, setLyricRow, parseLibrarySongName, newLibrarySongSource, renameSongSourceTitle, copyVoiceSelection, pasteVoiceSelection} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -6,27 +6,31 @@ import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, f
 const $ = id => document.getElementById(id);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const STORAGE = 'sanpu.editor.v1';
+const LIBRARY_STORAGE='sanpu.song-library.v1';
 const els = {
   source:$('source'), score:$('score'), warnings:$('warnings'), transcriber:$('transcriber-input'),
+  libraryName:$('example-select'),libraryOptions:$('song-library-options'),librarySave:$('library-save-btn'),libraryDelete:$('library-delete-btn'),
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),scoreType:$('score-type'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchBeatsPreview:$('batch-beats-preview'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),selectionAnchorId:null,pendingTerminalBreak:null,lyricDraft:null,notePreviewRequest:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),selectionAnchorId:null,pendingTerminalBreak:null,lyricDraft:null,libraryEntries:[],deletedLibraryIds:new Set(),currentSongId:null,chosenLibraryId:null,scoreClipboard:null,notePreviewRequest:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
   return value===null||value===undefined||String(value).trim()===''||!Number.isSafeInteger(n)||n<-1?0:n;
 }
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,backspacePrevious:state.backspacePrevious,loopCount:state.loopCount,scoreType:state.scoreType}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,backspacePrevious:state.backspacePrevious,loopCount:state.loopCount,scoreType:state.scoreType,currentSongId:state.currentSongId}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
   let settings=null;
   try{settings=JSON.parse(localStorage.getItem(STORAGE)||'null');}catch{ /* corrupt storage */ }
   els.source.value=typeof settings?.source === 'string' ? settings.source : EXAMPLE;
+  state.currentSongId=typeof settings?.currentSongId==='string'?settings.currentSongId:
+    els.source.value===EXAMPLE?EXAMPLES[0]?.id??null:null;
   state.tempo=Math.max(35,Math.min(180,Number(settings?.tempo)||72));
   state.loopCount=normalizeLoopCount(settings?.loopCount);
   els.loopCount.value=String(state.loopCount);
@@ -61,22 +65,161 @@ function buildTimbreSelect(){
   }
   els.timbre.value=state.timbre;
 }
-function buildExampleLibrary(){
-  const select=$('example-select');
-  for(const entry of EXAMPLES){
-    const option=document.createElement('option');
-    option.value=entry.id;
-    option.textContent=entry.title+' · '+entry.description;
-    select.append(option);
+function availableLibrarySongs(){
+  const byId=new Map(EXAMPLES.map(e=>[e.id,{...e,builtin:true}]));
+  for(const saved of state.libraryEntries)
+    byId.set(saved.id,{...saved,builtin:false});
+  for(const id of state.deletedLibraryIds)byId.delete(id);
+  return [...byId.values()];
+}
+function readSongLibrary(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(LIBRARY_STORAGE)||'null');
+    if(!saved||saved.version!==1)return;
+    state.libraryEntries=Array.isArray(saved.entries)?saved.entries.filter(e=>
+      e&&typeof e.id==='string'&&e.id.length<100&&typeof e.title==='string'&&
+      e.title.length<=120&&typeof e.source==='string'&&e.source.length<1000000):[];
+    state.deletedLibraryIds=new Set(Array.isArray(saved.deleted)?saved.deleted.filter(id=>typeof id==='string'):[]);
+  }catch{state.libraryEntries=[];state.deletedLibraryIds=new Set();}
+}
+function saveSongLibrary(){
+  try{
+    localStorage.setItem(LIBRARY_STORAGE,JSON.stringify({
+      version:1,entries:state.libraryEntries,deleted:[...state.deletedLibraryIds]}));
+    return true;
+  }catch{
+    message('曲库保存失败：浏览器本地存储空间不足；请先保存源码备份');
+    return false;
   }
-  select.value=EXAMPLES[0]?.id||'';
+}
+function markLibraryChoice(entry){
+  state.chosenLibraryId=entry?.id??null;
+  els.libraryName.value=entry?.title??'';
+  els.libraryOptions.hidden=true;
+  els.libraryName.setAttribute('aria-expanded','false');
+}
+function showLibraryChoices(){
+  const input=els.libraryName,query=input.value.trim().toLowerCase();
+  const available=availableLibrarySongs();
+  const matches=available.filter(e=>e.title.toLowerCase().includes(query));
+  els.libraryOptions.replaceChildren();
+  for(const entry of matches){
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='library-option';
+    button.setAttribute('role','option');
+    button.textContent=entry.title+' · '+(parseSong(entry.source).key||'C')+' 调';
+    button.addEventListener('click',()=>markLibraryChoice(entry));
+    els.libraryOptions.append(button);
+  }
+  if(query&&!available.some(e=>e.title.toLowerCase()===query)){
+    const create=document.createElement('button');
+    create.type='button';create.className='library-option library-option-new';
+    create.setAttribute('role','option');
+    create.textContent='＋ 新建「'+input.value.trim()+'」';
+    create.addEventListener('click',()=>createLibrarySong(input.value.trim()));
+    els.libraryOptions.append(create);
+  }
+  els.libraryOptions.hidden=els.libraryOptions.children.length===0;
+  input.setAttribute('aria-expanded',String(!els.libraryOptions.hidden));
+}
+function createLibrarySong(raw){
+  let details;
+  try{details=parseLibrarySongName(raw,state.song?.key||'C');}
+  catch(error){message('新建失败：'+error.message);return false;}
+  const key=details.key,meter=state.song?.meter||'4/4';
+  const prompt='是否新建《'+details.title+'》歌曲（'+key+' 调）？\n将打开新谱并替换当前编辑区，未保存的修改请先保存。';
+  if(!confirm(prompt))return false;
+  const id='local-'+Date.now()+'-'+state.libraryEntries.length;
+  const source=newLibrarySongSource(details.title,key,meter);
+  state.libraryEntries.push({id,title:details.title,source});
+  if(!saveSongLibrary()){state.libraryEntries.pop();return false;}
+  state.currentSongId=id;
+  markLibraryChoice({id,title:details.title});
+  els.source.value=source;
+  refresh(false);
+  message('已新建《'+details.title+'》（'+key+' 调），可以开始编辑');
+  return true;
+}
+function buildExampleLibrary(){
+  readSongLibrary();
+  const selected=availableLibrarySongs().find(e=>e.id===state.currentSongId);
+  markLibraryChoice(selected??null);
+  const input=els.libraryName;
+  input.addEventListener('focus',showLibraryChoices);
+  input.addEventListener('input',()=>{
+    state.chosenLibraryId=null;
+    showLibraryChoices();
+  });
+  input.addEventListener('keydown',ev=>{
+    if(ev.key==='Escape'){
+      els.libraryOptions.hidden=true;input.setAttribute('aria-expanded','false');
+    }else if(ev.key==='ArrowDown'){
+      showLibraryChoices();
+    }else if(ev.key==='Enter'){
+      const first=els.libraryOptions.children[0];
+      if(first&&!els.libraryOptions.hidden){ev.preventDefault?.();first.click();}
+    }
+  });
+  input.addEventListener('blur',()=>{
+    setTimeout(()=>{
+      els.libraryOptions.hidden=true;
+      input.setAttribute('aria-expanded','false');
+    },150);
+  });
 }
 function loadSelectedExample(){
-  const example=EXAMPLES.find(item=>item.id===$('example-select').value);
-  if(!example)return;
-  if(els.source.value!==example.source && !confirm('将当前内容替换为《'+example.title+'》示例谱？当前内容可以先用「保存源码」备份。'))return;
-  els.source.value=example.source;
+  const match=availableLibrarySongs().find(e=>e.id===state.chosenLibraryId)||
+    availableLibrarySongs().find(e=>e.title===els.libraryName.value.trim());
+  if(!match){
+    message('请先从曲库选择曲目，或选择「＋ 新建」条目。');return;
+  }
+  if(els.source.value!==match.source&&!confirm('是否加载《'+match.title+'》？这会替换当前编辑区的内容，未保存的修改将丢失。'))return;
+  state.currentSongId=match.id;markLibraryChoice(match);
+  els.source.value=match.source;
   refresh(false);
+  message('已加载《'+match.title+'》');
+}
+function saveCurrentLibrarySong(){
+  if(state.lyricDraft&&!commitLyricDraft(false))return;
+  const song=parseSong(els.source.value),available=availableLibrarySongs();
+  const active=available.find(e=>e.id===state.currentSongId);
+  const title=song.title;
+  if(!title.trim()){message('请先在 .Title 中填写歌曲名称。');return;}
+  if(available.some(e=>e.id!==active?.id&&e.title===title)){
+    message('曲库已存在同名歌曲《'+title+'》，请先选择它或修改 .Title 曲名。');return;
+  }
+  const prompt=active?
+    '保存将覆盖曲库中的《'+active.title+'》并自动更新名称为《'+title+'》。确定覆盖吗？':
+    '是否将当前歌曲《'+title+'》保存为曲库新条目？';
+  if(!confirm(prompt))return;
+  const id=active?.id??('local-'+Date.now()+'-'+state.libraryEntries.length);
+  const entry={id,title,source:els.source.value};
+  const old=state.libraryEntries,deleted=new Set(state.deletedLibraryIds);
+  state.libraryEntries=old.filter(e=>e.id!==id).concat(entry);
+  state.deletedLibraryIds.delete(id);
+  if(!saveSongLibrary()){
+    state.libraryEntries=old;state.deletedLibraryIds=deleted;return;
+  }
+  state.currentSongId=id;markLibraryChoice(entry);
+  persist();
+  message('已保存曲库《'+title+'》');
+}
+function deleteSelectedLibrarySong(){
+  const entry=availableLibrarySongs().find(e=>e.id===state.chosenLibraryId)||
+    availableLibrarySongs().find(e=>e.title===els.libraryName.value.trim());
+  if(!entry){message('请先选择要删除的曲目。');return;}
+  if(!confirm('确定从本机曲库删除《'+entry.title+'》吗？此操作不能撤销。'))return;
+  const previous=state.libraryEntries,deleted=new Set(state.deletedLibraryIds);
+  state.libraryEntries=previous.filter(e=>e.id!==entry.id);
+  if(EXAMPLES.some(e=>e.id===entry.id))state.deletedLibraryIds.add(entry.id);
+  if(!saveSongLibrary()){
+    state.libraryEntries=previous;state.deletedLibraryIds=deleted;return;
+  }
+  if(state.currentSongId===entry.id)state.currentSongId=null;
+  markLibraryChoice(null);
+  persist();
+  message('已从曲库删除《'+entry.title+'》，编辑区的当前内容仍保留');
 }
 // Use the user's exact three 12-key mappings for C3, C4, and C5.
 const PIANO_FIRST=48;
@@ -1998,15 +2141,9 @@ $('import-btn').addEventListener('click',()=>$('file-input').click());
 $('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh(false);}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));
 $('example-btn').addEventListener('click',loadSelectedExample);
-$('insert-spacer-btn').addEventListener('click',()=>{
-  const source=els.source;
-  const start=source.selectionStart??source.value.length;
-  const end=source.selectionEnd??start;
-  // Explicit spaces delimit y40 from adjacent notes; the layout comes from y40.
-  source.setRangeText(' y40 ',start,end,'end');
-  source.focus();
-  refresh();
-});
+els.librarySave.addEventListener('click',saveCurrentLibrarySong);
+els.libraryDelete.addEventListener('click',deleteSelectedLibrarySong);
+
 
 // Export only the appearance settings. Song text, BPM, timbre and zoom stay local.
 $('style-export-btn').addEventListener('click',()=>{
