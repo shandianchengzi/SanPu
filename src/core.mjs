@@ -402,16 +402,19 @@ export function transposeSongSemitones(source,semitones,selectedNoteIds=null){
   return {source:result,count:changes.length,total:chosen.length};
 }
 
-/** Shorten each selected note/rest by N half beats, leaving all other source
- * bytes untouched. Reject the whole operation if any duration is invalid or
- * cannot be represented exactly in JPW-ABC; never silently round rhythms. */
-export function speedUpSongHalfBeats(source,halfBeats,selectedNoteIds=null){
+/** Shift note/rest duration by a signed number of half beats:
+ * positive values shorten; negative values lengthen. Do not modify anything
+ * when the change is zero. All changes are atomic and exact in JPW-ABC;
+ * unsupported duration fractions are rejected without silent rounding.
+ */
+export function adjustSongRhythmHalfBeats(source,halfBeats,selectedNoteIds=null){
   const text=String(source??'');
-  if(!Number.isSafeInteger(halfBeats)||halfBeats<=0)
-    throw new Error('请输入正整数半拍数。');
+  if(!Number.isSafeInteger(halfBeats))
+    throw new Error('节奏偏移必须是整数半拍数（可为负数）。');
   const selected=voiceEditItems(text).filter(item=>item.kind==='note');
   if(!selected.length)throw new Error('没有可编辑的音符。');
   const chosen=selectEditableNotes(selected.map(item=>({id:item.index})),selectedNoteIds);
+  if(halfBeats===0)return {source:text,count:0,total:chosen.length};
   const wanted=new Set(chosen.map(note=>note.id));
   const changes=[];
   for(const item of selected){
@@ -425,7 +428,7 @@ export function speedUpSongHalfBeats(source,halfBeats,selectedNoteIds=null){
     if(suffix===undefined&&Number.isSafeInteger(next)&&next>=9&&next<=1024)
       suffix='-'.repeat(next-1);
     if(suffix===undefined)
-      throw new Error('第 '+(item.index+1)+' 个音符缩短后为 '+next+' 拍，JPW-ABC 无法精确表示；未修改谱面。');
+      throw new Error('第 '+(item.index+1)+' 个音符调整后为 '+next+' 拍，JPW-ABC 无法精确表示；未修改谱面。');
     changes.push({from:item.from,to:item.to,replacement:note[1]+note[2]+note[3]+suffix});
   }
   let result=text;
@@ -433,6 +436,9 @@ export function speedUpSongHalfBeats(source,halfBeats,selectedNoteIds=null){
     result=result.slice(0,item.from)+item.replacement+result.slice(item.to);
   return {source:result,count:changes.length,total:chosen.length};
 }
+
+// Legacy alias for existing integrations importing the original positive-only API.
+export const speedUpSongHalfBeats=adjustSongRhythmHalfBeats;
 
 /** Insert a single phrasing slur over the selected interval. Both endpoints
  * must be sounding notes. Existing crossing/duplicate slurs are rejected. */
