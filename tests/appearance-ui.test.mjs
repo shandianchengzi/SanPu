@@ -982,14 +982,15 @@ test('click-only piano activation produces audio and a note in record mode',asyn
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
 });
 
-test('clicking a score note also plays in recording mode while retaining score focus',async()=>{
+test('recording mode score click stops the whole song and plays only one selected note',async()=>{
   const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n3,_ y40 3,_ | #4,... $(true)\n3,_\n.Words\nW1@1,1:\n甲乙丙丁';
   const {state,els,document}=boot({source,pianoAudition:false});
   let stopped=0;
+  const starts=[],ends=[],frequencies=[];
   state.playing=true;state.audio={currentTime:1,destination:{},resume:async()=>{},
     createPeriodicWave(){return {};},
-    createOscillator(){return {frequency:{setValueAtTime(){}},setPeriodicWave(){},
-      connect(){},start(){},stop(){},disconnect(){}}},
+    createOscillator(){return {frequency:{setValueAtTime(freq){frequencies.push(freq)}},setPeriodicWave(){},
+      connect(){},start(at){starts.push(at)},stop(at){if(at!==undefined)ends.push(at);else stopped++},disconnect(){}}},
     createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
       exponentialRampToValueAtTime(){}},connect(){},disconnect(){}}}
   };
@@ -999,8 +1000,12 @@ test('clicking a score note also plays in recording mode while retaining score f
   notes[2].dispatch('click');
   await Promise.resolve();await Promise.resolve();
   assert.equal(stopped,1,'currently sounding notes must stop');
-  assert.equal(state.playing,true);
-  assert.equal(els.play.textContent,'Ⅱ 暂停');
+  assert.equal(state.playing,false,'clicking in recording mode must never start song playback');
+  assert.equal(els.play.textContent,'▶ 播放');
+  assert.deepEqual(starts,[1],'exactly one oscillator is started');
+  assert.equal(ends.length,1,'one and only one note is scheduled to finish');
+  assert.equal(frequencies.length,1,'no later melody notes should be scheduled');
+  assert.equal(state.nodes.length,1,'only a single preview voice is held');
   assert.equal(state.cursorNoteId,2);
   assert.equal(state.active,2);
   assert.notEqual(els.source.focused,true);
@@ -1009,10 +1014,50 @@ test('clicking a score note also plays in recording mode while retaining score f
   assert.equal(els.source.selectionEnd,els.source.selectionStart);
   let prevented=0;
   notes[1].dispatch('keydown',{key:'Enter',preventDefault(){prevented++;}});
+  await Promise.resolve();await Promise.resolve();
   assert.equal(prevented,1);
   assert.equal(state.cursorNoteId,1);
+  assert.equal(starts.length,2,'new selection previews only the newly selected pitch');
+  assert.equal(stopped,2,'new note stops the prior preview');
+  assert.equal(state.playing,false);
   assert.equal(els.source.selectionStart,source.indexOf('3,_',source.indexOf('y40'))+3);
   assert.equal(els.source.value,source);
+});
+
+test('recording-mode rest is silent; stale score previews cannot overlap newer clicks or Play',async()=>{
+  const source='.Voice\n1 0 2 3';
+  const {state,els}=boot({source,pianoAudition:false});
+  const starts=[];
+  let releaseResume;
+  state.audio={currentTime:4,destination:{},resume:()=>new Promise(done=>{releaseResume=done;}),
+    createPeriodicWave(){return {};},
+    createOscillator(){return {frequency:{setValueAtTime(){}},setPeriodicWave(){},connect(){},
+      start(at){starts.push(at)},stop(){},disconnect(){}}},
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}}}
+  };
+  let notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  const firstResume=releaseResume;
+  notes[2].dispatch('click');
+  firstResume();await Promise.resolve();await Promise.resolve();
+  assert.equal(starts.length,0,'an obsolete asynchronous preview must not sound');
+  releaseResume();await Promise.resolve();await Promise.resolve();
+  assert.equal(starts.length,1,'latest note previews once');
+  notes[1].dispatch('click');await Promise.resolve();
+  assert.equal(starts.length,1,'rest must not create an oscillator');
+  assert.equal(state.playing,false);
+  notes[0].dispatch('click');
+  const pending=releaseResume;
+  els.play.dispatch('click');
+  pending();await Promise.resolve();await Promise.resolve();
+  assert.equal(state.playing,false,'Play awaits the audio resume promise');
+  // Restore normal audio resume for a direct Play control verification.
+  state.audio.resume=async()=>{};
+  els.play.dispatch('click');await Promise.resolve();await Promise.resolve();
+  assert.equal(state.playing,true,'the explicit Play button still starts the whole song');
+  assert.equal(starts.length,5,'four notes minus one rest in the playback schedule, plus prior one-note preview');
+  els.stop.dispatch('click');
 });
 test('clicking score note in audition mode continues playing from selected note and focuses source',async()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 | 3';
