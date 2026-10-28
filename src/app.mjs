@@ -1352,6 +1352,34 @@ function positionPunctuation(line){
     if(after)after.setAttribute('x',String(cx+width/2+gap));
   }
 }
+// Extended fractional rhythms cannot be shown faithfully with a single
+// conventional underscore/dot/dash pattern. Paint the note using the original
+// unmodified renderer, then show its exact beat count in a separate overlay.
+// For all legacy suffixes, this path is a strict no-op.
+function extendedRhythmNote(note){
+  return note.kind==='note'&&note.suffix&&
+    !/^(?:-+|_+\.*|\.+_+|\.+)$/.test(note.suffix);
+}
+function addExactDurationLabels(svgNode,elements){
+  const noteGroups=[...svgNode.querySelectorAll('.note-click')];
+  const byId=new Map(noteGroups.map(group=>[Number(group.dataset.noteId),group]));
+  for(const note of elements){
+    if(!extendedRhythmNote(note))continue;
+    const group=byId.get(note.id);
+    if(!group)continue;
+    const rect=group.children?.[0];
+    const attr=(node,key)=>Number(node?.getAttribute?.(key)??node?.attrs?.[key]);
+    const cx=attr(rect,'x')+attr(rect,'width')/2;
+    const noteNumber=[...group.children].find(n=>n.getAttribute?.('class')==='note-num'||n.className==='note-num');
+    const noteY=attr(noteNumber,'y');
+    const y=state.scoreType==='jianpu'&&Number.isFinite(noteY)?
+      noteY+state.format.noteSize*.7+11:
+      state.scoreType==='staff'?285:257;
+    group.append(svg('text',{x:cx,y,'text-anchor':'middle',
+      class:'exact-duration-label','aria-label':'精确时值 '+note.beats+' 拍'},
+    note.beats+' 拍'));
+  }
+}
 function render() {
   updatePianoLabels();
   applyAppearance();
@@ -1391,7 +1419,10 @@ function render() {
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
   const breaks=song.elements.filter(e=>e.kind==='break');
   for(const [i,line] of lines.entries()){
-    const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
+    const hasExtended=line.some(extendedRhythmNote);
+    const displayLine=hasExtended?line.map(item=>extendedRhythmNote(item)?{...item,suffix:''}:item):line;
+    const system=state.scoreType==='jianpu'?drawSystem(displayLine,song,width):drawAlternativeSystem(displayLine,song,width,state.scoreType);
+    if(hasExtended)addExactDurationLabels(system,line);
     if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line);
     // Add the IME-safe HTML editor outside the immutable numbered renderer.
     if(state.lyricDraft){
