@@ -258,7 +258,7 @@ export function lyricRowDraft(song,noteId){
     const word=song.lyrics.get(ids[i]);
     // An empty slot before or after existing lyrics requires a positional
     // placeholder; the final blank cell can remain empty.
-    const cell=word?.skip?'/':word?.text?
+    const cell=word?.text?
       (Array.from(word.text).length>1?'{'+word.text+'}':word.text):
       (i<last?'/':'');
     const start=text.length;text+=cell;
