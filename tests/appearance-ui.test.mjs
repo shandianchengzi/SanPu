@@ -682,28 +682,22 @@ test('layout-only y spacers align barlines across SVG rows without touching note
   assert.match(pdf,/@media print\{\.score-page \.score-line\{width:100%!important/);
 });
 
-test('insert layout gap button places y40 at source caret and saves original text',()=>{
-  const source='.Voice\n1 | 2';
-  const {state,els,document,localStorage}=boot({source});
-  const at=els.source.value.indexOf('|');
-  els.source.selectionStart=at;
-  els.source.selectionEnd=at;
-  document.getElementById('insert-spacer-btn').dispatch('click');
-  assert.equal(els.source.value,'.Voice\n1  y40 | 2');
-  assert.equal(els.source.focused,true);
-  assert.equal(els.source.selectionStart,at+' y40 '.length);
-  assert.equal(state.song.notes.length,2);
-  assert.deepEqual(state.song.elements.filter(e=>e.kind==='spacer').map(e=>e.width),[40]);
-  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+test('editor toolbar removes layout gap and offers local song-library operations',()=>{
   const html=read('index.html');
-  assert.match(html,/id="insert-spacer-btn"/);
-  assert.match(html,/<code>y40<\/code> 留白 40 单位/);
+  assert.doesNotMatch(html,/id="insert-spacer-btn"/);
+  assert.match(html,/id="library-save-btn"[^>]*>保存</);
+  assert.match(html,/id="library-delete-btn"[^>]*>删除</);
+  assert.match(html,/id="example-btn"[^>]*>加载</);
+  assert.match(html,/<label for="example-select">曲库<\/label>/);
+  assert.match(html,/id="example-select" type="text"/);
+  assert.match(html,/id="song-library-options"[^>]*role="listbox"/);
+  assert.match(read('styles.css'),/\.library-combobox/);
 });
 
-test('example library initializes with the provided score, preserving previously saved drafts',()=>{
+test('song library initializes from the built-in score and explicit load protects unsaved drafts',()=>{
   const initial=boot();
-  assert.equal(initial.document.getElementById('example-select').children.length,1);
-  assert.equal(initial.document.getElementById('example-select').value,'yi-sheng-suo-ai');
+  assert.equal(initial.document.getElementById('example-select').value,'一生所爱');
+  assert.equal(initial.state.currentSongId,'yi-sheng-suo-ai');
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=D,3\/4\}/);
   assert.ok(initial.els.source.value.includes('y y y y y y y30|'));
   assert.ok(initial.els.source.value.includes('从前，现在,过去了再不来'));
@@ -712,10 +706,15 @@ test('example library initializes with the provided score, preserving previously
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.state.format.titleSize,62);
+  draft.els.libraryName.focus();
+  assert.equal(draft.els.libraryOptions.children.length,1);
+  draft.els.libraryOptions.children[0].click();
   draft.document.getElementById('example-btn').click();
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.confirmations.length,1);
   const approved=boot({source:'.Voice\n1 2'},true);
+  approved.els.libraryName.focus();
+  approved.els.libraryOptions.children[0].click();
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
   assert.equal(approved.state.song.key,'D');
