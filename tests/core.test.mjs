@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,beatDurationSuffix,setSongNoteBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -524,4 +524,53 @@ test('lyric replacement preserves punctuation, skip placeholders, other verses a
   assert.equal(parseSong(clear.source).lyrics.get(2).text,'雨');
   assert.throws(()=>setLyricForNote(original,10,'未'),/没有对应的音符/);
   assert.throws(()=>setLyricForNote(original,0,'多\n行'),/不可包含换行/);
+});
+
+test('absolute beat setting uses short exact _, * and - suffix expressions',()=>{
+  assert.equal(beatDurationSuffix(1),'');
+  assert.equal(beatDurationSuffix(0.5),'_');
+  assert.equal(beatDurationSuffix(0.375),'__.');
+  assert.equal(beatDurationSuffix(1.5),'.');
+  assert.equal(beatDurationSuffix(2),'-');
+  assert.equal(beatDurationSuffix(2.5),'*-');
+  assert.equal(beatDurationSuffix(1.25),'*-_');
+  const values=[0.015625,0.03125,0.0625,0.125,0.1875,0.25,0.3125,
+    0.375,0.5,0.625,0.75,0.875,1,1.125,1.25,1.375,1.5,1.625,
+    1.75,2,2.5,2.75,3.125,3.375,3.5,5.5,16.125,127.5,1023.5,1024];
+  for(const beats of values){
+    const suffix=beatDurationSuffix(beats);
+    assert.equal(durationFromSuffix(suffix),beats,'encode and parse '+beats+' exactly with suffix '+suffix);
+    const song=parseSong('.Voice\n3'+suffix+' 0'+suffix);
+    assert.equal(song.notes.length,2,'two notes encoded '+beats);
+    assert.deepEqual(song.notes.map(n=>n.beats),[beats,beats]);
+    assert.equal(song.warnings.length,0);
+  }
+  assert.equal(durationFromSuffix('**_'),1.125);
+  assert.equal(durationFromSuffix('..'),1.75,'legacy repeated dots remain unchanged');
+  assert.equal(durationFromSuffix('._'),0.75,'legacy dotted-underscore suffix unchanged');
+  assert.equal(durationFromSuffix('_.'),0.75);
+  for(const invalid of [0,-1,NaN,Infinity,0.1,0.3,2.3,1024.5]){
+    assert.throws(()=>beatDurationSuffix(invalid),/拍数|精确/,'invalid '+invalid);
+  }
+});
+
+test('setting absolute fractional beat lengths preserves unselected notes, rests, formatting, and lyrics',()=>{
+  const source='.Title\nKeyAndMeters = {1=D,3/4}\n.Voice\n1_ 2- |$(true)\n3 0 4. y40\n.Words\nW1@1,1:\n中文测试';
+  const selected=setSongNoteBeats(source,1.25,new Set([1,3]));
+  assert.equal(selected.count,2);
+  assert.equal(selected.total,2);
+  assert.equal(selected.beats,1.25);
+  assert.equal(selected.suffix,'*-_');
+  assert.deepEqual(parseSong(selected.source).notes.map(n=>n.beats),[0.5,1.25,1,1.25,1.5]);
+  assert.deepEqual(parseSong(selected.source).notes.map(n=>n.raw),['1_','2*-_','3','0*-_','4.']);
+  assert.equal(selected.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.match(selected.source,/\|\$\(true\)\n/);
+  const all=setSongNoteBeats(source,2.5);
+  assert.equal(all.count,5);
+  assert.deepEqual(parseSong(all.source).notes.map(n=>n.beats),Array(5).fill(2.5));
+  assert.equal(all.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.equal(setSongNoteBeats(all.source,2.5).count,0);
+  assert.throws(()=>setSongNoteBeats(source,0.1),/分母为 2/);
+  assert.throws(()=>setSongNoteBeats(source,0),/大于 0/);
+  assert.throws(()=>setSongNoteBeats(source,1.25,[800]),/先选中|重新选择/);
 });
