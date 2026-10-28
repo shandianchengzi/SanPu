@@ -284,9 +284,9 @@ main{padding-top:23px}
 #source{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden}
 
 /* Physical QWERTY keyboard SVG: correct row stagger and unbound keys. */
-.piano-backspace{display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+.piano-keyboard-mode{display:inline-flex;align-items:center;gap:5px;cursor:pointer;
   white-space:nowrap;color:#385a51}
-.piano-backspace input{accent-color:var(--accent);margin:0}
+.piano-keyboard-mode input{accent-color:var(--accent);margin:0}
 .keyboard-help{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
 .keyboard-help h3{font-size:13px;font-weight:650;color:#315d53;margin:0 0 4px}
 .keyboard-help p{margin:0 0 8px}
@@ -406,3 +406,5 @@ main{padding-top:23px}
   .score-page .score-line .note-click.is-selected .note-bg{fill:transparent!important}
   .score-page .score-line .bar-click.is-selected .bar-hit{fill:transparent!important}
 }
+
+.piano-backspace{display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;color:#385a51}
