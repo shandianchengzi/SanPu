@@ -449,3 +449,15 @@ main{padding-top:23px}
   .score-page .score-line .exact-duration-label{fill:#000!important}
 }
 .beats-notation-preview{font:12px ui-monospace,monospace;color:#45675c;white-space:nowrap}
+
+/* Entire-phrase editing overlays one score system without shifting notes.
+   The original jianpu SVG renderer and its glyph CSS remain unchanged. */
+.score-page .lyric-line-editor{overflow:visible}
+.score-page .lyric-line-input{
+  text-align:left;
+  padding-left:9px;
+  font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  letter-spacing:1px;
+  white-space:nowrap;
+}
+@media print{.score-page .lyric-line-editor{display:none!important}}
