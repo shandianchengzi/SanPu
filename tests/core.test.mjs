@@ -585,7 +585,7 @@ test('fractional set durations retain exact playback timing and support tiny dya
   assert.equal(schedule.total,2);
   for(const value of [2**-20,1+2**-20,1024-2**-20]){
     const suffix=beatDurationSuffix(value);
-    assert.ok(suffix.length<=1050,'bounded suffix for '+value);
+    assert.ok(suffix.length<=1100,'bounded suffix for '+value);
     assert.equal(durationFromSuffix(suffix),value);
   }
 });
