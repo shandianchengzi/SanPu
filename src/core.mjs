@@ -27,7 +27,7 @@ W1@1,1:
 export const EXAMPLES = Object.freeze([
   Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · 六行旋律',source:EXAMPLE})
 ]);
-const NOTE = /^([#b]{0,2})([0-7])([,']*)(_+\.*|\.+_+|-+|\.+)?/;
+const NOTE = /^([#b]{0,2})([0-7])([,']*)((?:[_*.-]+))?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
 // Widths use SVG user units (not musical beats) and are bounded to avoid
 // accidental enormous documents. Adjacent y marks may also be repeated.
@@ -37,14 +37,23 @@ const SPACER = /^y(\d+)?(?=$|[\s|$:y])/;
 const BARS = ['|:', ':|:', ':|', '||', '|]', '[|]', '|'];
 export function durationFromSuffix(s='') {
   if (!s) return 1;
-  if (s.startsWith('-')) return 1 + s.length;
-  if (s.includes('_')) {
+  // Preserve the established JPW-ABC dotted notation exactly, including
+  // '..', '_.' and '._'. The new '*' is an explicit x1.5 operator.
+  if (/^-+$/.test(s)) return 1 + s.length;
+  if (/^_+\.*$|^\.+_+$/.test(s)) {
     const n = (s.match(/_/g) || []).length;
     const dots = (s.match(/\./g) || []).length;
     return Math.pow(2, -n) * (2 - Math.pow(2, -dots));
   }
-  if (s[0] === '.') return 2 - Math.pow(2, -s.length);
-  return 1;
+  if (/^\.+$/.test(s)) return 2 - Math.pow(2, -s.length);
+  if (!/^[_*-]+$/.test(s)) return NaN;
+  let beats=1;
+  for (const op of s) {
+    if (op==='_') beats/=2;
+    else if (op==='*') beats*=1.5;
+    else beats+=1;
+  }
+  return beats;
 }
 function readVoice(body, warnings) {
   const notes = [], elements = [], measures = new Map(), slurs = [], slurStack = [];
@@ -451,6 +460,77 @@ export function transposeSongSemitones(source,semitones,selectedNoteIds=null){
   for(const {from,to,replacement} of changes.reverse())
     result=result.slice(0,from)+replacement+result.slice(to);
   return {source:result,count:changes.length,total:chosen.length};
+}
+
+/** Encode an exact dyadic beat count. Unlike the legacy dotted form,
+ * mixed _/*/- operations are read LEFT TO RIGHT, starting at one beat.
+ * No approximation is permitted (0.1 beats cannot be represented).
+ */
+export function beatDurationSuffix(value) {
+  const beats=Number(value);
+  if(!Number.isFinite(beats)||beats<=0||beats>1024)
+    throw new Error('时值必须大于 0 且不超过 1024 拍。');
+  let denominator=1;
+  while(!Number.isSafeInteger(beats*denominator)&&denominator<2**20)
+    denominator*=2;
+  if(!Number.isSafeInteger(beats*denominator))
+    throw new Error('只能设置分母为 2 的幂的精确拍数，例如 0.125、1.25、2.5，不能输入 0.1。');
+  const legacy=PIANO_BEATS.find(([n])=>n===beats);
+  if(legacy)return legacy[1];
+  if(Number.isSafeInteger(beats))return '-'.repeat(beats-1);
+  // Find a short exact operator expression by running the operation graph
+  // backwards. '_' <- x2, '*' <- x2/3, '-' <- subtract one.
+  // The canonical fallback is always possible: start at numerator beats,
+  // then halve denominator times.
+  const numerator=beats*denominator;
+  let fallback='-'.repeat(numerator-1)+'_'.repeat(Math.log2(denominator));
+  const maxSteps=Math.min(24,fallback.length);
+  const queue=[{beats,suffix:''}],seen=new Set([beats]);
+  for(let i=0;i<queue.length&&i<40000;i++){
+    const {beats:current,suffix}=queue[i];
+    if(current===1)return suffix;
+    if(suffix.length>=maxSteps)continue;
+    const options=[
+      [current*2,'_'],[current*2/3,'*'],[current-1,'-']
+    ];
+    for(const [prev,operator] of options){
+      if(prev<=0||prev>2048||!Number.isFinite(prev)||seen.has(prev))continue;
+      let exact=false;
+      for(let scale=1;scale<=2**20;scale*=2){
+        if(Number.isSafeInteger(prev*scale)){exact=true;break;}
+      }
+      if(!exact)continue;
+      const candidate=operator+suffix;
+      if(prev===1)return candidate;
+      seen.add(prev);
+      queue.push({beats:prev,suffix:candidate});
+    }
+  }
+  return fallback;
+}
+
+/** Set the absolute beat length of all or selected notes/rests, not a delta.
+ * Validate and encode before applying any source edits atomically.
+ */
+export function setSongNoteBeats(source,beats,selectedNoteIds=null){
+  const text=String(source??''),suffix=beatDurationSuffix(beats);
+  const selected=voiceEditItems(text).filter(item=>item.kind==='note');
+  if(!selected.length)throw new Error('没有可编辑的音符。');
+  const chosen=selectEditableNotes(selected.map(item=>({id:item.index})),selectedNoteIds);
+  const wanted=new Set(chosen.map(n=>n.id));
+  const changes=[];
+  for(const item of selected){
+    if(!wanted.has(item.index))continue;
+    const note=NOTE.exec(item.raw);
+    if(!note||note[0]!==item.raw)throw new Error('第 '+(item.index+1)+' 个音符无法解析。');
+    const replacement=note[1]+note[2]+note[3]+suffix;
+    if(replacement!==item.raw)
+      changes.push({from:item.from,to:item.to,replacement});
+  }
+  let result=text;
+  for(const item of changes.reverse())
+    result=result.slice(0,item.from)+item.replacement+result.slice(item.to);
+  return {source:result,count:changes.length,total:chosen.length,beats:Number(beats),suffix};
 }
 
 /** Shift note/rest duration by a signed number of half beats:
