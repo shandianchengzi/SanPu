@@ -2219,3 +2219,21 @@ test('unrelated score rerenders preserve the in-progress lyric draft and IME foc
   assert.equal(state.lyricDraft,null);
   assert.equal(state.song.lyrics.get(1).text,'未提交');
 });
+
+test('fractional rhythm labels show exact beat count on all score types while classic notes stay unchanged',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1*-_ 2*- |$(true)\n3--';
+  for(const scoreType of ['jianpu','staff','guitar']){
+    const {els,state}=boot({source,scoreType});
+    assert.deepEqual(state.song.notes.map(n=>n.beats),[1.25,2.5,3]);
+    const notes=els.score.querySelectorAll('.note-click');
+    const label=group=>group.children.find(n=>n.className==='exact-duration-label');
+    assert.equal(label(notes[0])?.textContent,'1.25 拍');
+    assert.equal(label(notes[1])?.textContent,'2.5 拍');
+    assert.equal(label(notes[2]),undefined,'legacy 3-beat note must retain exact old rendering');
+    assert.equal(notes[0].children.some(n=>n.className==='rhythm'),false,
+      'mixed-operator durations must not display misleading legacy dashes or underlines');
+  }
+  const css=read('styles.css');
+  assert.match(css,/\.exact-duration-label/);
+  assert.match(css,/@media print\{\s*\.score-page \.score-line \.exact-duration-label/);
+});
