@@ -438,3 +438,14 @@ main{padding-top:23px}
 }
 .score-page .lyric-inline-input:focus{border-color:#168466}
 @media print{.score-page .lyric-edit-foreign{display:none!important}}
+
+/* Only extended fractional durations get a factual beat label.
+   Ordinary numbered notation retains its original glyph metrics and style. */
+.score-page .score-line .exact-duration-label{
+  fill:#466e62;font:600 12px "Microsoft YaHei","PingFang SC",sans-serif;
+  stroke:none;pointer-events:none
+}
+@media print{
+  .score-page .score-line .exact-duration-label{fill:#000!important}
+}
+.beats-notation-preview{font:12px ui-monospace,monospace;color:#45675c;white-space:nowrap}
