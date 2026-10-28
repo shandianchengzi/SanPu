@@ -1889,7 +1889,7 @@ test('mouse drag selects a contiguous note range across bar and line break; batc
   assert.equal(state.selectedItem.index,3);
   assert.equal(els.batchSlur.disabled,false);
   assert.equal(document.getElementById('batch-target-label').textContent,'选中音符偏移');
-  assert.equal(document.getElementById('batch-rhythm-target').textContent,'选中音符节奏增快');
+  assert.equal(document.getElementById('batch-rhythm-target').textContent,'选中音符节奏偏移');
   assert.equal(document.getElementById('batch-selection-count').textContent,'已选中 4 个音符');
   assert.equal(els.score.querySelectorAll('.note-click').filter(x=>x.classList.contains('is-selected')).length,4);
   document.getElementById('score-type').value='staff';document.getElementById('score-type').dispatch('change');
@@ -1966,4 +1966,41 @@ test('relative Delete and Backspace process note, bar and system break in source
   assert.equal(send('Delete').prevented,true);
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1'],
     'Delete on bar when nothing follows must not delete the previous note');
+});
+
+test('signed rhythm batch edit lengthens whole score or selection, keeps state, and handles zero and unrepresentable cases',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2_ 0 |$(true)\n3.\n.Words\nW1@1,1:\n甲乙丙丁';
+  const {els,state,document,confirmations}=boot({source},true);
+  const rhythm=document.getElementById('batch-rhythm'),apply=document.getElementById('batch-rhythm-apply');
+  const label=document.getElementById('batch-rhythm-target');
+  const html=read('index.html');
+  assert.match(html,/id="batch-rhythm"[^>]*step="1"[^>]*value="1"/);
+  assert.doesNotMatch(html,/id="batch-rhythm"[^>]*min="1"/);
+  assert.equal(label.textContent,'全谱节奏偏移');
+  rhythm.value='-1';apply.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1.','2','0.','3-']);
+  assert.match(confirmations[0],/延长 1 个半拍/);
+  assert.match(els.batchStatus.textContent,/延长 1 个半拍/);
+  assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  assert.equal(label.textContent,'选中音符节奏偏移');
+  rhythm.value='-1';apply.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1-','2','0.','3-']);
+  assert.deepEqual([...state.selectedNoteIds],[0]);
+  assert.match(confirmations[1],/选中的 1 个音符/);
+  const count=confirmations.length,unchanged=els.source.value;
+  rhythm.value='0';apply.dispatch('click');
+  assert.equal(els.source.value,unchanged);
+  assert.equal(confirmations.length,count);
+  assert.match(els.batchStatus.textContent,/偏移为 0/);
+  rhythm.value='-1';apply.dispatch('click');
+  assert.equal(els.source.value,unchanged,'cannot represent a 2.5-beat note: reject atomically');
+  assert.equal(confirmations.length,count);
+  assert.match(els.batchStatus.textContent,/无法精确表示/);
+  rhythm.value='1';apply.dispatch('click');
+  assert.equal(state.song.notes[0].raw,'1.');
+  assert.match(confirmations[2],/缩短 1 个半拍/);
+  rhythm.value='1.5';apply.dispatch('click');
+  assert.match(els.batchStatus.textContent,/整数半拍/);
 });
