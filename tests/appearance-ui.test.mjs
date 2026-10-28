@@ -2114,7 +2114,7 @@ test('changing selected note or deleting provisional newline cancels pending hin
 });
 
 test('down arrow opens whole score line and inserts multiple lyric characters by note position',()=>{
-  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2 3 4 5';
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 3 4 5';
   const {els,state,document,localStorage}=boot({source});
   els.score.querySelectorAll('.note-click')[2].dispatch('click');
   const press=(code,target)=>{const ev={code,key:code,target,preventDefault(){ev.prevented=true;},stopPropagation(){}};document.dispatch('keydown',ev);return ev;};
@@ -2153,7 +2153,7 @@ test('down arrow opens whole score line and inserts multiple lyric characters by
 });
 
 test('line lyric selection preserves following words and offers replacement of a missing middle cell',()=>{
-  const source='.Voice\\n1 2 3 4 5 |$(true)\\n6 7\\n.Words\\nW1@1,1:\\n天地/星月';
+  const source='.Voice\n1 2 3 4 5 |$(true)\n6 7\n.Words\nW1@1,1:\n天地/星月';
   const {els,state,document}=boot({source});
   els.score.querySelectorAll('.note-click')[2].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
@@ -2168,7 +2168,7 @@ test('line lyric selection preserves following words and offers replacement of a
 });
 
 test('full-line lyric composition preserves source and existing suffix until completion',()=>{
-  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2\\n.Words\\nW1@1,1:\\n秋冬';
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2\n.Words\nW1@1,1:\n秋冬';
   const {els,state,document,localStorage}=boot({source});
   els.score.querySelectorAll('.note-click')[0].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){},stopPropagation(){}});
@@ -2193,7 +2193,7 @@ test('full-line lyric composition preserves source and existing suffix until com
 });
 
 test('30s row-lyric autosave preserves the editor and does not overwrite another row',()=>{
-  const source='.Voice\\n1 | 2 3 |$(true)\\n4 5';
+  const source='.Voice\n1 | 2 3 |$(true)\n4 5';
   const {els,state,document,timers,fireTimer}=boot({source});
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
@@ -2218,7 +2218,7 @@ test('30s row-lyric autosave preserves the editor and does not overwrite another
 });
 
 test('down from lyric editor commits current row and selects next row note, second down edits next row',()=>{
-  const source='.Voice\\n1 2 3 |$(true)\\n4 5 |$(true)\\n6 7';
+  const source='.Voice\n1 2 3 |$(true)\n4 5 |$(true)\n6 7';
   const {els,state,document}=boot({source});
   const press=(code,target)=>{const event={code,key:code,target,preventDefault(){event.prevented=true;},stopPropagation(){}};document.dispatch('keydown',event);return event;};
   els.score.querySelectorAll('.note-click')[2].dispatch('click');
@@ -2252,7 +2252,7 @@ test('down from lyric editor commits current row and selects next row note, seco
 });
 
 test('overflowing a score row does not discard the IME draft or overwrite another row',()=>{
-  const source='.Voice\\n1 2 |$(true)\\n3 4';
+  const source='.Voice\n1 2 |$(true)\n3 4';
   const {els,state,document}=boot({source});
   const press=(code,target)=>{const e={code,target,preventDefault(){e.prevented=true;},stopPropagation(){}};document.dispatch('keydown',e);return e;};
   els.score.querySelectorAll('.note-click')[0].dispatch('click');
@@ -2270,7 +2270,7 @@ test('overflowing a score row does not discard the IME draft or overwrite anothe
 });
 
 test('other score rerenders retain the full-row lyric draft and current IME focus',()=>{
-  const source='.Voice\\n1 2 3 |$(true)\\n4 5';
+  const source='.Voice\n1 2 3 |$(true)\n4 5';
   const {els,state,document,render}=boot({source});
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
