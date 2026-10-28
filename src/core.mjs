@@ -194,6 +194,57 @@ export function parseSong(source) {
   if (!voice.notes.length) warnings.push('未识别到可播放的音符。');
   return {raw,title,key,meter,transcriber,composer,singer,notes:voice.notes,elements:voice.elements,measures:voice.measures,slurs:voice.slurs,lyrics:words.lyrics,segments:words.segments,warnings};
 }
+/** Replace the lyric aligned with one note. Missing cells on either side
+ * are represented as slash placeholders, so the alignment is deterministic.
+ * Preserve all non-verse-1 sections and the other verses of .Words.
+ * The editor calls this ONLY when an IME-safe draft is committed.
+ */
+export function setLyricForNote(source,noteId,value){
+  const text=String(source??''),song=parseSong(text);
+  if(!Number.isInteger(noteId)||noteId<0||noteId>=song.notes.length)
+    throw new Error('歌词位置没有对应的音符。');
+  const entered=String(value??'');
+  if(/[\\r\\n{}]/.test(entered)||[...entered].length>100)
+    throw new Error('歌词不可包含换行或花括号，且不能超过 100 个字符。');
+  const tokens=song.notes.map(note=>{
+    const item=song.lyrics.get(note.id);
+    return item?.skip||!item?.text?'/':item.text;
+  });
+  tokens[noteId]=entered||'/';
+  const encode=value=>value==='/'?'/':('{'+value+'}');
+  // One explicit unit for every note makes gaps on both sides stable.
+  const anchor=song.notes[0];
+  const replacement='W1@'+anchor.measure+','+anchor.noteIndex+':\\n'+tokens.map(encode).join(' ');
+  const headings=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const sectionIndex=headings.findIndex(h=>h[1]==='Words');
+  if(sectionIndex<0){
+    const suffix=text.endsWith('\\n')?'':'\\n';
+    return {source:text+suffix+'.Words\\n'+replacement+'\\n',
+      count:tokens.length,noteId};
+  }
+  const header=headings[sectionIndex],bodyStart=header.index+header[0].length;
+  const bodyEnd=headings[sectionIndex+1]?.index??text.length;
+  const body=text.slice(bodyStart,bodyEnd),nl=text.includes('\\r\\n')?'\\r\\n':'\\n';
+  const match=[...body.matchAll(/^[ \\t]*W(\\d+)(?:-\\d+)?(?:\\([^)]*\\))?(?:@\\d+,\\d+)?(?:\\([^)]*\\))?:/gm)];
+  // Rewrite verse 1 only. Stanzas for verses 2+ and following sections
+  // retain their original bytes and order.
+  let preserved='',cursor=0,firstVersePosition=null;
+  for(let i=0;i<match.length;i++){
+    const start=match[i].index,end=match[i+1]?.index??body.length;
+    preserved+=body.slice(cursor,start);
+    if(Number(match[i][1])===1){
+      if(firstVersePosition===null)firstVersePosition=preserved.length;
+    }else preserved+=body.slice(start,end);
+    cursor=end;
+  }
+  preserved+=body.slice(cursor);
+  const position=firstVersePosition??(preserved.startsWith('\\r\\n')?2:preserved.startsWith('\\n')?1:0);
+  const prefix=preserved.slice(0,position),suffix=preserved.slice(position);
+  const paddedPrefix=prefix.length&&!prefix.endsWith('\\n')?prefix+nl:prefix;
+  const updated=paddedPrefix+replacement.replace(/\\n/g,nl)+nl+suffix.replace(/^\\n(?=\\n)/,'\\n');
+  return {source:text.slice(0,bodyStart)+updated+text.slice(bodyEnd),
+    count:tokens.length,noteId};
+}
 const MAJOR=[0,2,4,5,7,9,11];
 const ROOT={C:0,'#C':1,bD:1,D:2,'#D':3,bE:3,E:4,F:5,'#F':6,bG:6,G:7,'#G':8,bA:8,A:9,'#A':10,bB:10,B:11};
 export function noteFrequency(note,key='C') {
