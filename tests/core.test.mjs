@@ -718,3 +718,17 @@ test('non-contiguous selections copy only selected note symbols; selected bars c
     assert.throws(()=>pasteVoiceSelection(src,invalid,{kind:'note',index:1}),/只允许|非音符/);
   }
 });
+
+
+test('copying complete or partial slur phrases preserves only balanced source notation',()=>{
+  const source='.Voice\n(1_ 2_ (3 4)) 5 |$(true)\n6';
+  const selected=copyVoiceSelection(source,new Set([0,1,2,3]));
+  assert.equal(selected.text,'(1_ 2_ (3 4))');
+  const pasted=pasteVoiceSelection(source,selected.text,{kind:'note',index:5});
+  const parsed=parseSong(pasted.source);
+  assert.equal(parsed.notes.length,10);
+  assert.equal(parsed.slurs.length,4,'both original and copied slurs are retained');
+  const partial=copyVoiceSelection(source,new Set([1,2,3]));
+  assert.equal(partial.text,'2_ (3 4)','an incomplete outer slur is not copied');
+  assert.equal(parseSong('.Voice\n'+partial.text).slurs.length,1);
+});
