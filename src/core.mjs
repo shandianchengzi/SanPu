@@ -486,7 +486,7 @@ export function beatDurationSuffix(value) {
   // value in range: if above one, undo an added beat; below one, undo a
   // halving. This avoids expanding the potentially enormous numerator.
   let residual=beats,fallback='';
-  for(let i=0;i<1050&&residual!==1;i++){
+  for(let i=0;i<1100&&residual!==1;i++){
     if(residual>1){residual-=1;fallback='-'+fallback;}
     else {residual*=2;fallback='_'+fallback;}
   }
