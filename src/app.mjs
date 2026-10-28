@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, speedUpSongHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, adjustSongRhythmHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -1204,7 +1204,7 @@ function updateSelectedVisuals(){
     g.setAttribute('aria-pressed',String(selected));
   }
   $('batch-target-label').textContent=count?'选中音符偏移':'全谱音程偏移';
-  $('batch-rhythm-target').textContent=count?'选中音符节奏增快':'全谱节奏增快';
+  $('batch-rhythm-target').textContent=count?'选中音符节奏偏移':'全谱节奏偏移';
   $('batch-selection-count').textContent=count?'已选中 '+count+' 个音符':
     state.selectedItem?.kind==='bar'?'已选中小节线':'未选中音符';
   els.batchSlur.disabled=count<2;
@@ -1337,8 +1337,8 @@ function applyBatchEdit(field,operation,action){
   if(raw.trim()===''||!Number.isSafeInteger(n)){
     els.batchStatus.textContent='请输入有效的整数'+(operation==='移调'?'半音':'半拍')+'数。';return;
   }
-  if(operation==='节奏增快'&&n<=0){
-    els.batchStatus.textContent='增快节奏的半拍数必须是正整数。';return;
+  if(operation==='节奏偏移'&&n===0){
+    els.batchStatus.textContent='节奏偏移为 0，谱面不需要修改。';return;
   }
   if(operation==='移调'&&n===0){
     els.batchStatus.textContent='音程为 0，谱面不需要修改。';return;
@@ -1350,7 +1350,7 @@ function applyBatchEdit(field,operation,action){
   if(changed.count===0){els.batchStatus.textContent='谱面没有需要修改的音符。';return;}
   const target=selection?'选中的 '+selection.size+' 个音符':'全谱';
   const instruction=operation==='移调'?(n>0?'升高 '+n:'降低 '+Math.abs(n))+' 个半音':
-    '缩短 '+n+' 个半拍';
+    (n>0?'缩短 '+n:'延长 '+Math.abs(n))+' 个半拍';
   if(!confirm('确认将'+target+'中 '+changed.count+' 个音符'+instruction+'吗？\\n未选中音符、歌词、调号和排版空位保持不变。')){
     els.batchStatus.textContent='已取消，谱面未修改。';return;
   }
@@ -1360,7 +1360,7 @@ function applyBatchEdit(field,operation,action){
   els.batchStatus.textContent='已将'+target+operation+'：'+instruction+'，共修改 '+changed.count+' 个音符。';
 }
 els.batchApply.addEventListener('click',()=>applyBatchEdit(els.batchShift,'移调',transposeSongSemitones));
-els.batchRhythmApply.addEventListener('click',()=>applyBatchEdit(els.batchRhythm,'节奏增快',speedUpSongHalfBeats));
+els.batchRhythmApply.addEventListener('click',()=>applyBatchEdit(els.batchRhythm,'节奏偏移',adjustSongRhythmHalfBeats));
 els.batchSlur.addEventListener('click',()=>{
   if(state.selectedNoteIds.size<2)return;
   let changed;
