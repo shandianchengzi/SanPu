@@ -408,3 +408,20 @@ main{padding-top:23px}
 }
 
 .piano-backspace{display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;color:#385a51}
+
+/* Line-break keyboard selection overlays: no change to jianpu's baseline
+   renderer or CSS baseline. These do not participate in PDF printing. */
+.score-page .score-line .break-click{cursor:pointer}
+.score-page .score-line .break-click .break-hit{fill:transparent!important;stroke:none!important;pointer-events:all}
+.score-page .score-line .break-click .break-hint{
+  display:none;
+  font:12px "Microsoft YaHei","PingFang SC",sans-serif;
+  fill:#40776d!important;
+  paint-order:normal;
+  pointer-events:none;
+}
+.score-page .score-line .break-click.is-selected .break-hint{display:block}
+.score-page .score-line .break-click.is-selected .break-hit{fill:rgba(27,100,91,.08)!important}
+@media print{
+  .score-page .score-line .break-click{display:none!important}
+}
