@@ -981,7 +981,7 @@ test('click-only piano activation produces audio and a note in record mode',asyn
 
 test('clicking a score note also plays in recording mode while retaining score focus',async()=>{
   const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n3,_ y40 3,_ | #4,... $(true)\n3,_\n.Words\nW1@1,1:\n甲乙丙丁';
-  const {state,els}=boot({source,pianoAudition:false});
+  const {state,els,document}=boot({source,pianoAudition:false});
   let stopped=0;
   state.playing=true;state.audio={currentTime:1,destination:{},resume:async()=>{},
     createPeriodicWave(){return {};},
