@@ -2077,7 +2077,8 @@ test('a terminal break survives the next keyboard note and becomes a real new sy
   assert.equal(state.pendingTerminalBreak,null);
   assert.equal(state.song.elements.filter(e=>e.kind==='break').length,1);
   assert.deepEqual(state.song.notes.map(n=>n.row),[0,1]);
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1,']);
+  assert.equal(state.song.notes[0].raw,'1');
+  assert.match(state.song.notes[1].raw,/^1,/,'recorded note uses held-key duration');
   assert.equal(els.score.querySelectorAll('.break-click').length,1);
   assert.equal(els.score.querySelectorAll('.break-click')[0].classList.contains('is-selected'),false);
   assert.equal(els.score.querySelectorAll('.break-click')[0].children[1].textContent,'↵ 当前选中换行符');
