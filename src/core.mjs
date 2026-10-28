@@ -3,29 +3,20 @@
 export const EXAMPLE = `// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
 .Title
 Title = 一生所爱
-KeyAndMeters = {1=D,3/4}
+KeyAndMeters = {1=D}
 WordsByAndMusicBy = 唐书琛（词）／卢冠廷（曲）
 Singer = 周深（原唱：卢冠廷、莫文蔚）
 .Voice
 6,_   6, |7,_ 7, |1_ 1 (1_ 2) 3_ 6,-- |6,_ 6, 7,_ 7, 1_ 1  2_ 5 3- y15|$(true)
 4_ 3_ 2_ 1_ 2 7,- | 1 2_ 3-- y15 | y y  y15 4_ 3_ 2_ 1_ 2 7,-- y  y| 6, 5,_ 6,- y15| $(true)
 6_ (5_ 6-) | 1' 6_ 5  3-    y y y y y y y30| y y y y35 3 5_ 6- |1_ 1 2_ (3_ 5_) 3-- y25 y15|$(true)
-(6_  5_) 6- |1' 2'_ 6 5- 5_ 3-| y y y y35 6, 1_ 3 2- 2_ 1. y| y10 6, 5,_ 6,-  y15|$(true)
-2. (2_ 4.)  | (3__ 4__ 3__ 2__) 3_ 1_ 1__ 2__ 3- |  (4__. #4__ b6-) | (1' 7-) | (1'__. 7_) 6--  |$(true)
-1
-.Words
-
-W1@1,1:
-从前，现在,过去了再不来，红红落叶，长埋尘土里。
-开始终结总是没变改，天边的你飘泊白云外。
-{1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。
-相/亲 竟不可/接近,或我应该相信是缘份。
-/哒啦哒啦啦啦啊嗯哒啦啦，哒啦啦噜呜呜/呜
+(6_  5_) 6- |1' 2'_ 6 5- 5_ 3-|  y35 6, 1_ 3 2- 2_ 1. y| y10 6, 5,_ 6,-  0_    y15|$(true)
+2. (2_ 4.)  | (3__ 4__ 3__ 2__) 3_ 1_ 1__ 2__ 3- |  (4__. #4__ b6-) | (7__  1'_ 7-) | (1'__. 7_ 6--) | $(true)
 `;
 // Entries are separate from the editor state: adding another example only
 // requires appending an id/title/source entry here.
 export const EXAMPLES = Object.freeze([
-  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · 六行旋律',source:EXAMPLE})
+  Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · 五行旋律',source:EXAMPLE})
 ]);
 const NOTE = /^([#b]{0,2})([0-7])([,']*)((?:_+\.*|\.+_+|-+|\.+)(?![_*.-])|[_*-]+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
