@@ -2459,3 +2459,121 @@ test('Tab toggles audition on barlines and line breaks but not in text inputs or
   assert.equal(state.pianoAudition,true);
   document.dispatch('keydown',{code:'ArrowUp',preventDefault(){}});
 });
+
+
+test('Shift+click spans a stable note anchor across rows; Ctrl+click adds or removes disjoint notes',()=>{
+  const source='.Voice\n1 2 3 4 |$(true)\n5 6 7 1\n.Words\nW1@1,1:\n春夏秋冬日月星夜';
+  const {state,els,document,localStorage}=boot({source,pianoAudition:false});
+  const notes=()=>els.score.querySelectorAll('.note-click');
+  const modifierClick=(id,props)=>{
+    const event={target:notes()[id],preventDefault(){event.prevented=true;},
+      stopPropagation(){event.stopped=true;},stopImmediatePropagation(){event.immediate=true;},
+      ...props};
+    els.score.dispatch('click',event);
+    return event;
+  };
+  notes()[1].dispatch('click');
+  assert.deepEqual([...state.selectedNoteIds],[1]);
+  assert.equal(state.selectionAnchorId,1);
+  assert.equal(document.activeElement,notes()[1]);
+  const first=modifierClick(5,{shiftKey:true});
+  assert.equal(first.prevented,true);
+  assert.equal(first.stopped,true);
+  assert.equal(first.immediate,true);
+  assert.deepEqual([...state.selectedNoteIds],[1,2,3,4,5]);
+  assert.equal(state.selectionAnchorId,1);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:5});
+  assert.equal(document.activeElement,notes()[5]);
+  assert.equal(state.playing,false,'selection must not start whole-song playback');
+  assert.equal(els.source.value,source);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,source);
+  modifierClick(3,{shiftKey:true});
+  assert.deepEqual([...state.selectedNoteIds],[1,2,3],
+    'repeated Shift+click must use the original anchor');
+  assert.equal(state.selectionAnchorId,1);
+  modifierClick(7,{ctrlKey:true});
+  assert.deepEqual([...state.selectedNoteIds],[1,2,3,7]);
+  assert.equal(state.selectionAnchorId,7);
+  assert.equal(document.activeElement,notes()[7]);
+  assert.equal(document.getElementById('batch-selection-count').textContent,'已选中 4 个音符');
+  modifierClick(2,{ctrlKey:true});
+  assert.deepEqual([...state.selectedNoteIds],[1,3,7],'Ctrl+click again removes a note');
+  assert.deepEqual(state.selectedItem,{kind:'note',index:7},
+    'deselecting a non-last note leaves a selected current note');
+  modifierClick(4,{ctrlKey:true});
+  assert.deepEqual([...state.selectedNoteIds],[1,3,7,4]);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:4});
+  assert.equal(document.activeElement,notes()[4]);
+  const down={code:'ArrowDown',key:'ArrowDown',preventDefault(){down.prevented=true;},
+    stopPropagation(){}};
+  document.dispatch('keydown',down);
+  assert.equal(down.prevented,true);
+  assert.equal(state.lyricDraft.noteId,7,'Down edits the last note in score order');
+  assert.deepEqual(state.lyricDraft.ids,[4,5,6,7]);
+  assert.equal(state.lyricDraft.input.value,'日月星夜');
+  const up={code:'ArrowUp',preventDefault(){},stopPropagation(){}};
+  document.dispatch('keydown',up);
+  assert.equal(state.lyricDraft,null);
+  assert.deepEqual([...state.selectedNoteIds],[1,3,7,4],
+    'lyric editing must preserve the discontiguous selection');
+  assert.equal(document.activeElement,notes()[7]);
+});
+
+test('Ctrl+Shift+click extends a range without clearing discontiguous notes; switching score views preserves it',()=>{
+  const source='.Voice\n1 2 |$(true)\n3 4 5 |$(true)\n6 7';
+  const {els,state,document}=boot({source,pianoAudition:false});
+  const click=(id,mods={})=>{
+    const event={target:els.score.querySelectorAll('.note-click')[id],preventDefault(){},
+      stopPropagation(){},stopImmediatePropagation(){},...mods};
+    els.score.dispatch('click',event);
+  };
+  els.score.querySelectorAll('.note-click')[0].dispatch('click');
+  click(4,{ctrlKey:true});
+  click(2,{ctrlKey:true,shiftKey:true});
+  assert.deepEqual([...state.selectedNoteIds].sort((a,b)=>a-b),[0,2,3,4]);
+  assert.equal(state.selectionAnchorId,4);
+  click(3,{ctrlKey:true});
+  assert.deepEqual([...state.selectedNoteIds].sort((a,b)=>a-b),[0,2,4]);
+  assert.equal(state.selectedNoteIds.has(3),false);
+  const picker=document.getElementById('score-type');
+  picker.value='staff';picker.dispatch('change');
+  assert.deepEqual([...state.selectedNoteIds].sort((a,b)=>a-b),[0,2,4]);
+  assert.equal(els.score.querySelectorAll('.note-click').filter(g=>g.classList.contains('is-selected')).length,3);
+  picker.value='jianpu';picker.dispatch('change');
+  assert.equal(els.score.querySelectorAll('.note-click').filter(g=>g.classList.contains('is-selected')).length,3);
+  click(4,{ctrlKey:true});
+  click(2,{ctrlKey:true});
+  click(0,{ctrlKey:true});
+  assert.equal(state.selectedNoteIds.size,0,'every selected note can be deselected');
+  assert.equal(state.selectedItem,null);
+  assert.equal(document.getElementById('batch-selection-count').textContent,'未选中音符');
+  click(5,{shiftKey:true});
+  assert.deepEqual([...state.selectedNoteIds],[5],'Shift without an anchor selects its clicked note');
+});
+
+test('plain click and mouse drag retain their behavior; modifier pointer gestures never turn into drag selection',()=>{
+  const source='.Voice\n1 2 3 |$(true)\n4 5 6';
+  const {els,state,document}=boot({source,pianoAudition:false});
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  // Ctrl pointerdown plus a move must not enable drag-select or replace the current selection.
+  els.score.dispatch('pointerdown',{button:0,pointerId:25,pointerType:'mouse',
+    ctrlKey:true,clientX:10,clientY:10,target:notes[2]});
+  document.dispatch('pointermove',{pointerId:25,clientX:120,clientY:55,target:notes[5],preventDefault(){}});
+  document.dispatch('pointerup',{pointerId:25,target:notes[5]});
+  assert.deepEqual([...state.selectedNoteIds],[0]);
+  assert.equal(els.score.classList.contains('is-range-selecting'),false);
+  els.score.dispatch('pointerdown',{button:0,pointerId:26,pointerType:'mouse',
+    clientX:10,clientY:10,target:notes[1]});
+  document.dispatch('pointermove',{pointerId:26,clientX:120,clientY:55,target:notes[4],preventDefault(){}});
+  document.dispatch('pointerup',{pointerId:26,target:notes[4]});
+  assert.deepEqual([...state.selectedNoteIds],[1,2,3,4]);
+  assert.equal(state.selectionAnchorId,1);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:4});
+  assert.equal(els.score.classList.contains('is-range-selecting'),false);
+  // After the drag's synthetic click has been consumed, a simple click replaces the selection.
+  els.score.dispatch('click',{target:notes[4],preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}});
+  notes[5].dispatch('click');
+  assert.deepEqual([...state.selectedNoteIds],[5]);
+  assert.equal(state.selectionAnchorId,5);
+});
