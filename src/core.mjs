@@ -331,7 +331,11 @@ export function setLyricRow(source,noteIds,raw){
     return item?.skip||!item?.text?'/':item.text;
   });
   for(let i=0;i<noteIds.length;i++)tokens[noteIds[i]]=input[i]||'/';
-  return rewriteLyricSlots(text,song,tokens,noteIds[0]);
+  // Trailing empty notes in later rows are not part of this edit. Do not
+  // materialize "/" placeholders across every subsequent score system.
+  const lastText=tokens.findLastIndex(token=>token!=='/');
+  const lastEntered=noteIds[0]+input.length-1;
+  return rewriteLyricSlots(text,song,tokens.slice(0,Math.max(lastText,lastEntered)+1),noteIds[0]);
 }
 
 const MAJOR=[0,2,4,5,7,9,11];
