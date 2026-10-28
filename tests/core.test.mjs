@@ -445,7 +445,7 @@ test('scoped pitch and exact half-beat edits preserve all unselected voice and l
   const transpose=transposeSongSemitones(source,2,[0,2]);
   assert.deepEqual(parseSong(transpose.source).notes.map(n=>n.raw),['2-','2','#4_','4-','0-','5.']);
   assert.equal(transpose.source.split('.Words')[1],source.split('.Words')[1]);
-  assert.throws(()=>transposeSongSemitones(source,1,[999]),/重新选择/);
+  assert.throws(()=>transposeSongSemitones(source,1,[999]),/先选中|重新选择/);
 });
 
 test('selected notes become one parsed JPW phrasing slur without disturbing layout',async()=>{
