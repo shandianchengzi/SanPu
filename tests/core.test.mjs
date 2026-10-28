@@ -9,44 +9,44 @@ test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('.'),1.5);
   assert.equal(durationFromSuffix('_.'),.75);
 });
-test('user supplied score parses without changing source',()=>{
+test('the built-in score exactly matches the revised five-line meterless example',()=>{
+  const expected=`// ************** JPW-ABC File Ver 1.0 (for JP-Word v5.50m) **************
+.Title
+Title = 一生所爱
+KeyAndMeters = {1=D}
+WordsByAndMusicBy = 唐书琛（词）／卢冠廷（曲）
+Singer = 周深（原唱：卢冠廷、莫文蔚）
+.Voice
+6,_   6, |7,_ 7, |1_ 1 (1_ 2) 3_ 6,-- |6,_ 6, 7,_ 7, 1_ 1  2_ 5 3- y15|$(true)
+4_ 3_ 2_ 1_ 2 7,- | 1 2_ 3-- y15 | y y  y15 4_ 3_ 2_ 1_ 2 7,-- y  y| 6, 5,_ 6,- y15| $(true)
+6_ (5_ 6-) | 1' 6_ 5  3-    y y y y y y y30| y y y y35 3 5_ 6- |1_ 1 2_ (3_ 5_) 3-- y25 y15|$(true)
+(6_  5_) 6- |1' 2'_ 6 5- 5_ 3-|  y35 6, 1_ 3 2- 2_ 1. y| y10 6, 5,_ 6,-  0_    y15|$(true)
+2. (2_ 4.)  | (3__ 4__ 3__ 2__) 3_ 1_ 1__ 2__ 3- |  (4__. #4__ b6-) | (7__  1'_ 7-) | (1'__. 7_ 6--) | $(true)
+`;
+  assert.equal(EXAMPLE,expected,'do not normalize any user-provided notation or spacing');
   const song=parseSong(EXAMPLE);
   assert.equal(song.raw,EXAMPLE);
   assert.equal(song.title,'一生所爱');
   assert.equal(song.key,'D');
-  assert.equal(song.meter,'3/4');
+  assert.equal(song.meter,'','the default score has no time signature');
   assert.equal(song.transcriber,'shandianchengzi');
   assert.equal(song.composer,'唐书琛（词）／卢冠廷（曲）');
   assert.equal(song.singer,'周深（原唱：卢冠廷、莫文蔚）');
-  assert.equal(song.notes.length,92);
+  assert.equal(song.notes.length,93);
   assert.equal(song.elements.filter(e=>e.kind==='bar').length,21);
   assert.equal(song.elements.filter(e=>e.kind==='break').length,5);
   assert.deepEqual(song.notes.slice(0,4).map(n=>n.raw),['6,_','6,','7,_','7,']);
   assert.deepEqual(song.notes.slice(0,3).map(n=>n.beats),[.5,1,.5]);
-  assert.equal(song.lyrics.get(0).text,'从');
-  assert.equal(song.lyrics.get(1).text,'前，');
-  assert.equal(song.lyrics.get(37).text,'苦');
-  assert.equal(song.lyrics.get(39).skip,true);
-  assert.equal(song.lyrics.get(70).text,'份。');
-  assert.equal(song.lyrics.size,91);
+  assert.equal(song.lyrics.size,0,'the new default does not add the previous lyrics');
+  assert.ok(!EXAMPLE.includes('.Words'));
+  assert.deepEqual(song.slurs.map(({startId,endId})=>[startId,endId]),
+    [[6,7],[38,39],[50,51],[53,54],[72,73],[74,77],[84,86],[87,89],[90,92]]);
+  assert.equal(song.notes[90].raw,"1'__.");
+  assert.equal(song.notes[92].raw,'6--');
+  assert.equal(song.notes[92].row,4);
+  assert.equal(song.notes.filter(n=>n.raw==='0_').length,1);
   assert.equal(song.warnings.length,0);
-  const spacerMarks=song.elements.filter(e=>e.kind==='spacer').map(e=>e.raw);
-  assert.deepEqual(spacerMarks,['y15','y15','y','y','y15','y','y','y15','y','y','y','y','y','y','y30','y','y','y','y35','y25','y15','y','y','y','y35','y','y10','y15']);
-  assert.ok(EXAMPLE.includes('从前，现在,过去了再不来，红红落叶，长埋尘土里。'));
-  assert.ok(EXAMPLE.includes('开始终结总是没变改，天边的你飘泊白云外。'));
-  assert.ok(EXAMPLE.includes('{1.[苦]}海/ 翻起爱恨， 在世间 难逃避命/运。'));
-  assert.ok(EXAMPLE.includes('相/亲 竟不可/接近,或我应该相信是缘份。'));
-  assert.ok(EXAMPLE.includes("1' 6_ 5  3-    y y y y y y y30|"));
-  assert.ok(EXAMPLE.includes('7,-- y  y| 6, 5,_ 6,-'));
-  assert.equal(song.notes[9].raw,'6,--');
-  assert.ok(EXAMPLE.includes('2. (2_ 4.)  | (3__ 4__ 3__ 2__) 3_ 1_ 1__ 2__ 3-'));
-  assert.ok(EXAMPLE.includes("(4__. #4__ b6-) | (1' 7-) | (1'__. 7_) 6--  |$(true)"));
-  assert.deepEqual(song.slurs.map(({startId,endId})=>[startId,endId]),[[6,7],[38,39],[50,51],[53,54],[72,73],[74,77],[83,85],[86,87],[88,89]]);
-  assert.equal(song.notes[90].raw,'6--');
-  assert.equal(song.notes[91].raw,'1');
-  assert.equal(song.notes[91].row,5);
-  assert.ok(EXAMPLE.includes('6--  |$(true)\n1\n.Words'));
-  assert.equal(EXAMPLES[0].source,EXAMPLE);
+  assert.equal(EXAMPLES[0].source,EXAMPLE,'the built-in library entry uses the same revised score');
   assert.equal(EXAMPLES[0].title,song.title);
 });
 test('slash consumes one note; punctuation and spaces do not',()=>{
