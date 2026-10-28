@@ -706,14 +706,14 @@ test('song library initializes from the built-in score and explicit load protect
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.state.format.titleSize,62);
-  draft.els.libraryName.focus();
+  draft.els.libraryName.focus();draft.els.libraryName.dispatch('focus');
   assert.equal(draft.els.libraryOptions.children.length,1);
   draft.els.libraryOptions.children[0].click();
   draft.document.getElementById('example-btn').click();
   assert.equal(draft.els.source.value,'.Voice\n1 2');
   assert.equal(draft.confirmations.length,1);
   const approved=boot({source:'.Voice\n1 2'},true);
-  approved.els.libraryName.focus();
+  approved.els.libraryName.focus();approved.els.libraryName.dispatch('focus');
   approved.els.libraryOptions.children[0].click();
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
