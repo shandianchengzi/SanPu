@@ -2434,11 +2434,13 @@ test('Tab toggles audition on barlines and line breaks but not in text inputs or
   assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
   assert.equal(document.activeElement,bar);
   marker.dispatch('click');
-  assert.equal(document.activeElement,marker);
+  // Break navigation rerenders its hint overlay and replaces the SVG node.
+  const focusedMarker=els.score.querySelectorAll('.break-click')[0];
+  assert.equal(document.activeElement,focusedMarker);
   assert.equal(key().prevented,true);
   assert.equal(state.pianoAudition,true);
   assert.deepEqual(state.selectedItem,{kind:'break',index:0});
-  assert.equal(document.activeElement,marker);
+  assert.equal(document.activeElement,focusedMarker);
 
   const sourceInput=els.source;
   sourceInput.tag='textarea';
