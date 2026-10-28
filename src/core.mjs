@@ -27,7 +27,7 @@ W1@1,1:
 export const EXAMPLES = Object.freeze([
   Object.freeze({id:'yi-sheng-suo-ai',title:'一生所爱',description:'1=D · 散板 · 六行旋律',source:EXAMPLE})
 ]);
-const NOTE = /^([#b]{0,2})([0-7])([,']*)((?:[_*.-]+))?/;
+const NOTE = /^([#b]{0,2})([0-7])([,']*)((?:_+\.*|\.+_+|-+|\.+)(?![_*.-])|[_*-]+)?/;
 // ABC's y is a layout-only spacer; SanPu extends .Voice with y or y<number>.
 // Widths use SVG user units (not musical beats) and are bounded to avoid
 // accidental enormous documents. Adjacent y marks may also be repeated.
@@ -484,9 +484,9 @@ export function beatDurationSuffix(value) {
   // then halve denominator times.
   const numerator=beats*denominator;
   let fallback='-'.repeat(numerator-1)+'_'.repeat(Math.log2(denominator));
-  const maxSteps=Math.min(24,fallback.length);
+  const maxSteps=Math.min(14,fallback.length);
   const queue=[{beats,suffix:''}],seen=new Set([beats]);
-  for(let i=0;i<queue.length&&i<40000;i++){
+  for(let i=0;i<queue.length&&i<20000;i++){
     const {beats:current,suffix}=queue[i];
     if(current===1)return suffix;
     if(suffix.length>=maxSteps)continue;
