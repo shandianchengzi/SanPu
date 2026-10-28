@@ -13,7 +13,7 @@ const els = {
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
@@ -277,6 +277,7 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   state.selectedItem={kind:'note',index:result.noteId};
   state.selectedNoteIds=new Set([result.noteId]);
   state.song=parseSong(els.source.value);
+  state.pendingTerminalBreak=null; // The next recorded note commits the new system.
   render();highlight(result.noteId);
   persist();
   els.pianoStatus.textContent=(rest?'休止符':pianoLabel(midi)+' → '+pianoLabel(soundMidi))+' → '+token+' · 已插入第 '+(result.noteId+1)+' 个音符';
@@ -420,7 +421,55 @@ function scoreFocused(){
 }
 // All score-focused keyboard recording uses the same note anchor and source caret,
 // including silent rests and structural separators.
+// A new system at the end of a phrase is provisional until another note
+// starts there. Keep this UI-only pending state outside the SVG renderer.
+function trailingVoiceWhitespace(source,offset){
+  const tail=String(source).slice(offset);
+  const header=tail.search(/^[ \t]*\.(?:Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/m);
+  return /^\s*$/.test(header<0?tail:tail.slice(0,header));
+}
+function pendingTerminalBreakValid(){
+  const pending=state.pendingTerminalBreak;
+  if(!pending)return false;
+  const items=voiceEditItems(els.source.value);
+  const last=items.at(-1);
+  return last?.kind==='break'&&last.index===pending.breakIndex&&
+    trailingVoiceWhitespace(els.source.value,last.to);
+}
+function cancelPendingTerminalBreak(){
+  const pending=state.pendingTerminalBreak;
+  if(!pending)return false;
+  state.pendingTerminalBreak=null;
+  let source=els.source.value;
+  if(source===pending.sourceAfter)source=pending.sourceBefore;
+  else if(pendingTerminalMarkerExists(pending)){
+    // An unrelated metadata edit may have changed source offsets. In this case,
+    // delete only the provisional newline token, not the user's other edits.
+    const changed=deleteVoiceItem(source,'break',pending.breakIndex);
+    if(changed)source=changed.source;
+  }
+  if(source===els.source.value)return false;
+  els.source.value=source;
+  state.song=parseSong(source);
+  const caret=els.source.selectionStart;
+  if(Number.isInteger(caret))
+    els.source.selectionStart=els.source.selectionEnd=Math.min(caret,source.length);
+  persist();
+  return true;
+}
+function pendingTerminalMarkerExists(pending){
+  const items=voiceEditItems(els.source.value);
+  const last=items.at(-1);
+  return last?.kind==='break'&&last.index===pending.breakIndex&&
+    trailingVoiceWhitespace(els.source.value,last.to);
+}
 function insertKeyboardMarker(marker){
+  const oldSource=els.source.value;
+  const itemsBefore=voiceEditItems(oldSource);
+  const lastBefore=itemsBefore.at(-1);
+  const pendingEligible=marker==='$(true)'&&state.selectedItem?.kind==='bar'&&
+    lastBefore?.kind==='bar'&&lastBefore.index===state.selectedItem.index&&
+    trailingVoiceWhitespace(oldSource,lastBefore.to);
   const result=insertPianoMarker(els.source.value,marker,state.cursorNoteId,els.source.selectionStart,['bar','break'].includes(state.selectedItem?.kind));
   if(!result){els.pianoStatus.textContent='请先添加 .Voice 段再划分小节或换行。';return;}
   clearTimeout(saveTimer);
@@ -434,6 +483,8 @@ function insertKeyboardMarker(marker){
     e.from>=result.caret-(marker==='|'?3:12)&&e.to<=result.caret).at(-1);
   state.selectedItem=found?{kind:found.kind,index:found.index}:null;
   state.selectedNoteIds.clear();
+  state.pendingTerminalBreak=pendingEligible&&found?
+    {sourceBefore:oldSource,sourceAfter:result.source,breakIndex:found.index}:null;
   render();
   if(result.noteId>=0)highlight(result.noteId);
   persist();
@@ -518,6 +569,8 @@ function deleteSelectedScoreItem(direction='self'){
     state.selectedItem={kind:oldAnchor.kind,index:oldAnchor.index-removedBefore};
   }
   els.source.value=changedSource;
+  if(state.pendingTerminalBreak&&!pendingTerminalMarkerExists(state.pendingTerminalBreak))
+    state.pendingTerminalBreak=null;
   const caret=targets.reduce((min,item)=>Math.min(min,item.from),Infinity);
   els.source.selectionStart=els.source.selectionEnd=caret;
   state.song=parseSong(changedSource);
@@ -1168,6 +1221,13 @@ function render() {
     els.score.append(system);
     positionPunctuation(system);
   }
+  if(pendingTerminalBreakValid()){
+    const hint=document.createElement('p');
+    hint.className='score-pending-newline';
+    hint.textContent='↵ 准备另起一行 · 输入下一个音符开始新行';
+    hint.setAttribute('role','status');
+    els.score.append(hint);
+  }
   els.warnings.replaceChildren();
   const msgs=[...new Set(song.warnings)];
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
@@ -1177,6 +1237,7 @@ function render() {
 }
 function refresh(keepSelection=true) {
   clearPianoSequence();stopAudio();
+  if(!keepSelection||!pendingTerminalBreakValid())state.pendingTerminalBreak=null;
   if(!keepSelection){
     state.cursorNoteId=-1;state.selectedItem=null;state.selectedNoteIds.clear();
   }
@@ -1219,6 +1280,10 @@ function focusScoreSelection(){
   target?.focus?.({preventScroll:true});
 }
 function clearScoreSelection(){
+  if(state.pendingTerminalBreak){
+    cancelPendingTerminalBreak();
+    render();
+  }
   state.selectedNoteIds.clear();
   state.selectedItem=null;
   state.cursorNoteId=-1;
@@ -1226,6 +1291,10 @@ function clearScoreSelection(){
   highlight(state.active);
 }
 function selectScoreRange(from,to){
+  if(state.pendingTerminalBreak){
+    cancelPendingTerminalBreak();
+    render();
+  }
   if(!Number.isInteger(from)||!Number.isInteger(to))return;
   const max=state.song.notes.length-1;
   if(from<0||to<0||from>max||to>max)return;
@@ -1287,6 +1356,7 @@ async function runPlayback() {
 }
 function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
+  if(state.pendingTerminalBreak)cancelPendingTerminalBreak();
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
@@ -1299,6 +1369,7 @@ function selectScoreNote(id){
   note?.focus?.({preventScroll:true});
 }
 function selectScoreBar(index){
+  if(state.pendingTerminalBreak)cancelPendingTerminalBreak();
   const item=voiceEditItems(els.source.value).find(e=>e.kind==='bar'&&e.index===index);
   if(!item)return;
   clearPianoSequence();stopAudio();
