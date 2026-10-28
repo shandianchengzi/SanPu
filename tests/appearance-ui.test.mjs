@@ -34,6 +34,7 @@ class FakeElement {
     this.value=this.value.slice(0,start)+text+this.value.slice(end);
     this.selectionStart=this.selectionEnd=start+text.length;
   }
+  setSelectionRange(start,end=start){this.selectionStart=start;this.selectionEnd=end;}
   click(){this.clicked=true;return this.dispatch('click')}
   remove(){this.removed=true}
   append(...children){for(const child of children){child.parent=this;this.children.push(child)}}
@@ -2112,60 +2113,78 @@ test('changing selected note or deleting provisional newline cancels pending hin
   assert.match(css,/@media print\{\s*\.score-page \.score-line \.break-click\{display:none!important\}/);
 });
 
-test('down arrow edits lyric beneath the selected note, up arrow commits and fills gaps',()=>{
-  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 3 4';
+test('down arrow opens whole score line and inserts multiple lyric characters by note position',()=>{
+  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2 3 4 5';
   const {els,state,document,localStorage}=boot({source});
   els.score.querySelectorAll('.note-click')[2].dispatch('click');
-  const press=(code,target)=>{const ev={code,key:code,target,preventDefault(){ev.prevented=true},stopPropagation(){}};document.dispatch('keydown',ev);return ev};
+  const press=(code,target)=>{const ev={code,key:code,target,preventDefault(){ev.prevented=true;},stopPropagation(){}};document.dispatch('keydown',ev);return ev;};
   assert.equal(press('ArrowDown').prevented,true);
   assert.equal(state.lyricDraft.noteId,2);
+  assert.deepEqual(state.lyricDraft.ids,[0,1,2,3,4]);
   const input=state.lyricDraft.input;
-  assert.ok(input&&input.className==='lyric-inline-input');
+  assert.equal(input.className,'lyric-inline-input lyric-line-input');
   assert.equal(document.activeElement,input);
+  assert.equal(input.value,'//');
+  assert.equal(input.selectionStart,2,'cursor follows two missing lyric placeholders');
+  assert.equal(input.selectionEnd,2);
   for(const eventName of ['click','pointerdown','keydown']){
     let stopped=false;
     input.dispatch(eventName,{stopPropagation(){stopped=true;}});
-    assert.equal(stopped,true,eventName+' must not bubble to the note playback handler');
+    assert.equal(stopped,true,eventName+' should not bubble to note playback');
   }
-  input.value='花';input.dispatch('input');
-  assert.equal(els.source.value,source,'IME draft must not modify original source');
+  input.value='//春夏秋';input.dispatch('input');
+  assert.equal(els.source.value,source,'draft is not saved on each input event');
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,source);
   assert.equal(press('ArrowUp',input).prevented,true);
   assert.equal(state.lyricDraft,null);
-  assert.deepEqual([0,1,2,3].map(i=>state.song.lyrics.get(i)?.text??''),['','','花','']);
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),['','','春','夏','秋']);
   assert.equal(state.song.lyrics.get(0)?.skip,true);
-  assert.equal(state.song.lyrics.get(3)?.skip,true);
-  assert.match(els.source.value,/\/ \/ \{花\} \//);
   assert.equal(document.activeElement,els.score.querySelectorAll('.note-click')[2]);
   assert.deepEqual([...state.selectedNoteIds],[2]);
   assert.equal(press('ArrowDown').prevented,true);
-  const replace=state.lyricDraft.input;
-  assert.equal(replace.value,'花');
-  replace.value='草';replace.dispatch('input');
-  press('ArrowUp',replace);
-  assert.equal(state.song.lyrics.get(2).text,'草');
-  assert.equal(state.song.lyrics.get(3).skip,true);
+  const next=state.lyricDraft.input;
+  assert.equal(next.value,'//春夏秋');
+  assert.equal(next.selectionStart,3,'cursor follows the third note existing lyric');
+  next.value='//夜夏秋';next.dispatch('input');
+  press('ArrowUp',next);
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),['','','夜','夏','秋']);
   assert.equal(press('ArrowRight').prevented,true);
   assert.deepEqual(state.selectedItem,{kind:'note',index:3});
 });
 
-test('IME composition never rewrites Words mid-composition; blur commits after composition finishes',()=>{
-  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2\n.Words\nW1@1,1:\n秋冬';
+test('line lyric selection preserves following words and offers replacement of a missing middle cell',()=>{
+  const source='.Voice\\n1 2 3 4 5 |$(true)\\n6 7\\n.Words\\nW1@1,1:\\n天地/星月';
+  const {els,state,document}=boot({source});
+  els.score.querySelectorAll('.note-click')[2].dispatch('click');
+  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
+  const input=state.lyricDraft.input;
+  assert.equal(input.value,'天地/星月');
+  assert.equal(input.selectionStart,2);
+  assert.equal(input.selectionEnd,3,'unfilled note is selected to overwrite /');
+  input.value='天地花星月';input.dispatch('input');
+  document.dispatch('keydown',{code:'ArrowUp',target:input,preventDefault(){}});
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),
+    ['天','地','花','星','月','','']);
+});
+
+test('full-line lyric composition preserves source and existing suffix until completion',()=>{
+  const source='.Title\\nKeyAndMeters = {1=C,3/4}\\n.Voice\\n1 2\\n.Words\\nW1@1,1:\\n秋冬';
   const {els,state,document,localStorage}=boot({source});
   els.score.querySelectorAll('.note-click')[0].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){},stopPropagation(){}});
   const editor=state.lyricDraft.input;
-  assert.equal(editor.value,'秋');
+  assert.equal(editor.value,'秋冬');
+  assert.equal(editor.selectionStart,1);
   editor.dispatch('compositionstart');
-  editor.value='p';editor.dispatch('input');
-  editor.value='pi';editor.dispatch('input');
+  editor.value='p冬';editor.dispatch('input');
+  editor.value='pi冬';editor.dispatch('input');
   assert.equal(state.lyricDraft.composing,true);
   assert.equal(els.source.value,source);
-  document.dispatch('keydown',{code:'ArrowUp',isComposing:true,target:editor,preventDefault(){throw Error('IME should handle arrow')}});
-  editor.value='苹';editor.dispatch('input');
+  document.dispatch('keydown',{code:'ArrowUp',isComposing:true,target:editor,preventDefault(){throw Error('IME owns key')}});
+  editor.value='苹冬';editor.dispatch('input');
   assert.equal(els.source.value,source);
   editor.dispatch('blur');
-  assert.equal(els.source.value,source,'blur during composition waits for compositionend');
+  assert.equal(els.source.value,source,'composing blur defers commit');
   editor.dispatch('compositionend');
   assert.equal(state.lyricDraft,null);
   assert.equal(state.song.lyrics.get(0).text,'苹');
@@ -2173,51 +2192,98 @@ test('IME composition never rewrites Words mid-composition; blur commits after c
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
 });
 
-test('30s lyric inactivity commits once and leaving score mode commits immediately',()=>{
-  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2 3';
+test('30s row-lyric autosave preserves the editor and does not overwrite another row',()=>{
+  const source='.Voice\\n1 | 2 3 |$(true)\\n4 5';
   const {els,state,document,timers,fireTimer}=boot({source});
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
   const editor=state.lyricDraft.input;
-  editor.value='春';editor.dispatch('input');
+  assert.equal(editor.value,'/');
+  editor.value='/春';editor.dispatch('input');
+  const first=[...timers.entries()].find(([,t])=>t.delay===30000);
+  editor.value='/春天';editor.dispatch('input');
+  assert.equal(timers.has(first[0]),false);
+  const current=[...timers.entries()].find(([,t])=>t.delay===30000);
   assert.equal(els.source.value,source);
-  const timeouts=[...timers.entries()].filter(([,t])=>t.delay===30000);
-  assert.equal(timeouts.length,1);
-  editor.value='春天';editor.dispatch('input');
-  assert.equal(timers.has(timeouts[0][0]),false,'new edit resets the 30-second timer');
-  const pending=[...timers.entries()].find(([,t])=>t.delay===30000);
-  fireTimer(pending[0]);
-  assert.equal(state.song.lyrics.get(1).text,'春天');
-  assert.equal(state.lyricDraft?.value,'春天','idle autosave keeps the lyric editor open');
+  fireTimer(current[0]);
+  assert.deepEqual(state.song.notes.slice(0,3).map(n=>state.song.lyrics.get(n.id)?.text??''),['','春','天']);
+  assert.equal(state.lyricDraft?.value,'/春天');
   assert.equal(document.activeElement,state.lyricDraft.input);
-  els.score.querySelectorAll('.note-click')[2].dispatch('click');
-  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
-  const next=state.lyricDraft.input;
-  next.value='好';next.dispatch('input');
-  next.dispatch('blur');
+  const input=state.lyricDraft.input;
+  input.value='/春好';input.dispatch('input');
+  document.dispatch('keydown',{code:'ArrowUp',target:input,preventDefault(){}});
   assert.equal(state.lyricDraft,null);
-  assert.equal(state.song.lyrics.get(2).text,'好');
-  assert.equal(state.song.lyrics.get(1).text,'春天');
-  assert.equal(els.source.value.includes('W1@1,1:'),true);
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),
+    ['','春','好','','']);
 });
 
-test('unrelated score rerenders preserve the in-progress lyric draft and IME focus',()=>{
-  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2';
+test('down from lyric editor commits current row and selects next row note, second down edits next row',()=>{
+  const source='.Voice\\n1 2 3 |$(true)\\n4 5 |$(true)\\n6 7';
+  const {els,state,document}=boot({source});
+  const press=(code,target)=>{const event={code,key:code,target,preventDefault(){event.prevented=true;},stopPropagation(){}};document.dispatch('keydown',event);return event;};
+  els.score.querySelectorAll('.note-click')[2].dispatch('click');
+  press('ArrowDown');
+  const first=state.lyricDraft.input;
+  assert.equal(first.value,'//');
+  first.value='//秋';first.dispatch('input');
+  assert.equal(press('ArrowDown',first).prevented,true);
+  assert.equal(state.lyricDraft,null);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:3});
+  assert.equal(document.activeElement,els.score.querySelectorAll('.note-click')[3]);
+  assert.equal(state.song.lyrics.get(2).text,'秋');
+  press('ArrowDown');
+  assert.equal(state.lyricDraft.noteId,3);
+  assert.deepEqual(state.lyricDraft.ids,[3,4]);
+  assert.equal(state.lyricDraft.input.value,'');
+  const second=state.lyricDraft.input;
+  second.value='春夏';second.dispatch('input');
+  press('ArrowUp',second);
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),
+    ['','','秋','春','夏','','']);
+  assert.equal(document.activeElement,els.score.querySelectorAll('.note-click')[3]);
+  // Re-entering the last row and pressing down has no next line to navigate.
+  els.score.querySelectorAll('.note-click')[6].dispatch('click');
+  press('ArrowDown');
+  const last=state.lyricDraft.input;
+  press('ArrowDown',last);
+  assert.equal(state.lyricDraft.input,last);
+  assert.match(els.pianoStatus.textContent,/最后一行/);
+  press('ArrowUp',last);
+});
+
+test('overflowing a score row does not discard the IME draft or overwrite another row',()=>{
+  const source='.Voice\\n1 2 |$(true)\\n3 4';
+  const {els,state,document}=boot({source});
+  const press=(code,target)=>{const e={code,target,preventDefault(){e.prevented=true;},stopPropagation(){}};document.dispatch('keydown',e);return e;};
+  els.score.querySelectorAll('.note-click')[0].dispatch('click');
+  press('ArrowDown');
+  const editor=state.lyricDraft.input;
+  editor.value='春夏秋冬';editor.dispatch('input');
+  press('ArrowUp',editor);
+  assert.equal(state.lyricDraft.input,editor,'overlong row remains editable');
+  assert.equal(els.source.value,source,'no partial save');
+  assert.match(els.pianoStatus.textContent,/只有 2 个音符/);
+  editor.value='春夏';editor.dispatch('input');
+  press('ArrowUp',editor);
+  assert.equal(state.lyricDraft,null);
+  assert.deepEqual(state.song.notes.map(n=>state.song.lyrics.get(n.id)?.text??''),['春','夏','','']);
+});
+
+test('other score rerenders retain the full-row lyric draft and current IME focus',()=>{
+  const source='.Voice\\n1 2 3 |$(true)\\n4 5';
   const {els,state,document,render}=boot({source});
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
   const oldInput=state.lyricDraft.input;
-  oldInput.value='未提交';oldInput.dispatch('input');
+  oldInput.value='/中美';oldInput.dispatch('input');
   render();
   assert.notEqual(state.lyricDraft.input,oldInput);
-  assert.equal(state.lyricDraft.input.value,'未提交');
+  assert.equal(state.lyricDraft.input.value,'/中美');
   assert.equal(document.activeElement,state.lyricDraft.input);
   assert.equal(els.source.value,source);
-  const key={code:'ArrowUp',preventDefault(){key.prevented=true},stopPropagation(){}};
-  document.dispatch('keydown',key);
-  assert.equal(key.prevented,true);
+  document.dispatch('keydown',{code:'ArrowUp',preventDefault(){}});
   assert.equal(state.lyricDraft,null);
-  assert.equal(state.song.lyrics.get(1).text,'未提交');
+  assert.deepEqual(state.song.notes.slice(0,3).map(n=>state.song.lyrics.get(n.id)?.text??''),['','中','美']);
 });
 
 test('fractional rhythm labels show exact beat count on all score types while classic notes stay unchanged',()=>{
