@@ -431,3 +431,32 @@ test('selected barline caret anchors a new pitch or separator before the next ex
   assert.equal(parseSong(m.source).elements.filter(i=>i.kind==='break').length,1);
   assert.equal(m.source.split('.Words')[1],src.split('.Words')[1]);
 });
+
+test('scoped pitch and exact half-beat edits preserve all unselected voice and lyric bytes',async()=>{
+  const {transposeSongSemitones,speedUpSongHalfBeats,parseSong}=await import('../src/core.mjs');
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1- 2 3_ |$(true)\n4- 0- 5.\n.Words\nW1@1,1:\n测试文本';
+  const shorter=speedUpSongHalfBeats(source,1,new Set([0,3]));
+  assert.deepEqual(parseSong(shorter.source).notes.map(n=>n.raw),['1.','2','3_','4.','0-','5.']);
+  assert.equal(shorter.count,2);
+  assert.equal(shorter.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.throws(()=>speedUpSongHalfBeats(source,1),/仅 0.5 拍/);
+  assert.throws(()=>speedUpSongHalfBeats(source,1,[2]),/仅 0.5 拍/);
+  assert.throws(()=>speedUpSongHalfBeats(source,0,[0]),/正整数/);
+  const transpose=transposeSongSemitones(source,2,[0,2]);
+  assert.deepEqual(parseSong(transpose.source).notes.map(n=>n.raw),['2-','2','#4_','4-','0-','5.']);
+  assert.equal(transpose.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.throws(()=>transposeSongSemitones(source,1,[999]),/重新选择/);
+});
+
+test('selected notes become one parsed JPW phrasing slur without disturbing layout',async()=>{
+  const {addSlurToSelectedNotes,parseSong}=await import('../src/core.mjs');
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 |$(true)\n3 4\n.Words\nW1@1,1:\n你好';
+  const result=addSlurToSelectedNotes(source,new Set([0,1,2]));
+  assert.equal(result.count,3);
+  assert.deepEqual(parseSong(result.source).slurs,[{startId:0,endId:2}]);
+  assert.deepEqual(parseSong(result.source).notes.map(n=>n.raw),['1','2','3','4']);
+  assert.equal(result.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.throws(()=>addSlurToSelectedNotes(source,[1]),/至少选中两个/);
+  assert.throws(()=>addSlurToSelectedNotes(result.source,[0,1,2]),/已有连音/);
+  assert.throws(()=>addSlurToSelectedNotes(source+'',[]),/先选中/);
+});
