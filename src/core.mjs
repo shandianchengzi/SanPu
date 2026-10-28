@@ -428,7 +428,7 @@ export function parseLibrarySongName(input,defaultKey='C'){
     const normalized=value.length===1?value.toUpperCase():value[0]+value[1].toUpperCase();
     if(keys.has(normalized)){
       key=normalized;recognized=true;name=match[1].trim().replace(/[《》\s\-—·|]+$/g,'').trim();
-      if(name.startsWith('《')&&name.endsWith('》'))name=name.slice(1,-1).trim();
+      if(name.startsWith('《'))name=name.slice(1).trim();
     }
   }
   if(!name)throw new Error('请输入歌曲名称。');
