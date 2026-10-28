@@ -1131,7 +1131,6 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
       }
     }
     makeLyricEditor(g,n.id);
-    makeLyricEditor(g,n.id);
     g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     score.append(g);x+=w;
@@ -1233,6 +1232,7 @@ function drawSystem(elements,song,width){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
+    makeLyricEditor(g,n.id);
     g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     s.append(g);
