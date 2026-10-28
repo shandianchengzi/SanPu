@@ -594,10 +594,10 @@ function scheduleLyricCommit(){
   lyricIdleTimer=setTimeout(()=>{
     if(!state.lyricDraft)return;
     if(state.lyricDraft.composing){scheduleLyricCommit();return;}
-    commitLyricDraft(false);
+    commitLyricDraft(false,true);
   },LYRIC_IDLE_MS);
 }
-function commitLyricDraft(returnToNote=false){
+function commitLyricDraft(returnToNote=false,stayInLyricMode=false){
   const draft=state.lyricDraft;
   if(!draft)return;
   if(draft.composing){
@@ -606,7 +606,8 @@ function commitLyricDraft(returnToNote=false){
   }
   state.lyricDraft=null;
   clearTimeout(lyricIdleTimer);lyricIdleTimer=null;
-  let changed=false;
+  const previousCaret=draft.input?.selectionStart;
+  let changed=false,failed=false;
   if(draft.value!==draft.original){
     try{
       const next=setLyricForNote(els.source.value,draft.noteId,draft.value);
@@ -615,6 +616,7 @@ function commitLyricDraft(returnToNote=false){
       persist();
       changed=true;
     }catch(error){
+      failed=true;
       els.pianoStatus.textContent='歌词更新失败：'+error.message;
     }
   }
@@ -622,8 +624,18 @@ function commitLyricDraft(returnToNote=false){
   if(state.selectedItem?.kind==='note'&&state.selectedItem.index===draft.noteId){
     state.selectedNoteIds=new Set([draft.noteId]);
   }
+  if(stayInLyricMode){
+    state.lyricDraft={noteId:draft.noteId,
+      original:changed?draft.value:draft.original,value:draft.value,
+      dirty:failed,composing:false,input:null,exitAfterComposition:null};
+  }
   render();
-  if(returnToNote)focusScoreSelection();
+  if(stayInLyricMode){
+    const field=state.lyricDraft?.input;
+    field?.focus?.({preventScroll:true});
+    if(Number.isInteger(previousCaret)&&typeof field?.setSelectionRange==='function')
+      field.setSelectionRange(previousCaret,previousCaret);
+  }else if(returnToNote)focusScoreSelection();
   if(changed)els.pianoStatus.textContent='歌词已回填到源谱';
 }
 function makeLyricEditor(noteGroup,noteId){
