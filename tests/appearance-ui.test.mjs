@@ -13,16 +13,30 @@ class FakeElement {
     this.classes=new Set();this.classList={toggle:(name,on)=>{if(on??!this.classes.has(name))this.classes.add(name);else this.classes.delete(name);},contains:name=>this.classes.has(name)};this.value='';this.textContent='';
   }
   setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value);if(key==='data-bar-id')this.dataset.barId=String(value);if(key==='data-note-id')this.dataset.noteId=String(value)}
-  focus(){this.focused=true}
-  blur(){this.blurred=true;this.focused=false}
+  focus(){
+    if(this.ownerDocument?.activeElement&&this.ownerDocument.activeElement!==this)
+      this.ownerDocument.activeElement.focused=false;
+    if(this.ownerDocument)this.ownerDocument.activeElement=this;
+    this.focused=true;
+  }
+  blur(){this.blurred=true;this.focused=false;if(this.ownerDocument?.activeElement===this)this.ownerDocument.activeElement=null}
+  closest(selector){
+    for(let item=this;item;item=item.parent){
+      if(selector.includes('.note-click')&&item.className==='note-click')return item;
+      if(selector.includes('.bar-click')&&item.className==='bar-click')return item;
+    }
+    return null;
+  }
+  contains(item){return this===item||this.children.some(child=>child.contains?.(item))}
+
   setRangeText(text,start,end){
     this.value=this.value.slice(0,start)+text+this.value.slice(end);
     this.selectionStart=this.selectionEnd=start+text.length;
   }
   click(){this.clicked=true;return this.dispatch('click')}
   remove(){this.removed=true}
-  append(...children){this.children.push(...children)}
-  replaceChildren(...children){this.children=[...children]}
+  append(...children){for(const child of children){child.parent=this;this.children.push(child)}}
+  replaceChildren(...children){this.children=[];this.append(...children)}
   addEventListener(type,listener){(this.listeners[type]??=[]).push(listener)}
   dispatch(type,event={}){let result;for(const listener of this.listeners[type]??[])result=listener(event);return result}
   querySelectorAll(selector){
@@ -47,11 +61,15 @@ function boot(saved,allowOverwrite=false){
   }
   const head=new FakeElement('head'),documentEvents={};
   const document={
-    head,body:new FakeElement('body'),createElement:tag=>new FakeElement(tag),createElementNS:(ns,tag)=>new FakeElement(tag),
+    head,body:new FakeElement('body'),activeElement:null,
+    createElement:tag=>Object.assign(new FakeElement(tag),{ownerDocument:document}),
+    createElementNS:(ns,tag)=>Object.assign(new FakeElement(tag),{ownerDocument:document}),
     getElementById:id=>id==='print-page-rules'?head.children.find(el=>el.id===id)??null:ids[id]??null,
     addEventListener:(type,cb)=>{(documentEvents[type]??=[]).push(cb);},
     dispatch:(type,event={})=>{for(const cb of documentEvents[type]??[])cb(event);}
   };
+  for(const el of Object.values(ids))el.ownerDocument=document;
+  head.ownerDocument=document;
   const localStorage={
     data:saved?{'sanpu.editor.v1':JSON.stringify(saved)}:{},
     getItem(key){return this.data[key]??null},
@@ -86,6 +104,9 @@ function boot(saved,allowOverwrite=false){
     'cancelAnimationFrame','requestAnimationFrame','URL','Blob','setTimeout','clearTimeout','TextDecoder','confirm',code)(
     document,window,localStorage,cancelFrame,requestFrame,fakeURL,FakeBlob,setTimer,clearTimer,FakeDecoder,(msg)=>{confirmations.push(msg);return allowOverwrite;}
   );
+  // Legacy keyboard-on fixtures now mean the score received focus by a click,
+  // not that a persistent keyboard checkbox was checked.
+  if(saved?.keyboardMode)ids.score.querySelectorAll('.note-click')[0]?.focus();
   return {...api,document,window,localStorage,head,downloads,confirmations,timers,frames,
     fireFrame(){const entry=frames.entries().next().value;if(entry){frames.delete(entry[0]);entry[1]();}},
     fireTimer(id){const item=timers.get(id);timers.delete(id);item?.fn();}};
@@ -972,7 +993,8 @@ test('clicking a score note in recording mode pauses and focuses editor after th
   assert.equal(els.play.textContent,'▶ 继续');
   assert.equal(state.cursorNoteId,2);
   assert.equal(state.active,2);
-  assert.equal(els.source.focused,true);
+  assert.equal(els.source.focused,false);
+  assert.equal(document.activeElement,notes[2]);
   assert.equal(els.source.selectionStart,source.indexOf('#4,...')+6);
   assert.equal(els.source.selectionEnd,els.source.selectionStart);
   let prevented=0;
@@ -1209,63 +1231,40 @@ test('extension dash distance adjusts only the dash start, supports signed value
 
 
 
-test('three physical piano keyboard rows cover all 36 keys, with source editing disabled',()=>{
-  const {state,document,localStorage,window,els}=boot({source:'.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1'});
-  const mode=document.getElementById('piano-keyboard-mode');
+test('all 36 keyboard mappings activate only while a score note has focus',()=>{
+  const {state,document,window,els}=boot({source:'.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1'});
   const piano=document.getElementById('piano-keys');
-  const rows=['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-['];
-  const keys=rows.join('');
+  const keys=['q2w3er5t6y7u','zsxdcvgbhnjm',',l.;/i9o0p-['].join('');
   const codeFor=ch=>/^[a-z]$/.test(ch)?'Key'+ch.toUpperCase():
     /^[0-9]$/.test(ch)?'Digit'+ch:
     ({',':'Comma','.':'Period',';':'Semicolon','/':'Slash','-':'Minus','[':'BracketLeft'}[ch]);
   const send=(type,code,stamp,more={})=>{
-    const event={code,key:code.slice(-1).toLowerCase(),timeStamp:stamp,
-      preventDefault(){event.prevented=true},...more};
-    document.dispatch(type,event);return event;
+    const ev={code,timeStamp:stamp,preventDefault(){ev.prevented=true},...more};
+    document.dispatch(type,ev);return ev;
   };
   const pianoKey=i=>piano.children.find(key=>key.dataset.midi===String(48+i));
-  assert.deepEqual(rows.map(row=>row.length),[12,12,12]);
-  assert.equal(keys.length,36);
   assert.equal(piano.children.length,36);
-  assert.equal(mode.checked,false);
-  assert.equal(state.keyboardMode,false);
-  assert.equal(els.source.disabled,false);
-  send('keydown','KeyQ',100);
-  assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
-  mode.tag='input';mode.type='checkbox';
-  mode.checked=true;mode.dispatch('change');
-  assert.equal(els.source.disabled,true);
-  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,true);
-  assert.match(els.pianoStatus.textContent,/36 个琴键/);
-  // The checkbox can remain focused; the first note must still work.
-  const firstFocused=send('keydown','KeyQ',180,{target:mode});
-  assert.equal(firstFocused.prevented,true);
-  assert.equal(pianoKey(0).classList.contains('is-pressed'),true);
-  send('keyup','KeyQ',210,{target:mode});
-  assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
+  assert.equal(document.getElementById('piano-keyboard-mode'),null);
+  assert.equal(els.source.disabled,undefined);
+  assert.equal(send('keydown','KeyQ',100).prevented,undefined,'not active before note click');
+  const first=els.score.querySelectorAll('.note-click')[0];
+  first.dispatch('click');
+  assert.equal(document.activeElement,first,'note click focuses score, not source');
   for(let i=0;i<keys.length;i++){
-    const code=codeFor(keys[i]);
-    const event=send('keydown',code,250+i*1200);
-    assert.equal(event.prevented,true,keys[i]+' intercepted');
-    assert.equal(pianoKey(i).classList.contains('is-pressed'),true,keys[i]+' pressed');
+    const code=codeFor(keys[i]),ev=send('keydown',code,250+i*1200);
+    assert.equal(ev.prevented,true,keys[i]+' must be handled');
+    assert.equal(pianoKey(i).classList.contains('is-pressed'),true);
     send('keyup',code,280+i*1200);
-    assert.equal(pianoKey(i).classList.contains('is-pressed'),false,keys[i]+' released');
+    assert.equal(pianoKey(i).classList.contains('is-pressed'),false);
   }
   send('keydown','KeyQ',50000,{repeat:true});
   assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
   send('keydown','KeyQ',50050);
-  assert.equal(pianoKey(0).classList.contains('is-pressed'),true);
   window.dispatch('blur');
   assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
-  send('keydown','KeyZ',50100,{ctrlKey:true});
-  assert.equal(pianoKey(12).classList.contains('is-pressed'),false);
-  mode.checked=false;mode.dispatch('change');
-  assert.equal(els.source.disabled,false);
-  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).keyboardMode,false);
-  send('keydown','KeyQ',50200);
-  assert.equal(pianoKey(0).classList.contains('is-pressed'),false);
-  assert.equal(boot({keyboardMode:true}).els.source.disabled,true);
-  assert.equal(boot({keyboardMode:false}).els.source.disabled,false);
+  els.source.focus();
+  assert.equal(send('keydown','KeyQ',50200).prevented,undefined);
+  assert.equal(state.backspacePrevious,true);
 });
 
 test('SVG renders the mapped pitches in real staggered QWERTY physical keyboard positions',()=>{
