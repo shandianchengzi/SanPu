@@ -208,18 +208,67 @@ export function parseSong(source) {
  * Preserve all non-verse-1 sections and the other verses of .Words.
  * The editor calls this ONLY when an IME-safe draft is committed.
  */
-export function setLyricForNote(source,noteId,value){
-  const text=String(source??''),song=parseSong(text);
-  if(!Number.isInteger(noteId)||noteId<0||noteId>=song.notes.length)
-    throw new Error('歌词位置没有对应的音符。');
-  const entered=String(value??'');
-  if(/[\r\n{}]/.test(entered)||[...entered].length>100)
-    throw new Error('歌词不可包含换行或花括号，且不能超过 100 个字符。');
-  const tokens=song.notes.map(note=>{
-    const item=song.lyrics.get(note.id);
-    return item?.skip||!item?.text?'/':item.text;
-  });
-  tokens[noteId]=entered||'/';
+/** Encode a complete row as a single-unit-per-note representation.
+ * Braced groups preserve any existing multi-codepoint lyrics.
+ * A plain sequence of characters (including Latin letters) fills one note
+ * per character; punctuation attaches to the immediately preceding note.
+ */
+export function parseLyricRowInput(raw){
+  const value=String(raw??'');
+  if(/[\r\n]/.test(value))throw new Error('单行歌词不能包含换行。');
+  const slots=[];const punctuation='，。；！？：、,.!?;:”“‘’…';
+  let prefix='';
+  for(let i=0;i<value.length;){
+    const ch=value[i];
+    if(ch==='{'){
+      const end=value.indexOf('}',i+1);
+      if(end<0)throw new Error('歌词花括号未闭合。');
+      slots.push(prefix+value.slice(i+1,end));prefix='';i=end+1;continue;
+    }
+    if(ch==='}')throw new Error('歌词包含未匹配的右花括号。');
+    if(ch==='/'){slots.push('/');i++;continue;}
+    if(/\s/.test(ch)){i++;continue;}
+    if(punctuation.includes(ch)){
+      if(slots.length&&slots.at(-1)!=='/')slots[slots.length-1]+=ch;
+      else prefix+=ch;
+      i++;continue;
+    }
+    const glyph=String.fromCodePoint(value.codePointAt(i));
+    slots.push(prefix+glyph);prefix='';i+=glyph.length;
+  }
+  if(prefix&&slots.length&&slots.at(-1)!=='/')slots[slots.length-1]+=prefix;
+  else if(prefix)throw new Error('标点符号没有对应的歌词。');
+  return slots;
+}
+export function lyricRowDraft(song,noteId){
+  const note=song.notes[noteId];
+  if(!note)throw new Error('所选音符不存在。');
+  const ids=song.notes.filter(n=>n.row===note.row).map(n=>n.id);
+  const position=ids.indexOf(noteId);
+  let last=position;
+  for(let i=0;i<ids.length;i++){
+    const word=song.lyrics.get(ids[i]);
+    if(word?.skip||word?.text)last=Math.max(i,last);
+  }
+  let text='',caret=0,selectionEnd=0;
+  for(let i=0;i<=last;i++){
+    const word=song.lyrics.get(ids[i]);
+    // An empty slot before or after existing lyrics requires a positional
+    // placeholder; the final blank cell can remain empty.
+    const cell=word?.skip?'/':word?.text?
+      (Array.from(word.text).length>1?'{'+word.text+'}':word.text):
+      (i<last?'/':'');
+    const start=text.length;text+=cell;
+    if(i===position){
+      // Selecting the current placeholder allows an IME to replace it
+      // without shifting pre-existing words into the next notes.
+      caret=word?.text||word?.skip?text.length:start;
+      selectionEnd=!word?.text&&!word?.skip&&cell==='/'?start+1:caret;
+    }
+  }
+  return {noteId,row:note.row,ids,value:text,caret,selectionEnd};
+}
+function rewriteLyricSlots(text,song,tokens,noteId){
   const encode=value=>value==='/'?'/':('{'+value+'}');
   // One explicit unit for every note makes gaps on both sides stable.
   const anchor=song.notes[0];
@@ -254,6 +303,37 @@ export function setLyricForNote(source,noteId,value){
   return {source:text.slice(0,bodyStart)+updated+text.slice(bodyEnd),
     count:tokens.length,noteId};
 }
+export function setLyricForNote(source,noteId,value){
+  const text=String(source??''),song=parseSong(text);
+  if(!Number.isInteger(noteId)||noteId<0||noteId>=song.notes.length)
+    throw new Error('歌词位置没有对应的音符。');
+  const entered=String(value??'');
+  if(/[\r\n{}]/.test(entered)||[...entered].length>100)
+    throw new Error('歌词不可包含换行或花括号，且不能超过 100 个字符。');
+  const tokens=song.notes.map(note=>{
+    const item=song.lyrics.get(note.id);
+    return item?.skip||!item?.text?'/':item.text;
+  });
+  tokens[noteId]=entered||'/';
+  return rewriteLyricSlots(text,song,tokens,noteId);
+}
+export function setLyricRow(source,noteIds,raw){
+  const text=String(source??''),song=parseSong(text);
+  if(!Array.isArray(noteIds)||!noteIds.length||
+    noteIds.some((id,i)=>!Number.isInteger(id)||song.notes[id]?.row!==song.notes[noteIds[0]]?.row||
+      (i>0&&id<=noteIds[i-1])))
+    throw new Error('歌词行的音符位置无效。');
+  const input=parseLyricRowInput(raw);
+  if(input.length>noteIds.length)
+    throw new Error('这一行只有 '+noteIds.length+' 个音符，当前输入了 '+input.length+' 个歌词单位；请删除多余的字符或使用 {词组} 合并。');
+  const tokens=song.notes.map(note=>{
+    const item=song.lyrics.get(note.id);
+    return item?.skip||!item?.text?'/':item.text;
+  });
+  for(let i=0;i<noteIds.length;i++)tokens[noteIds[i]]=input[i]||'/';
+  return rewriteLyricSlots(text,song,tokens,noteIds[0]);
+}
+
 const MAJOR=[0,2,4,5,7,9,11];
 const ROOT={C:0,'#C':1,bD:1,D:2,'#D':3,bE:3,E:4,F:5,'#F':6,bG:6,G:7,'#G':8,bA:8,A:9,'#A':10,bB:10,B:11};
 export function noteFrequency(note,key='C') {
