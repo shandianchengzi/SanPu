@@ -574,3 +574,18 @@ test('setting absolute fractional beat lengths preserves unselected notes, rests
   assert.throws(()=>setSongNoteBeats(source,0),/大于 0/);
   assert.throws(()=>setSongNoteBeats(source,1.25,[800]),/先选中|重新选择/);
 });
+
+test('fractional set durations retain exact playback timing and support tiny dyadic fractions safely',()=>{
+  const song=parseSong('.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1*-_ 2*- 0__');
+  assert.deepEqual(song.notes.map(note=>note.beats),[1.25,2.5,0.25]);
+  const schedule=songSchedule(song,120);
+  assert.equal(schedule.timeline.length,3);
+  assert.deepEqual(schedule.timeline.map(event=>[event.start,event.end]),
+    [[0,0.625],[0.625,1.875],[1.875,2]]);
+  assert.equal(schedule.total,2);
+  for(const value of [2**-20,1+2**-20,1024-2**-20]){
+    const suffix=beatDurationSuffix(value);
+    assert.ok(suffix.length<=1050,'bounded suffix for '+value);
+    assert.equal(durationFromSuffix(suffix),value);
+  }
+});
