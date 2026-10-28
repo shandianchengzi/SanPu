@@ -1232,7 +1232,6 @@ function drawSystem(elements,song,width){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    makeLyricEditor(g,n.id);
     g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     s.append(g);
@@ -1377,6 +1376,12 @@ function render() {
   for(const [i,line] of lines.entries()){
     const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
     if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line);
+    // Add the IME-safe HTML editor outside the immutable numbered renderer.
+    if(state.lyricDraft){
+      const id=state.lyricDraft.noteId;
+      const g=[...system.querySelectorAll('.note-click')].find(node=>Number(node.dataset.noteId)===id);
+      if(g)makeLyricEditor(g,id);
+    }
     if(breaks[i])addScoreBreakSelectionTarget(system,breaks[i],line,song,width);
     els.score.append(system);
     positionPunctuation(system);
