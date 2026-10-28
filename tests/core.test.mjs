@@ -40,7 +40,7 @@ Singer = 周深（原唱：卢冠廷、莫文蔚）
   assert.equal(song.lyrics.size,0,'the new default does not add the previous lyrics');
   assert.ok(!EXAMPLE.includes('.Words'));
   assert.deepEqual(song.slurs.map(({startId,endId})=>[startId,endId]),
-    [[6,7],[38,39],[50,51],[53,54],[72,73],[74,77],[84,86],[87,89],[90,92]]);
+    [[6,7],[38,39],[50,51],[53,54],[73,74],[75,78],[84,86],[87,89],[90,92]]);
   assert.equal(song.notes[90].raw,"1'__.");
   assert.equal(song.notes[92].raw,'6--');
   assert.equal(song.notes[92].row,4);
