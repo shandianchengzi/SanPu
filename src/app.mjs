@@ -732,6 +732,14 @@ function enterLyricEditing(){
   input?.setSelectionRange?.(draft.caret,draft.selectionEnd);
   els.pianoStatus.textContent='整行歌词编辑：每个字对应一个音符，/ 为占位；↑ 返回本行，↓ 转到下一行音符。';
 }
+function setPianoAudition(enabled){
+  clearPianoSequence();
+  state.pianoAudition=!!enabled;
+  els.pianoAudition.checked=state.pianoAudition;
+  els.pianoStatus.textContent=state.pianoAudition?
+    '仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';
+  persist();
+}
 function keyboardDown(ev){
   // Let the IME own composition; outside composition, vertical arrows
   // navigate between the current lyric row and the adjacent score row.
@@ -746,6 +754,13 @@ function keyboardDown(ev){
   }
   if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
+  // Tab cycles audition/recording only while a score symbol has focus.
+  // Shift+Tab keeps its native backwards-focus navigation.
+  if((ev.code==='Tab'||ev.key==='Tab')&&!ev.shiftKey){
+    ev.preventDefault?.();ev.stopPropagation?.();
+    setPianoAudition(!state.pianoAudition);
+    return;
+  }
   const key=keyboardEventCode(ev);
   if(ev.code==='ArrowDown'||ev.key==='ArrowDown'){
     if(state.selectedItem?.kind==='note'){
@@ -1805,7 +1820,7 @@ els.transcriber.addEventListener('change',()=>{
   els.source.value=updated;
   refresh(true);
 });
-els.pianoAudition.addEventListener('change',()=>{clearPianoSequence();state.pianoAudition=els.pianoAudition.checked;els.pianoStatus.textContent=state.pianoAudition?'仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';persist();});
+els.pianoAudition.addEventListener('change',()=>setPianoAudition(els.pianoAudition.checked));
 els.pianoTranspose.addEventListener('change',()=>{
   clearPianoSequence();
   state.pianoTranspose=els.pianoTranspose.checked;
