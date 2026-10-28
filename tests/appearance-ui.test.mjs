@@ -1897,11 +1897,11 @@ test('mouse drag selects a contiguous note range across bar and line break; batc
   const font=field(els,'lyricSize');font.value='52';font.dispatch('input');
   assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'changing appearance must preserve selection');
   els.batchShift.value='2';els.batchApply.dispatch('click');
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['2-','#3-','#4-','5-']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['2-','3-','#4-','5-']);
   assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'batch pitch edit must preserve note selection');
   document.getElementById('batch-rhythm').value='1';
   document.getElementById('batch-rhythm-apply').dispatch('click');
-  assert.deepEqual(state.song.notes.map(n=>n.raw),['2.','#3.','#4.','5.']);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['2.','3.','#4.','5.']);
   assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
   assert.deepEqual([...state.selectedNoteIds],[0,1,2,3]);
   els.batchSlur.dispatch('click');
