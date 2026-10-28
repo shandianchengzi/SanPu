@@ -639,3 +639,30 @@ test('lyrics after selected note are preserved when the untouched row is saved',
   assert.deepEqual(parseSong(result.source).notes.map(n=>parseSong(result.source).lyrics.get(n.id)?.text),
     Array.from('天地人和春夏'));
 });
+
+test('lyric row editor removes trailing generated skips, not structural gaps before later lyrics',()=>{
+  const firstRow='1 2 3 4 5 6 7 1 2 3 4 5';
+  const prefix='.Voice\n'+firstRow+' |$(true)\n6 7\n.Words\nW1@1,1:\n';
+  const skipToEnd='/' .repeat(9);
+  const alone=parseSong(prefix+'//春'+skipToEnd);
+  const start=lyricRowDraft(alone,2);
+  assert.equal(start.value,'//春','no right-side slash placeholders when remaining notes have no words');
+  assert.equal(start.caret,3,'cursor stays immediately after the selected lyric');
+  assert.deepEqual(start.ids,Array.from({length:12},(_,i)=>i));
+  const mid=lyricRowDraft(alone,5);
+  assert.equal(mid.value,'//春///','only before-or-at the selected note is padded');
+  assert.equal(mid.caret,5);
+  assert.equal(mid.selectionEnd,6);
+  const blank=lyricRowDraft(parseSong(prefix+'//'+('/'.repeat(10))),2);
+  assert.equal(blank.value,'//','a blank third slot does not force extra right-hand placeholders');
+  const later=parseSong(prefix+'//春'+skipToEnd+'月');
+  const untilReal=lyricRowDraft(later,2);
+  assert.equal(untilReal.value,'//春','next row lyrics do not force trailing placeholders in this row');
+  const edited=setLyricRow(prefix+'//春'+skipToEnd+'月',untilReal.ids,'//夏秋');
+  const song=parseSong(edited.source);
+  assert.equal(song.lyrics.get(2)?.text,'夏');
+  assert.equal(song.lyrics.get(3)?.text,'秋');
+  assert.equal(song.lyrics.get(12)?.text,'月','words in another row retain original alignment');
+  const after=lyricRowDraft(song,2);
+  assert.equal(after.value,'//夏秋','reentering the editor does not expose trailing alignment skips');
+});
