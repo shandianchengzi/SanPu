@@ -888,6 +888,43 @@ function setPianoAudition(enabled){
     '仅试听：按键发声，不修改源码':'边听边录：按键发声，并按节奏写入音符';
   persist();
 }
+function copyScoreSymbols(){
+  let clip;
+  try{clip=copyVoiceSelection(els.source.value,state.selectedNoteIds,state.selectedItem);}
+  catch(error){els.pianoStatus.textContent='复制失败：'+error.message;return;}
+  if(!clip){els.pianoStatus.textContent='请先选中要复制的音符或记谱符号。';return;}
+  state.scoreClipboard=clip.text;
+  // Clipboard permission is optional: the internal score clipboard always works.
+  if(typeof navigator!=='undefined'&&navigator.clipboard?.writeText)
+    void navigator.clipboard.writeText(clip.text).catch(()=>{});
+  els.pianoStatus.textContent='已复制 '+clip.noteCount+' 个音符及其间的记谱符号';
+}
+function pasteScoreSymbols(){
+  if(!state.scoreClipboard){els.pianoStatus.textContent='请先在谱面上 Ctrl+C 复制音符。';return;}
+  if(state.lyricDraft&&!commitLyricDraft(false))return;
+  const id=state.selectedNoteIds.size>1?Math.max(...state.selectedNoteIds):null;
+  const selection=id!==null?{kind:'note',index:id}:state.selectedItem;
+  if(!selection){els.pianoStatus.textContent='请先选中一个目标音符或记谱符号，再粘贴到其右侧。';return;}
+  let result;
+  try{result=pasteVoiceSelection(els.source.value,state.scoreClipboard,selection);}
+  catch(error){els.pianoStatus.textContent='粘贴失败：'+error.message;return;}
+  clearPianoSequence();stopAudio();
+  state.pendingTerminalBreak=null;
+  els.source.value=result.source;
+  els.source.selectionStart=els.source.selectionEnd=result.caret;
+  state.song=parseSong(result.source);
+  const inserted=voiceEditItems(result.source).filter(item=>
+    item.to<=result.caret&&item.from>=result.caret-state.scoreClipboard.trim().length-2);
+  const last=inserted.at(-1);
+  state.selectedItem=last?{kind:last.kind,index:last.index}:null;
+  state.selectedNoteIds=new Set(inserted.filter(item=>item.kind==='note').map(item=>item.index));
+  state.cursorNoteId=state.selectedItem?.kind==='note'?state.selectedItem.index:
+    result.noteId+result.noteCount-1;
+  state.selectionAnchorId=state.selectedNoteIds.size?
+    Math.min(...state.selectedNoteIds):null;
+  render();focusScoreSelection();persist();
+  els.pianoStatus.textContent='已粘贴 '+result.noteCount+' 个音符及记谱符号到当前选中位置右侧';
+}
 function keyboardDown(ev){
   // Let the IME own composition; outside composition, vertical arrows
   // navigate between the current lyric row and the adjacent score row.
@@ -900,7 +937,16 @@ function keyboardDown(ev){
     }
     return;
   }
-  if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
+  if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing)return;
+  if((ev.ctrlKey||ev.metaKey)&&!ev.altKey&&!ev.shiftKey&&
+    ['KeyC','KeyV'].includes(ev.code)&&
+    !isEditingTarget(ev.target||document.activeElement)){
+    ev.preventDefault?.();ev.stopPropagation?.();
+    if(ev.code==='KeyC')copyScoreSymbols();
+    else pasteScoreSymbols();
+    return;
+  }
+  if(ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   // Tab cycles audition/recording only while a score symbol has focus.
   // Shift+Tab keeps its native backwards-focus navigation.
