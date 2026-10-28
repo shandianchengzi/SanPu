@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,beatDurationSuffix,setSongNoteBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,beatDurationSuffix,setSongNoteBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote,parseLyricRowInput,lyricRowDraft,setLyricRow} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -588,4 +588,54 @@ test('fractional set durations retain exact playback timing and support tiny dya
     assert.ok(suffix.length<=1100,'bounded suffix for '+value);
     assert.equal(durationFromSuffix(suffix),value);
   }
+});
+
+test('row lyric draft positions caret after target, with prefix placeholders and preserved suffix',()=>{
+  const src='.Voice\n1 2 3 4 5 |$(true)\n6 7\n.Words\nW1@1,1:\n//花月\nW2@1,1:\n原声';
+  const song=parseSong(src);
+  const first=lyricRowDraft(song,2);
+  assert.equal(first.value,'//花月');
+  assert.equal(first.caret,3,'existing lyric remains and caret follows it');
+  assert.equal(first.selectionEnd,3);
+  const blank=lyricRowDraft(parseSong('.Voice\n1 2 3 4 5'),2);
+  assert.equal(blank.value,'//');
+  assert.equal(blank.caret,2);
+  assert.equal(blank.selectionEnd,2);
+  const middle=lyricRowDraft(parseSong('.Voice\n1 2 3 4 5\n.Words\nW1@1,1:\n天地/星'),2);
+  assert.equal(middle.value,'天地/星');
+  assert.equal(middle.caret,2,'unfilled middle note starts after preceding lyrics');
+  assert.equal(middle.selectionEnd,3,'the placeholder is selected for replacement');
+  const after=setLyricRow(src,first.ids,'//花天月');
+  assert.deepEqual(after.source.includes('W2@1,1:\n原声'),true);
+  assert.deepEqual(parseSong(after.source).notes.map((note)=>parseSong(after.source).lyrics.get(note.id)?.text??''),
+    ['','','花','天','月','','']);
+});
+
+test('whole lyric row distributes multiple characters without touching the next music row',()=>{
+  const original='.Title\nTitle = Demo\n.Voice\n1 2 3 4 5 |$(true)\n6 7 1\n.Words\nW1@1,1:\n{明}天/好{朋友}\nW2@1,1:\nABCD';
+  const song=parseSong(original);
+  const draft=lyricRowDraft(song,2);
+  assert.deepEqual(draft.ids,[0,1,2,3,4]);
+  const updated=setLyricRow(original,draft.ids,'明天春夏秋');
+  const result=parseSong(updated.source);
+  assert.deepEqual(result.notes.map(n=>result.lyrics.get(n.id)?.text??''),
+    ['明','天','春','夏','秋','','','']);
+  assert.equal(updated.source.split('.Voice')[1].split('.Words')[0],
+    original.split('.Voice')[1].split('.Words')[0]);
+  assert.match(updated.source,/W2@1,1:\nABCD/);
+  assert.deepEqual(parseLyricRowInput('中文ABC，/日'),['中','文','A','B','C，','','日'].map(t=>t||'/'));
+  assert.deepEqual(parseLyricRowInput('你{朋友}好'),['你','朋友','好']);
+  assert.throws(()=>setLyricRow(original,draft.ids,'七个字符超出了长度'),/只有 5 个音符/);
+  assert.throws(()=>parseLyricRowInput('{未闭合'),/未闭合/);
+  assert.equal(parseSong(original).lyrics.get(2)?.skip,true,'original is unmodified');
+});
+
+test('lyrics after selected note are preserved when the untouched row is saved',()=>{
+  const original='.Voice\n1 2 3 4 |$(true)\n5 6\n.Words\nW1@1,1:\n天地人和春夏';
+  const song=parseSong(original),draft=lyricRowDraft(song,2);
+  assert.equal(draft.value,'天地人和');
+  assert.equal(draft.caret,3);
+  const result=setLyricRow(original,draft.ids,draft.value);
+  assert.deepEqual(parseSong(result.source).notes.map(n=>parseSong(result.source).lyrics.get(n.id)?.text),
+    Array.from('天地人和春夏'));
 });
