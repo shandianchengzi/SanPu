@@ -1597,6 +1597,8 @@ function advanceLoop(){
   return true;
 }
 async function runPlayback() {
+  // Explicit song playback supersedes any pending single-note recording preview.
+  state.notePreviewRequest++;
   if(!state.song?.notes.length)return;
   if(state.playing){state.position=Math.max(0,state.audio.currentTime-state.origin);state.playing=false;clearNodes();cancelAnimationFrame(state.frame);els.play.textContent='▶ 继续';return;}
   if(!state.audio){const Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor){els.pianoStatus.textContent='当前浏览器不支持 Web Audio，已定位选中音符。';return;}state.audio=new Ctor();}
