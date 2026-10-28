@@ -2197,3 +2197,22 @@ test('30s lyric inactivity commits once and leaving score mode commits immediate
   assert.equal(state.song.lyrics.get(1).text,'春天');
   assert.equal(els.source.value.includes('W1@1,1:'),true);
 });
+
+test('unrelated score rerenders preserve the in-progress lyric draft and IME focus',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2';
+  const {els,state,document,render}=boot({source});
+  els.score.querySelectorAll('.note-click')[1].dispatch('click');
+  document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
+  const oldInput=state.lyricDraft.input;
+  oldInput.value='未提交';oldInput.dispatch('input');
+  render();
+  assert.notEqual(state.lyricDraft.input,oldInput);
+  assert.equal(state.lyricDraft.input.value,'未提交');
+  assert.equal(document.activeElement,state.lyricDraft.input);
+  assert.equal(els.source.value,source);
+  const key={code:'ArrowUp',preventDefault(){key.prevented=true},stopPropagation(){}};
+  document.dispatch('keydown',key);
+  assert.equal(key.prevented,true);
+  assert.equal(state.lyricDraft,null);
+  assert.equal(state.song.lyrics.get(1).text,'未提交');
+});
