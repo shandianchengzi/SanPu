@@ -415,8 +415,9 @@ function isEditingTarget(target){
 function scoreFocused(){
   const active=document.activeElement;
   if(!active)return false;
-  const node=active.closest?.('.note-click, .bar-click')||
-    (active.dataset?.noteId!==undefined||active.dataset?.barId!==undefined?active:null);
+  const node=active.closest?.('.note-click, .bar-click, .break-click')||
+    (active.dataset?.noteId!==undefined||active.dataset?.barId!==undefined||
+      active.dataset?.breakId!==undefined?active:null);
   return !!node && (els.score.contains?.(node)??true);
 }
 // All score-focused keyboard recording uses the same note anchor and source caret,
@@ -584,9 +585,18 @@ function keyboardDown(ev){
   if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
+  if(key==='ArrowLeft'||key==='ArrowRight'){
+    ev.preventDefault?.();ev.stopPropagation?.();
+    moveScoreSelection(key==='ArrowRight'?1:-1);
+    return;
+  }
   if(key==='Backspace'||key==='Delete'){
     ev.preventDefault?.();ev.stopPropagation?.();
-    deleteSelectedScoreItem(key==='Delete'?'after':state.backspacePrevious?'before':'self');
+    if(key==='Backspace'&&state.pendingTerminalBreak&&state.selectedItem?.kind==='break'){
+      cancelPendingTerminalBreak();
+      selectScoreNavigationItem(voiceEditItems(els.source.value).at(-1)??null);
+      render();
+    }else deleteSelectedScoreItem(key==='Delete'?'after':state.backspacePrevious?'before':'self');
     if(key==='Backspace')highlightKeyboardSpecial('Backspace',true);
     return;
   }
@@ -1158,6 +1168,31 @@ function addJianpuBarSelectionTargets(svgNode,elements){
   }
 }
 
+// Independent overlay: original SVG glyph geometry and the byte-identical
+// drawSystem() implementation remain untouched. Show a small label only while
+// this explicit line-break marker is selected.
+function addScoreBreakSelectionTarget(svgNode,breakItem,elements,song,width){
+  const x=Math.min(width-12,Math.max(24,lineWidth(elements,song)-SCORE.pad));
+  const y=27;
+  const hit=svg('g',{class:'break-click','data-break-id':breakItem.index,
+    tabindex:0,role:'button','aria-label':'选中第 '+(breakItem.index+1)+' 个换行符'});
+  hit.append(svg('rect',{x:x-12,y:6,width:24,height:48,rx:2,
+    class:'break-hit',fill:'transparent',stroke:'none'}));
+  const pending=state.pendingTerminalBreak?.breakIndex===breakItem.index&&pendingTerminalBreakValid();
+  hit.append(svg('text',{x:x+18,y,class:'break-hint'},pending?
+    '↵ 准备另起一行 · 输入音符后生效':'↵ 当前选中换行符'));
+  hit.addEventListener('click',()=>selectScoreNavigationItem(voiceEditItems(els.source.value)
+    .find(item=>item.kind==='break'&&item.index===breakItem.index)));
+  hit.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'||ev.key===' '){
+      ev.preventDefault?.();ev.stopPropagation?.();
+      selectScoreNavigationItem(voiceEditItems(els.source.value)
+        .find(item=>item.kind==='break'&&item.index===breakItem.index));
+    }
+  });
+  svgNode.append(hit);
+}
+
 // Once a line is in the DOM, use the browser's actual text width (rather than a
 // fixed CJK character estimate) so punctuation sits to the right of the body
 // without shifting its existing text-anchor under the note.
@@ -1215,18 +1250,13 @@ function render() {
   const lines=systems(song);
   const width=Math.max(state.format.minLineWidth,...lines.map(line=>lineWidth(line,song)));
   if(!song.notes.length){const blank=document.createElement('p');blank.className='empty';blank.textContent='在左侧输入 .Voice 音符，即可开始创作。';els.score.append(blank);}
-  for(const line of lines){
+  const breaks=song.elements.filter(e=>e.kind==='break');
+  for(const [i,line] of lines.entries()){
     const system=state.scoreType==='jianpu'?drawSystem(line,song,width):drawAlternativeSystem(line,song,width,state.scoreType);
     if(state.scoreType==='jianpu')addJianpuBarSelectionTargets(system,line);
+    if(breaks[i])addScoreBreakSelectionTarget(system,breaks[i],line,song,width);
     els.score.append(system);
     positionPunctuation(system);
-  }
-  if(pendingTerminalBreakValid()){
-    const hint=document.createElement('p');
-    hint.className='score-pending-newline';
-    hint.textContent='↵ 准备另起一行 · 输入下一个音符开始新行';
-    hint.setAttribute('role','status');
-    els.score.append(hint);
   }
   els.warnings.replaceChildren();
   const msgs=[...new Set(song.warnings)];
@@ -1264,18 +1294,26 @@ function updateSelectedVisuals(){
     g.classList.toggle('is-selected',selected);
     g.setAttribute('aria-pressed',String(selected));
   }
+  for(const g of els.score.querySelectorAll('.break-click')){
+    const selected=state.selectedItem?.kind==='break'&&Number(g.dataset.breakId)===state.selectedItem.index;
+    g.classList.toggle('is-selected',selected);
+    g.setAttribute('aria-pressed',String(selected));
+  }
   $('batch-target-label').textContent=count?'选中音符偏移':'全谱音程偏移';
   $('batch-rhythm-target').textContent=count?'选中音符节奏偏移':'全谱节奏偏移';
   $('batch-selection-count').textContent=count?'已选中 '+count+' 个音符':
-    state.selectedItem?.kind==='bar'?'已选中小节线':'未选中音符';
+    state.selectedItem?.kind==='bar'?'已选中小节线':
+      state.selectedItem?.kind==='break'?'已选中换行符':'未选中音符';
   els.batchSlur.disabled=count<2;
 }
 function focusScoreSelection(){
   const selection=state.selectedItem;
   const notes=[...els.score.querySelectorAll('.note-click')];
   const bars=[...els.score.querySelectorAll('.bar-click')];
+  const breaks=[...els.score.querySelectorAll('.break-click')];
   const target=selection?.kind==='note'?notes.find(g=>Number(g.dataset.noteId)===selection.index):
     selection?.kind==='bar'?bars.find(g=>Number(g.dataset.barId)===selection.index):
+    selection?.kind==='break'?breaks.find(g=>Number(g.dataset.breakId)===selection.index):
     notes.find(g=>Number(g.dataset.noteId)===state.cursorNoteId);
   target?.focus?.({preventScroll:true});
 }
@@ -1367,6 +1405,46 @@ function selectScoreNote(id){
   playFrom(id);
   const note=[...els.score.querySelectorAll('.note-click')].find(g=>Number(g.dataset.noteId)===id);
   note?.focus?.({preventScroll:true});
+}
+function selectScoreNavigationItem(item){
+  if(!item)return;
+  const old=state.pendingTerminalBreak;
+  if(old&&(item.kind!=='break'||item.index!==old.breakIndex)){
+    cancelPendingTerminalBreak();
+    // The provisional break was removed, so don't navigate to that stale item.
+    if(!voiceEditItems(els.source.value).some(e=>e.kind===item.kind&&e.index===item.index))
+      return;
+  }
+  clearPianoSequence();
+  state.selectedItem={kind:item.kind,index:item.index};
+  state.selectedNoteIds=item.kind==='note'?new Set([item.index]):new Set();
+  const index=voiceEditItems(els.source.value).findIndex(e=>e.kind===item.kind&&e.index===item.index);
+  const previous=voiceEditItems(els.source.value).slice(0,index+1).filter(e=>e.kind==='note').at(-1);
+  state.cursorNoteId=item.kind==='note'?item.index:previous?.index??-1;
+  els.source.selectionStart=els.source.selectionEnd=item.to;
+  if(item.kind==='break'){
+    els.pianoStatus.textContent=state.pendingTerminalBreak?
+      '准备另起一行：输入音符确认；方向键移走可取消':'当前选中换行符 $(true)';
+  }
+  // Re-render only when necessary to update a provisional-break hint.
+  render();
+  focusScoreSelection();
+}
+function moveScoreSelection(step){
+  const items=voiceEditItems(els.source.value);
+  const current=items.findIndex(e=>e.kind===state.selectedItem?.kind&&e.index===state.selectedItem?.index);
+  if(current<0)return;
+  // A provisional terminal break is discarded when the user moves away from it.
+  if(state.pendingTerminalBreak&&state.selectedItem?.kind==='break'){
+    cancelPendingTerminalBreak();
+    const updated=voiceEditItems(els.source.value);
+    const target=step<0?updated.at(-1):null;
+    if(target)selectScoreNavigationItem(target);
+    else {state.selectedItem=null;state.selectedNoteIds.clear();render();}
+    return;
+  }
+  const target=items[current+step];
+  if(target)selectScoreNavigationItem(target);
 }
 function selectScoreBar(index){
   if(state.pendingTerminalBreak)cancelPendingTerminalBreak();
@@ -1544,7 +1622,7 @@ els.score.addEventListener('click',ev=>{
     ev.preventDefault?.();ev.stopPropagation?.();ev.stopImmediatePropagation?.();
     suppressRangeClick=false;return;
   }
-  if(ev.target&&!ev.target.closest?.('.note-click, .bar-click'))
+  if(ev.target&&!ev.target.closest?.('.note-click, .bar-click, .break-click'))
     clearScoreSelection();
 },true);
 
