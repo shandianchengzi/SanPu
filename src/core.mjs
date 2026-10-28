@@ -262,8 +262,8 @@ export function lyricRowDraft(song,noteId){
     if(i===position){
       // Selecting the current placeholder allows an IME to replace it
       // without shifting pre-existing words into the next notes.
-      caret=word?.text||word?.skip?text.length:start;
-      selectionEnd=!word?.text&&!word?.skip&&cell==='/'?start+1:caret;
+      caret=word?.text?text.length:start;
+      selectionEnd=!word?.text&&cell==='/'?start+1:caret;
     }
   }
   return {noteId,row:note.row,ids,value:text,caret,selectionEnd};
