@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,insertPianoMarker,voiceEditItems,deleteVoiceItem} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -459,4 +459,35 @@ test('selected notes become one parsed JPW phrasing slur without disturbing layo
   assert.throws(()=>addSlurToSelectedNotes(source,[1]),/至少选中两个/);
   assert.throws(()=>addSlurToSelectedNotes(result.source,[0,1,2]),/已有连音/);
   assert.throws(()=>addSlurToSelectedNotes(source+'',[]),/先选中/);
+});
+
+test('signed rhythm adjustment lengthens selected notes and rests exactly, without changing other bytes',()=>{
+  const source='.Title\nTitle = Rhythm\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2_ 0 |$(true)\n3.\n.Words\nW1@1,1:\n甲乙丙丁';
+  const extended=adjustSongRhythmHalfBeats(source,-1,[0,2,3]);
+  assert.equal(extended.count,3);
+  assert.equal(extended.total,3);
+  assert.deepEqual(parseSong(extended.source).notes.map(n=>n.raw),['1.','2_','0.','3-']);
+  assert.equal(extended.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.ok(extended.source.includes(' |$(true)\n'),'bar and explicit system break stay untouched');
+  const all=adjustSongRhythmHalfBeats(source,-1);
+  assert.deepEqual(parseSong(all.source).notes.map(n=>n.raw),['1.','2','0.','3-']);
+  assert.equal(all.count,4);
+  assert.equal(all.source.split('.Words')[1],source.split('.Words')[1]);
+  assert.deepEqual(adjustSongRhythmHalfBeats(source,0),{source,count:0,total:4});
+  assert.deepEqual(adjustSongRhythmHalfBeats(source,0,new Set([0,2])),{source,count:0,total:2});
+});
+
+test('signed rhythm adjustment preserves positive shortening and rejects invalid / nonrepresentable results atomically',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1- 2_ 0-';
+  const shortened=adjustSongRhythmHalfBeats(source,1,[0,2]);
+  assert.deepEqual(parseSong(shortened.source).notes.map(n=>n.raw),['1.','2_','0.']);
+  assert.deepEqual(speedUpSongHalfBeats(source,1,[0,2]),shortened,'legacy API retains compatible positive semantics');
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,-1),/无法精确表示/,
+    'two beats plus half a beat cannot be encoded by existing note syntax');
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,-1,[0]),/无法精确表示/);
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,2,[1]),/仅 0.5 拍/);
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,1.5,[0]),/整数半拍/);
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,NaN,[0]),/整数半拍/);
+  assert.throws(()=>adjustSongRhythmHalfBeats(source,-3,[0]),/无法精确表示/);
+  assert.equal(parseSong(source).notes[0].raw,'1-','failed operation does not mutate input');
 });
