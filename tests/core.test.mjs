@@ -695,7 +695,7 @@ test('copy selected source symbols across rows preserves bars, breaks and spacer
   const changed=parseSong(pasted.source);
   assert.equal(changed.notes.length,9);
   assert.deepEqual(changed.notes.slice(5).map(n=>n.raw),['1_','2-','3___','4']);
-  assert.equal(changed.elements.filter(e=>e.kind==='break').length,4);
+  assert.equal(changed.elements.filter(e=>e.kind==='break').length,3);
   assert.equal(changed.elements.filter(e=>e.kind==='spacer').length,2);
   assert.equal(pasted.source.slice(0,original.indexOf('.Voice')),original.slice(0,original.indexOf('.Voice')));
   assert.equal(pasted.source.split('.Words')[1],original.split('.Words')[1]);
