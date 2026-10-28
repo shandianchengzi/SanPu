@@ -979,18 +979,25 @@ test('click-only piano activation produces audio and a note in record mode',asyn
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1']);
 });
 
-test('clicking a score note in recording mode pauses and focuses editor after the raw token',()=>{
+test('clicking a score note also plays in recording mode while retaining score focus',async()=>{
   const source='.Title\nKeyAndMeters = {1=G,3/4}\n.Voice\n3,_ y40 3,_ | #4,... $(true)\n3,_\n.Words\nW1@1,1:\n甲乙丙丁';
   const {state,els}=boot({source,pianoAudition:false});
   let stopped=0;
-  state.playing=true;state.audio={currentTime:1};
+  state.playing=true;state.audio={currentTime:1,destination:{},resume:async()=>{},
+    createPeriodicWave(){return {};},
+    createOscillator(){return {frequency:{setValueAtTime(){}},setPeriodicWave(){},
+      connect(){},start(){},stop(){},disconnect(){}}},
+    createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},
+      exponentialRampToValueAtTime(){}},connect(){},disconnect(){}}}
+  };
   state.nodes=[{stop(){stopped++;}}];
   const notes=els.score.querySelectorAll('.note-click');
   assert.equal(notes.length,4);
   notes[2].dispatch('click');
+  await Promise.resolve();await Promise.resolve();
   assert.equal(stopped,1,'currently sounding notes must stop');
-  assert.equal(state.playing,false);
-  assert.equal(els.play.textContent,'▶ 继续');
+  assert.equal(state.playing,true);
+  assert.equal(els.play.textContent,'Ⅱ 暂停');
   assert.equal(state.cursorNoteId,2);
   assert.equal(state.active,2);
   assert.equal(els.source.focused,false);
@@ -1022,7 +1029,8 @@ test('clicking score note in audition mode continues playing from selected note 
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   await Promise.resolve();await Promise.resolve();
   assert.equal(state.cursorNoteId,1);
-  assert.equal(els.source.focused,true);
+  assert.equal(els.source.focused,false);
+  assert.equal(state.selectedNoteIds.has(1),true);
   assert.equal(els.source.selectionStart,source.indexOf('2 |')+1);
   assert.equal(state.playing,true);
   assert.ok(oscillators>0);
@@ -1361,7 +1369,7 @@ test('computer piano keys record notes while text fields and shortcuts do not tr
   assert.equal(state.song.notes.length,2);
   assert.notEqual(els.source.value,source);
   assert.equal(state.song.notes[1].beats,1);
-  assert.equal(input.disabled,true);
+  assert.equal(input.disabled,undefined);
 });
 
 test('playback loop input persists 0, positive integer and -1 without affecting MP3 export',()=>{
@@ -1471,13 +1479,13 @@ test('batch edit applies signed semitone shift only after explicit confirmation'
   assert.match(read('index.html'),/class="batch-editor"[\s\S]*?class="syntax-help"/);
 });
 
-test('batch edit can update score programmatically when keyboard mode disables manual typing',()=>{
+test('batch edit keeps source editable even after score keyboard input was enabled',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2';
   const user=boot({source,keyboardMode:true},true);
-  assert.equal(user.els.source.disabled,true);
+  assert.equal(user.els.source.disabled,undefined);
   user.document.getElementById('batch-shift').value='1';
   user.document.getElementById('batch-apply').dispatch('click');
-  assert.equal(user.els.source.disabled,true);
+  assert.equal(user.els.source.disabled,undefined);
   assert.deepEqual(user.state.song.notes.map(n=>n.raw),['#1','b3']);
 });
 
@@ -1507,7 +1515,7 @@ test('Space and Enter in keyboard mode divide a measure and add a new system',()
   assert.match(els.source.value,/1\s+\|\s+\$\(true\)\s+1,/);
   assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
   assert.equal(state.song.warnings.length,0);
-  assert.equal(els.source.disabled,true);
+  assert.equal(els.source.disabled,undefined);
 });
 
 test('Backquote and logical middle dot insert a silent timed rest',()=>{
@@ -1573,7 +1581,7 @@ test('keyboard shortcut modifiers, repeat, edit targets and disabled keyboard mo
   send('Backquote',{isComposing:true});
   assert.equal(els.source.value,source);
   window.dispatch('blur');
-  els.keyboardMode.checked=false;els.keyboardMode.dispatch('change');
+  els.source.focus(); // leaving the score disables keyboard shortcuts
   send('Space');send('Enter');send('Backquote');
   assert.equal(els.source.value,source);
   assert.equal(state.song.notes.length,1);
@@ -1618,7 +1626,7 @@ test('score type selector persists and staff / guitar views draw from the same s
 
 test('barline can be selected on screen and removed with Backspace, without touching lyrics',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2\n.Words\nW1@1,1:\n你好';
-  const {els,document,state}=boot({source,keyboardMode:true,pianoAudition:false});
+  const {els,document,state}=boot({source,keyboardMode:true,pianoAudition:false,backspacePrevious:false});
   const bar=els.score.querySelectorAll('.bar-click')[0];
   assert.ok(bar,'SVG must expose interactive barlines');
   bar.dispatch('click');
@@ -1636,7 +1644,7 @@ test('barline can be selected on screen and removed with Backspace, without touc
 
 test('Backspace after keyboard-entered barline or system break deletes that exact marker',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
-  const {els,state,document}=boot({source,keyboardMode:true,pianoAudition:false,pianoContinuous:false});
+  const {els,state,document}=boot({source,keyboardMode:true,pianoAudition:false,pianoContinuous:false,backspacePrevious:false});
   const send=(type,code,t)=>document.dispatch(type,{code,timeStamp:t,preventDefault(){}});
   send('keydown','Space',100);send('keyup','Space',200);
   assert.equal(state.song.elements.filter(e=>e.kind==='bar').length,1);
@@ -1649,13 +1657,13 @@ test('Backspace after keyboard-entered barline or system break deletes that exac
   send('keydown','Backspace',470);send('keyup','Backspace',490);
   assert.equal(state.song.elements.filter(e=>e.kind==='break').length,0);
   assert.deepEqual(state.song.notes.map(n=>n.raw),['1']);
-  assert.equal(els.source.disabled,true);
+  assert.equal(els.source.disabled,undefined);
 });
 
 test('five-line and guitar score variants both allow selecting a note or bar',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 | 2';
   for(const type of ['staff','guitar']){
-    const {els,document,state}=boot({source,scoreType:type,pianoAudition:false,keyboardMode:true});
+    const {els,document,state}=boot({source,scoreType:type,pianoAudition:false,keyboardMode:true,backspacePrevious:false});
     const bar=els.score.querySelectorAll('.bar-click')[0];
     assert.ok(bar);
     bar.dispatch('click');
@@ -1710,31 +1718,19 @@ test('HTML contains one unambiguous score-type dropdown and no duplicated picker
   assert.ok(html.includes('value="jianpu" selected>简谱'));
 });
 
-test('keyboard shortcuts resume after switching score type without select focus trapping Space',()=>{
+test('changing score type disables keyboard shortcuts until another score click',()=>{
   const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1';
   const {document,els,state}=boot({source,keyboardMode:true,pianoAudition:false,pianoContinuous:false});
   const picker=document.getElementById('score-type');
+  picker.focus();
   picker.value='staff';picker.dispatch('change');
   assert.equal(state.scoreType,'staff');
-  assert.equal(picker.blurred,true,'native picker must relinquish focus on change');
-  const fire=(code,ts)=>document.dispatch('keydown',{code,timeStamp:ts,
-    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}});
-  const space={code:'Space',timeStamp:500,target:els.score.children.find(x=>x.className==='score-line score-staff'),
-    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}};
-  document.dispatch('keydown',space);
-  assert.equal(space.prevented,true);
-  assert.equal(space.stopped,true);
+  const press=(code,ts)=>document.dispatch('keydown',{code,timeStamp:ts,preventDefault(){}});
+  press('Space',100);
+  assert.equal(state.song.elements.filter(x=>x.kind==='bar').length,0);
+  els.score.querySelectorAll('.note-click')[0].dispatch('click');
+  press('Space',200);
   assert.equal(state.song.elements.filter(x=>x.kind==='bar').length,1);
-  document.dispatch('keyup',{code:'Space',timeStamp:600,preventDefault(){},stopPropagation(){}});
-  const enter={code:'Enter',timeStamp:700,
-    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}};
-  document.dispatch('keydown',enter);
-  assert.equal(enter.prevented,true);assert.equal(enter.stopped,true);
-  assert.equal(state.song.elements.filter(x=>x.kind==='break').length,1);
-  document.dispatch('keyup',{code:'Enter',timeStamp:780,preventDefault(){},stopPropagation(){}});
-  assert.match(els.source.value,/1\s*\|\s*\$\(true\)/);
-  assert.match(read('src/app.mjs'),/document\.addEventListener\('keydown',keyboardDown,true\)/);
-  assert.match(read('src/app.mjs'),/document\.addEventListener\('keyup',keyboardUp,true\)/);
 });
 
 test('custom lyrics sizing stays under the original appearance configuration on alternate scores',()=>{
@@ -1843,7 +1839,7 @@ test('jianpu bar hitboxes remain paint-invisible and within bar cells at extreme
       highOctaveDotOffset:80,lowOctaveDotOffset:80}
   ]){
     const {state,els,document}=boot({source,format,scoreType:'jianpu',
-      keyboardMode:true,pianoAudition:false});
+      keyboardMode:true,pianoAudition:false,backspacePrevious:false});
     const systems=els.score.children.filter(node=>node.className==='score-line');
     assert.equal(systems.length,2);
     for(const system of systems){
