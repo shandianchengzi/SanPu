@@ -78,6 +78,7 @@ function boot(saved,allowOverwrite=false){
     getItem(key){return this.data[key]??null},
     setItem(key,value){this.data[key]=value}
   };
+  if(saved?.songLibrary)localStorage.data['sanpu.song-library.v1']=JSON.stringify(saved.songLibrary);
   const windowEvents={};
   const window={addEventListener(type,cb){(windowEvents[type]??=[]).push(cb);},
     dispatch(type,event={}){for(const cb of windowEvents[type]??[])cb(event);},
@@ -2575,4 +2576,113 @@ test('plain click and mouse drag retain their behavior; modifier pointer gesture
   notes[5].dispatch('click');
   assert.deepEqual([...state.selectedNoteIds],[5]);
   assert.equal(state.selectionAnchorId,5);
+});
+
+
+test('typed song-library names offer an explicit creation option with key detection and default inheritance',()=>{
+  const source='.Title\nTitle = 旧谱\nKeyAndMeters = {1=G,3/4}\n.Voice\n1 2';
+  const {els,state,document,localStorage,confirmations}=boot({source},true);
+  const input=els.libraryName;
+  input.value='星河 D调';input.dispatch('input');
+  assert.equal(els.libraryOptions.hidden,false);
+  const create=els.libraryOptions.children.find(e=>e.textContent.includes('＋ 新建「星河 D调」'));
+  assert.ok(create);
+  create.click();
+  assert.equal(confirmations.length,1);
+  assert.match(confirmations[0],/是否新建《星河》歌曲（D 调）/);
+  assert.equal(state.song.title,'星河');
+  assert.equal(state.song.key,'D');
+  assert.equal(state.song.meter,'3/4');
+  assert.equal(state.song.notes.length,0);
+  assert.equal(input.value,'星河');
+  assert.equal(state.currentSongId,state.chosenLibraryId);
+  assert.equal(JSON.parse(localStorage.data['sanpu.song-library.v1']).entries.length,1);
+  const next='飞鸟';
+  input.value=next;input.dispatch('input');
+  els.libraryOptions.children.find(e=>e.textContent.includes('＋ 新建')).click();
+  assert.equal(state.song.title,next);
+  assert.equal(state.song.key,'D','unrecognized key inherits the current score key');
+  assert.equal(JSON.parse(localStorage.data['sanpu.song-library.v1']).entries.length,2);
+  const aborted=boot({source},false);
+  aborted.els.libraryName.value='取消 C调';aborted.els.libraryName.dispatch('input');
+  aborted.els.libraryOptions.children.find(e=>e.textContent.includes('＋ 新建')).click();
+  assert.equal(aborted.els.source.value,source,'declining creation preserves the current source');
+  assert.equal(aborted.localStorage.getItem('sanpu.song-library.v1'),null);
+});
+
+test('saving a library song confirms overwrite, renames it automatically, and delete confirms first',()=>{
+  const source='.Title\nTitle = 旧曲\nKeyAndMeters = {1=C,4/4}\n.Voice\n1 2';
+  const {els,state,document,localStorage,confirmations}=boot({source},true);
+  els.librarySave.dispatch('click');
+  const firstId=state.currentSongId;
+  assert.ok(firstId?.startsWith('local-'));
+  assert.match(confirmations.at(-1),/是否将当前歌曲《旧曲》保存为曲库新条目/);
+  let saved=JSON.parse(localStorage.getItem('sanpu.song-library.v1'));
+  assert.equal(saved.entries[0].title,'旧曲');
+  els.source.value=els.source.value.replace('Title = 旧曲','Title = 新曲').replace('1 2','1 2 3');
+  state.song={...state.song,title:'新曲'};
+  els.librarySave.dispatch('click');
+  saved=JSON.parse(localStorage.getItem('sanpu.song-library.v1'));
+  assert.match(confirmations.at(-1),/保存将覆盖曲库中的《旧曲》并自动更新名称为《新曲》/);
+  assert.equal(saved.entries.length,1);
+  assert.equal(saved.entries[0].title,'新曲');
+  assert.match(saved.entries[0].source,/1 2 3/);
+  assert.equal(state.currentSongId,firstId,'overwrite retains stable song identity');
+  assert.equal(els.libraryName.value,'新曲');
+  els.libraryDelete.dispatch('click');
+  assert.match(confirmations.at(-1),/确定从本机曲库删除《新曲》/);
+  assert.equal(JSON.parse(localStorage.getItem('sanpu.song-library.v1')).entries.length,0);
+  assert.equal(state.currentSongId,null);
+  assert.match(els.source.value,/Title = 新曲/,'deleting a library entry must not erase the edited score');
+  assert.equal(els.libraryName.value,'');
+  // The built-in example may be hidden locally without mutating EXAMPLES in core.
+  const example=els.libraryName;
+  example.value='一生';example.dispatch('input');
+  els.libraryOptions.children[0].click();
+  els.libraryDelete.dispatch('click');
+  assert.deepEqual(JSON.parse(localStorage.getItem('sanpu.song-library.v1')).deleted,['yi-sheng-suo-ai']);
+});
+
+test('Ctrl+C and Ctrl+V preserve cross-row source symbols and paste to the right of the selected note',()=>{
+  const source='.Title\nTitle = Copy\nKeyAndMeters = {1=C,3/4}\n.Voice\n1_ y40 | 2- $(true)\n3___ 4 |$(true)\n5\n.Words\nW1@1,1:\n你好世界啊';
+  const {els,state,document,localStorage}=boot({source,pianoAudition:false});
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  els.score.dispatch('click',{target:notes[3],shiftKey:true,preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}});
+  const send=(code)=>{
+    const event={code,ctrlKey:true,preventDefault(){event.prevented=true;},
+      stopPropagation(){}};
+    document.dispatch('keydown',event);return event;
+  };
+  assert.equal(send('KeyC').prevented,true);
+  assert.match(state.scoreClipboard,/1_ y40 \| 2- \$\(true\)\n3___ 4/);
+  assert.doesNotMatch(state.scoreClipboard,/W1@/);
+  notes[4].dispatch('click');
+  assert.equal(send('KeyV').prevented,true);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1_','2-','3___','4','5','1_','2-','3___','4']);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,3);
+  assert.equal(state.song.elements.filter(e=>e.kind==='spacer').length,2);
+  assert.deepEqual([...state.selectedNoteIds],[5,6,7,8]);
+  assert.equal(state.selectedItem.index,8);
+  assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,els.source.value);
+  const before=els.source.value;
+  els.source.tag='textarea';els.source.focus();
+  assert.equal(send('KeyV').prevented,undefined,'source text editing retains native copy/paste');
+  assert.equal(els.source.value,before);
+});
+
+test('Ctrl-copy discontiguous notes does not include unselected notes when pasted',()=>{
+  const source='.Voice\n1 2 3 |$(true)\n4 5';
+  const {state,els,document}=boot({source,pianoAudition:false});
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  els.score.dispatch('click',{target:notes[2],ctrlKey:true,preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}});
+  const send=code=>document.dispatch('keydown',{code,ctrlKey:true,preventDefault(){}});
+  send('KeyC');
+  assert.equal(state.scoreClipboard,'1 3');
+  notes[4].dispatch('click');
+  send('KeyV');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','2','3','4','5','1','3']);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,1);
 });
