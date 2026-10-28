@@ -2119,6 +2119,11 @@ test('down arrow edits lyric beneath the selected note, up arrow commits and fil
   const input=state.lyricDraft.input;
   assert.ok(input&&input.className==='lyric-inline-input');
   assert.equal(document.activeElement,input);
+  for(const eventName of ['click','pointerdown','keydown']){
+    let stopped=false;
+    input.dispatch(eventName,{stopPropagation(){stopped=true;}});
+    assert.equal(stopped,true,eventName+' must not bubble to the note playback handler');
+  }
   input.value='花';input.dispatch('input');
   assert.equal(els.source.value,source,'IME draft must not modify original source');
   assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).source,source);
