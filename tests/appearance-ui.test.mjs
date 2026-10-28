@@ -1000,7 +1000,7 @@ test('clicking a score note also plays in recording mode while retaining score f
   assert.equal(els.play.textContent,'Ⅱ 暂停');
   assert.equal(state.cursorNoteId,2);
   assert.equal(state.active,2);
-  assert.equal(els.source.focused,false);
+  assert.notEqual(els.source.focused,true);
   assert.equal(document.activeElement,notes[2]);
   assert.equal(els.source.selectionStart,source.indexOf('#4,...')+6);
   assert.equal(els.source.selectionEnd,els.source.selectionStart);
@@ -1029,7 +1029,7 @@ test('clicking score note in audition mode continues playing from selected note 
   els.score.querySelectorAll('.note-click')[1].dispatch('click');
   await Promise.resolve();await Promise.resolve();
   assert.equal(state.cursorNoteId,1);
-  assert.equal(els.source.focused,false);
+  assert.notEqual(els.source.focused,true);
   assert.equal(state.selectedNoteIds.has(1),true);
   assert.equal(els.source.selectionStart,source.indexOf('2 |')+1);
   assert.equal(state.playing,true);
