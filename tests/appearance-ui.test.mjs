@@ -2180,7 +2180,8 @@ test('30s lyric inactivity commits once and leaving score mode commits immediate
   const pending=[...timers.entries()].find(([,t])=>t.delay===30000);
   fireTimer(pending[0]);
   assert.equal(state.song.lyrics.get(1).text,'春天');
-  assert.equal(state.lyricDraft,null);
+  assert.equal(state.lyricDraft?.value,'春天','idle autosave keeps the lyric editor open');
+  assert.equal(document.activeElement,state.lyricDraft.input);
   els.score.querySelectorAll('.note-click')[2].dispatch('click');
   document.dispatch('keydown',{code:'ArrowDown',preventDefault(){}});
   const next=state.lyricDraft.input;
