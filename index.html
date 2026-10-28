@@ -36,9 +36,14 @@
           <button id="import-btn" class="btn secondary" type="button">↥ 导入文件</button>
           <input id="file-input" hidden type="file" accept=".jpwabc,.txt,text/plain" />
           <button id="save-btn" class="btn secondary" type="button">↓ 保存源码</button>
-          <button id="insert-spacer-btn" class="btn quiet" type="button" title="在源码光标位置插入 y40，增加 40 单位的水平空位，不改变拍数">＋ 排版空位</button>
-          <label class="example-picker" for="example-select">示例曲库 <select id="example-select" aria-label="选择示例曲谱"></select></label>
-          <button id="example-btn" class="btn quiet" type="button" title="选择曲目后加载，覆盖当前编辑内容前会征求确认">加载选中示例</button>
+          <button id="library-save-btn" class="btn secondary" type="button" title="保存当前源谱到曲库，覆盖当前曲目时会要求确认">保存</button>
+          <div class="example-picker library-picker"><label for="example-select">曲库</label>
+            <div class="library-combobox"><input id="example-select" type="text" autocomplete="off" aria-label="搜索曲库或输入新歌名" aria-autocomplete="list" aria-controls="song-library-options" aria-expanded="false" placeholder="选择曲目或输入新歌名" />
+              <div id="song-library-options" class="library-options" role="listbox" hidden></div>
+            </div>
+          </div>
+          <button id="example-btn" class="btn quiet" type="button" title="加载曲库中选中的曲目">加载</button>
+          <button id="library-delete-btn" class="btn quiet" type="button" title="删除曲库中选中的曲目，需要确认">删除</button>
         </div>
         <div class="transcriber-editor">
           <label for="transcriber-input">记谱人</label>
