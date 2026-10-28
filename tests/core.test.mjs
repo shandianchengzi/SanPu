@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,beatDurationSuffix,setSongNoteBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote,parseLyricRowInput,lyricRowDraft,setLyricRow} from '../src/core.mjs';
+import {EXAMPLE,EXAMPLES,parseSong,durationFromSuffix,noteFrequency,beatReport,splitLyricPunctuation,DEFAULT_SPACER_WIDTH,MAX_SPACER_WIDTH,pianoToNotation,pianoDurationSuffix,insertPianoNote,pianoKeyMidi,revisePianoNoteDuration,noteSourceCaret,updateTranscriber,songSchedule,groupPlaybackEvents,transposeSongSemitones,adjustSongRhythmHalfBeats,speedUpSongHalfBeats,beatDurationSuffix,setSongNoteBeats,insertPianoMarker,voiceEditItems,deleteVoiceItem,setLyricForNote,parseLyricRowInput,lyricRowDraft,setLyricRow,parseLibrarySongName,newLibrarySongSource,renameSongSourceTitle,copyVoiceSelection,pasteVoiceSelection} from '../src/core.mjs';
 test('duration keeps individual recorded note lengths',()=>{
   assert.equal(durationFromSuffix('_'),.5);
   assert.equal(durationFromSuffix('__'),.25);
@@ -665,4 +665,56 @@ test('lyric row editor removes trailing generated skips, not structural gaps bef
   assert.equal(song.lyrics.get(12)?.text,'月','words in another row retain original alignment');
   const after=lyricRowDraft(song,2);
   assert.equal(after.value,'//夏秋','reentering the editor does not expose trailing alignment skips');
+});
+
+
+test('new library names recognize explicit key syntax and otherwise inherit current key',()=>{
+  assert.deepEqual(parseLibrarySongName('一生所爱 D调','C'),{title:'一生所爱',key:'D',recognized:true});
+  assert.deepEqual(parseLibrarySongName('《新歌》 1=#F','C'),{title:'新歌',key:'#F',recognized:true});
+  assert.deepEqual(parseLibrarySongName('故乡 （bB调）','D'),{title:'故乡',key:'bB',recognized:true});
+  assert.deepEqual(parseLibrarySongName('你好世界','E'),{title:'你好世界',key:'E',recognized:false});
+  assert.deepEqual(parseLibrarySongName('唱歌 X调','G'),{title:'唱歌 X调',key:'G',recognized:false});
+  assert.throws(()=>parseLibrarySongName('   '),/不能为空/);
+  const created=newLibrarySongSource('新歌','#F','3/4');
+  assert.equal(parseSong(created).title,'新歌');
+  assert.equal(parseSong(created).key,'#F');
+  assert.equal(parseSong(created).meter,'3/4');
+  const updated=renameSongSourceTitle('.Title\nTitle = 旧名\nKeyAndMeters = {1=D,3/4}\n.Voice\n1','新名');
+  assert.match(updated,/^Title = 新名$/m);
+  assert.match(updated,/^KeyAndMeters = \{1=D,3\/4\}$/m);
+  assert.match(updated,/\.Voice\n1$/);
+});
+
+test('copy selected source symbols across rows preserves bars, breaks and spacers',()=>{
+  const original='.Title\nTitle = Demo\nKeyAndMeters = {1=D,3/4}\n.Voice\n1_ y40 | 2- $(true)\n3___ 4 |$(true)\n5\n.Words\nW1@1,1:\n你好世界啊';
+  const result=copyVoiceSelection(original,new Set([0,1,2,3]));
+  assert.equal(result.noteCount,4);
+  assert.match(result.text,/1_ y40 \| 2- \$\(true\)\n3___ 4/);
+  assert.equal(result.text.includes('W1@'),false,'copy never includes metadata or .Words');
+  const pasted=pasteVoiceSelection(original,result.text,{kind:'note',index:4});
+  const changed=parseSong(pasted.source);
+  assert.equal(changed.notes.length,9);
+  assert.deepEqual(changed.notes.slice(5).map(n=>n.raw),['1_','2-','3___','4']);
+  assert.equal(changed.elements.filter(e=>e.kind==='break').length,4);
+  assert.equal(changed.elements.filter(e=>e.kind==='spacer').length,2);
+  assert.equal(pasted.source.slice(0,original.indexOf('.Voice')),original.slice(0,original.indexOf('.Voice')));
+  assert.equal(pasted.source.split('.Words')[1],original.split('.Words')[1]);
+  assert.match(pasted.source,/5 1_ y40 \| 2- \$\(true\)\n3___ 4 /);
+});
+
+test('non-contiguous selections copy only selected note symbols; selected bars copy raw tokens',()=>{
+  const src='.Voice\n1 2 | 3 $(true)\n4 5';
+  const clip=copyVoiceSelection(src,new Set([0,2,4]));
+  assert.equal(clip.text,'1 3 5');
+  const bar=copyVoiceSelection(src,new Set(),{kind:'bar',index:0});
+  assert.equal(bar.text,'|');
+  const updated=pasteVoiceSelection(src,bar.text,{kind:'note',index:0});
+  assert.equal(parseSong(updated.source).elements.filter(e=>e.kind==='bar').length,2);
+  const split=copyVoiceSelection(src,new Set(),{kind:'break',index:0});
+  assert.equal(split.text,'$(true)');
+  assert.equal(parseSong(pasteVoiceSelection(src,split.text,{kind:'note',index:4}).source)
+    .elements.filter(e=>e.kind==='break').length,2);
+  for(const invalid of ['.Words\nW1@1,1:\n破坏','<script>alert(1)</script>','9','@@@']){
+    assert.throws(()=>pasteVoiceSelection(src,invalid,{kind:'note',index:1}),/只允许|非音符/);
+  }
 });
