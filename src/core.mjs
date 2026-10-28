@@ -204,7 +204,7 @@ export function setLyricForNote(source,noteId,value){
   if(!Number.isInteger(noteId)||noteId<0||noteId>=song.notes.length)
     throw new Error('歌词位置没有对应的音符。');
   const entered=String(value??'');
-  if(/[\\r\\n{}]/.test(entered)||[...entered].length>100)
+  if(/[\r\n{}]/.test(entered)||[...entered].length>100)
     throw new Error('歌词不可包含换行或花括号，且不能超过 100 个字符。');
   const tokens=song.notes.map(note=>{
     const item=song.lyrics.get(note.id);
@@ -214,18 +214,18 @@ export function setLyricForNote(source,noteId,value){
   const encode=value=>value==='/'?'/':('{'+value+'}');
   // One explicit unit for every note makes gaps on both sides stable.
   const anchor=song.notes[0];
-  const replacement='W1@'+anchor.measure+','+anchor.noteIndex+':\\n'+tokens.map(encode).join(' ');
-  const headings=[...text.matchAll(/^[ \\t]*\\.(Title|Voice|Words|Layout|Repeat)[ \\t]*\\r?$/gm)];
+  const replacement='W1@'+anchor.measure+','+anchor.noteIndex+':\n'+tokens.map(encode).join(' ');
+  const headings=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
   const sectionIndex=headings.findIndex(h=>h[1]==='Words');
   if(sectionIndex<0){
-    const suffix=text.endsWith('\\n')?'':'\\n';
-    return {source:text+suffix+'.Words\\n'+replacement+'\\n',
+    const suffix=text.endsWith('\n')?'':'\n';
+    return {source:text+suffix+'.Words\n'+replacement+'\n',
       count:tokens.length,noteId};
   }
   const header=headings[sectionIndex],bodyStart=header.index+header[0].length;
   const bodyEnd=headings[sectionIndex+1]?.index??text.length;
-  const body=text.slice(bodyStart,bodyEnd),nl=text.includes('\\r\\n')?'\\r\\n':'\\n';
-  const match=[...body.matchAll(/^[ \\t]*W(\\d+)(?:-\\d+)?(?:\\([^)]*\\))?(?:@\\d+,\\d+)?(?:\\([^)]*\\))?:/gm)];
+  const body=text.slice(bodyStart,bodyEnd),nl=text.includes('\r\n')?'\r\n':'\n';
+  const match=[...body.matchAll(/^[ \t]*W(\d+)(?:-\d+)?(?:\([^)]*\))?(?:@\d+,\d+)?(?:\([^)]*\))?:/gm)];
   // Rewrite verse 1 only. Stanzas for verses 2+ and following sections
   // retain their original bytes and order.
   let preserved='',cursor=0,firstVersePosition=null;
@@ -238,10 +238,10 @@ export function setLyricForNote(source,noteId,value){
     cursor=end;
   }
   preserved+=body.slice(cursor);
-  const position=firstVersePosition??(preserved.startsWith('\\r\\n')?2:preserved.startsWith('\\n')?1:0);
+  const position=firstVersePosition??(preserved.startsWith('\r\n')?2:preserved.startsWith('\n')?1:0);
   const prefix=preserved.slice(0,position),suffix=preserved.slice(position);
-  const paddedPrefix=prefix.length&&!prefix.endsWith('\\n')?prefix+nl:prefix;
-  const updated=paddedPrefix+replacement.replace(/\\n/g,nl)+nl+suffix.replace(/^\\n(?=\\n)/,'\\n');
+  const paddedPrefix=prefix.length&&!prefix.endsWith('\n')?prefix+nl:prefix;
+  const updated=paddedPrefix+replacement.replace(/\n/g,nl)+nl+suffix.replace(/^\n(?=\n)/,'\n');
   return {source:text.slice(0,bodyStart)+updated+text.slice(bodyEnd),
     count:tokens.length,noteId};
 }
