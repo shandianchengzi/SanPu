@@ -1,4 +1,4 @@
-import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
+import {EXAMPLE, EXAMPLES, parseSong, noteFrequency, splitLyricPunctuation, pianoToNotation, pianoDurationSuffix, insertPianoNote, pianoKeyMidi, revisePianoNoteDuration, noteSourceCaret, updateTranscriber, songSchedule, groupPlaybackEvents, transposeSongSemitones, speedUpSongHalfBeats, addSlurToSelectedNotes, insertPianoMarker, voiceEditItems, deleteVoiceItem} from './core.mjs';
 import {TIMBRES, normalizeTimbre, createVoice, createLegatoVoice} from './timbres.mjs';
 import {renderScoreToMp3} from './mp3.mjs';
 import {FORMAT_GROUPS, DEFAULT_FORMAT, FORMAT_PRESETS, FONTS, normalizeFormat, formatPresetId, exportStyle, importStyle} from './format.mjs';
@@ -11,16 +11,16 @@ const els = {
   noteCount:$('note-count'), tempo:$('tempo'), tempoValue:$('tempo-value'),
   play:$('play-btn'),stop:$('stop-btn'),loopCount:$('loop-count'),scoreType:$('score-type'),saved:$('saved'), formatControls:$('format-controls'), formatPreset:$('format-preset'),
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
-  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),keyboardMode:$('piano-keyboard-mode'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
+  formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,keyboardMode:false,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
   return value===null||value===undefined||String(value).trim()===''||!Number.isSafeInteger(n)||n<-1?0:n;
 }
 function persist() {
-  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,keyboardMode:state.keyboardMode,loopCount:state.loopCount,scoreType:state.scoreType}));message('已自动保存在本机'); }
+  try { localStorage.setItem(STORAGE,JSON.stringify({source:els.source.value, tempo:state.tempo,format:state.format,zoom:state.zoom,timbre:state.timbre,pianoAudition:state.pianoAudition,pianoTranspose:state.pianoTranspose,pianoContinuous:state.pianoContinuous,backspacePrevious:state.backspacePrevious,loopCount:state.loopCount,scoreType:state.scoreType}));message('已自动保存在本机'); }
   catch {message('无法自动保存，请使用「保存源码」备份');}
 }
 function load() {
@@ -41,9 +41,8 @@ function load() {
   els.pianoTranspose.checked=state.pianoTranspose;
   state.pianoContinuous=settings?.pianoContinuous!==false;
   els.pianoContinuous.checked=state.pianoContinuous;
-  state.keyboardMode=settings?.keyboardMode===true;
-  els.keyboardMode.checked=state.keyboardMode;
-  els.source.disabled=state.keyboardMode;
+  state.backspacePrevious=settings?.backspacePrevious!==false;
+  els.backspacePrevious.checked=state.backspacePrevious;
   els.tempo.value=String(state.tempo);
   els.tempoValue.value=String(state.tempo);
 }
@@ -276,6 +275,7 @@ function insertFromPiano(midi,heldMs,recordedAnchor=null){
   els.source.selectionStart=els.source.selectionEnd=result.caret;
   state.cursorNoteId=result.noteId;
   state.selectedItem={kind:'note',index:result.noteId};
+  state.selectedNoteIds=new Set([result.noteId]);
   state.song=parseSong(els.source.value);
   render();highlight(result.noteId);
   persist();
@@ -390,6 +390,7 @@ function buildPiano(){
 }
 function keyboardEventCode(ev){
   if(ev.code==='Backspace'||ev.key==='Backspace')return 'Backspace';
+  if(ev.code==='Delete'||ev.key==='Delete'||ev.key==='Del')return 'Delete';
   if(ev.code==='Space'||ev.key===' ')return 'Space';
   if(ev.code==='Enter'||ev.code==='NumpadEnter'||ev.key==='Enter')return 'Enter';
   if(ev.code==='Backquote'||['·','`','~'].includes(ev.key))return '`';
@@ -405,13 +406,19 @@ function keyboardEventCode(ev){
 function isEditingTarget(target){
   if(!target)return false;
   const tag=String(target.tagName||target.tag||'').toLowerCase();
-  // The keyboard-mode checkbox retains focus after activation. Allow piano
-  // shortcuts while a checkbox/radio/button is focused, but not text editing.
+  // All text editing fields retain their native shortcuts.
   if(tag==='input')return !['checkbox','radio','button','submit','reset'].includes(String(target.type||'').toLowerCase());
   return tag==='textarea'||tag==='select'||target.isContentEditable===true||
     !!target.closest?.('[contenteditable="true"]');
 }
-// All keyboard-mode recording uses the same note anchor and source caret,
+function scoreFocused(){
+  const active=document.activeElement;
+  if(!active)return false;
+  const node=active.closest?.('.note-click, .bar-click')||
+    (active.dataset?.noteId!==undefined||active.dataset?.barId!==undefined?active:null);
+  return !!node && (els.score.contains?.(node)??true);
+}
+// All score-focused keyboard recording uses the same note anchor and source caret,
 // including silent rests and structural separators.
 function insertKeyboardMarker(marker){
   const result=insertPianoMarker(els.source.value,marker,state.cursorNoteId,els.source.selectionStart,['bar','break'].includes(state.selectedItem?.kind));
@@ -426,6 +433,7 @@ function insertKeyboardMarker(marker){
   const found=voiceEditItems(els.source.value).filter(e=>e.kind===markerKind&&
     e.from>=result.caret-(marker==='|'?3:12)&&e.to<=result.caret).at(-1);
   state.selectedItem=found?{kind:found.kind,index:found.index}:null;
+  state.selectedNoteIds.clear();
   render();
   if(result.noteId>=0)highlight(result.noteId);
   persist();
@@ -494,11 +502,14 @@ function deleteSelectedScoreItem(){
   persist();
 }
 function keyboardDown(ev){
-  if(!state.keyboardMode||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
+  if(!scoreFocused()||ev.defaultPrevented||ev.repeat||ev.isComposing||ev.ctrlKey||ev.altKey||ev.metaKey)return;
   if(isEditingTarget(ev.target||document.activeElement))return;
   const key=keyboardEventCode(ev);
-  if(key==='Backspace'){
-    ev.preventDefault?.();ev.stopPropagation?.();deleteSelectedScoreItem();highlightKeyboardSpecial('Backspace',true);return;
+  if(key==='Backspace'||key==='Delete'){
+    ev.preventDefault?.();ev.stopPropagation?.();
+    deleteSelectedScoreItem(key==='Delete'?'after':state.backspacePrevious?'before':'self');
+    if(key==='Backspace')highlightKeyboardSpecial('Backspace',true);
+    return;
   }
   if(key==='Space'||key==='Enter'){
     ev.preventDefault?.();ev.stopPropagation?.();
@@ -525,11 +536,15 @@ function keyboardDown(ev){
 }
 function keyboardUp(ev){
   const key=keyboardEventCode(ev);
-  if(key==='Backspace'){
-    if(state.keyboardMode&&!isEditingTarget(ev.target||document.activeElement)){ev.preventDefault?.();ev.stopPropagation?.();highlightKeyboardSpecial('Backspace',false);}return;
+  if(key==='Backspace'||key==='Delete'){
+    if(scoreFocused()&&!isEditingTarget(ev.target||document.activeElement)){
+      ev.preventDefault?.();ev.stopPropagation?.();
+      if(key==='Backspace')highlightKeyboardSpecial('Backspace',false);
+    }
+    return;
   }
   if(key==='Space'||key==='Enter'){
-    if(state.keyboardMode&&!isEditingTarget(ev.target||document.activeElement)){ev.preventDefault?.();ev.stopPropagation?.();highlightKeyboardSpecial(key,false);}
+    if(scoreFocused()&&!isEditingTarget(ev.target||document.activeElement)){ev.preventDefault?.();ev.stopPropagation?.();highlightKeyboardSpecial(key,false);}
     return;
   }
   if(key==='`'){
@@ -1289,7 +1304,7 @@ els.scoreType.addEventListener('change',()=>{
   render();persist();
   // Once the native picker is closed, release its text-editing focus so
   // Space/Enter immediately resume piano entry rather than reopening it.
-  if(state.keyboardMode)els.scoreType.blur?.();
+  /* A picker keeps focus; score shortcuts resume only after clicking a symbol. */
 });
 els.pianoContinuous.addEventListener('change',()=>{
   clearPianoSequence();
