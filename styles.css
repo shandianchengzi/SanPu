@@ -461,3 +461,15 @@ main{padding-top:23px}
   white-space:nowrap;
 }
 @media print{.score-page .lyric-line-editor{display:none!important}}
+
+/* Editable song-library combobox; isolated from the frozen notation stylesheet. */
+.editor-actions .library-picker{min-width:0}
+.library-combobox{position:relative;min-width:180px;flex:1}
+.library-combobox input{font:inherit;font-size:12px;width:100%;min-width:170px;max-width:260px;padding:9px 10px;background:#fff;border:1px solid var(--border);border-radius:9px;color:var(--ink)}
+.library-options{position:absolute;top:calc(100% + 3px);left:0;right:0;min-width:220px;max-height:250px;overflow-y:auto;z-index:30;background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 10px 23px rgba(0,0,0,.12)}
+.library-options[hidden]{display:none!important}
+.library-option{display:block;width:100%;border:0;background:#fff;padding:10px 11px;text-align:left;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;white-space:normal;overflow-wrap:anywhere}
+.library-option:hover,.library-option:focus-visible{background:#edf4f1;outline:0}
+.library-option-new{color:#27665d;font-weight:650;border-top:1px solid var(--border)}
+@media(max-width:640px){.library-combobox input{max-width:195px}.library-options{min-width:190px}}
+@media print{.library-combobox,.library-picker{display:none!important}}
