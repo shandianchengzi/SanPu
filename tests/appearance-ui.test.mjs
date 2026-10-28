@@ -702,7 +702,7 @@ test('song library initializes from the built-in score and explicit load protect
   assert.match(initial.els.source.value,/KeyAndMeters = \{1=D\}/);
   assert.equal(initial.state.song.meter,'');
   assert.ok(initial.els.source.value.includes('y y y y y y y30|'));
-  assert.ok(initial.els.source.value.includes("6,-  0_    y15|$(true)"));
+  assert.ok(initial.els.source.value.includes("6,-  0_    y y50|$(true)"));
   assert.ok(!initial.els.source.value.includes('.Words'));
   assert.equal(initial.state.song.notes.length,93);
   assert.equal(initial.state.song.warnings.length,0);
