@@ -12,7 +12,7 @@ class FakeElement {
     this.style={props:{},setProperty:(key,value)=>{this.style.props[key]=String(value)}};
     this.classes=new Set();this.classList={toggle:(name,on)=>{if(on??!this.classes.has(name))this.classes.add(name);else this.classes.delete(name);},contains:name=>this.classes.has(name)};this.value='';this.textContent='';
   }
-  setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value);if(key==='data-bar-id')this.dataset.barId=String(value);if(key==='data-note-id')this.dataset.noteId=String(value)}
+  setAttribute(key,value){this.attrs[key]=String(value);if(key==='class')this.className=String(value);if(key==='data-bar-id')this.dataset.barId=String(value);if(key==='data-break-id')this.dataset.breakId=String(value);if(key==='data-note-id')this.dataset.noteId=String(value)}
   focus(){
     if(this.ownerDocument?.activeElement&&this.ownerDocument.activeElement!==this)
       this.ownerDocument.activeElement.focused=false;
@@ -24,6 +24,7 @@ class FakeElement {
     for(let item=this;item;item=item.parent){
       if(selector.includes('.note-click')&&item.className==='note-click')return item;
       if(selector.includes('.bar-click')&&item.className==='bar-click')return item;
+      if(selector.includes('.break-click')&&item.className==='break-click')return item;
     }
     return null;
   }
@@ -45,6 +46,7 @@ class FakeElement {
       if(selector==='[data-format-key]' && child.dataset?.formatKey)found.push(child);
       if(selector==='.note-click' && child.className==='note-click')found.push(child);
       if(selector==='.bar-click' && child.className==='bar-click')found.push(child);
+       if(selector==='.break-click' && child.className==='break-click')found.push(child);
       walk(child);
     }};
     walk(this);return found;
@@ -2003,4 +2005,105 @@ test('signed rhythm batch edit lengthens whole score or selection, keeps state, 
   assert.match(confirmations[2],/缩短 1 个半拍/);
   rhythm.value='1.5';apply.dispatch('click');
   assert.match(els.batchStatus.textContent,/整数半拍/);
+});
+
+test('arrow keys navigate through notes, barline, explicit line break and next note',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |$(true)\n2 3';
+  const {els,state,document}=boot({source,pianoAudition:false});
+  const notes=els.score.querySelectorAll('.note-click');
+  notes[0].dispatch('click');
+  const press=code=>{
+    const ev={code,key:code,preventDefault(){ev.prevented=true},stopPropagation(){}};
+    document.dispatch('keydown',ev);return ev;
+  };
+  let sounds=state.playing;
+  assert.equal(press('ArrowRight').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+  assert.equal(state.selectedNoteIds.size,0);
+  assert.equal(press('ArrowRight').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'break',index:0});
+  assert.equal(els.score.querySelectorAll('.break-click')[0].classList.contains('is-selected'),true);
+  assert.match(els.score.querySelectorAll('.break-click')[0].children[1].textContent,/当前选中换行符/);
+  assert.equal(document.getElementById('batch-selection-count').textContent,'已选中换行符');
+  assert.equal(document.activeElement,els.score.querySelectorAll('.break-click')[0]);
+  assert.equal(press('ArrowRight').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:1});
+  assert.deepEqual([...state.selectedNoteIds],[1]);
+  assert.equal(els.score.querySelectorAll('.break-click')[0].classList.contains('is-selected'),false);
+  assert.equal(press('ArrowLeft').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'break',index:0});
+  assert.equal(press('ArrowLeft').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+  assert.equal(press('ArrowLeft').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'note',index:0});
+  assert.equal(els.source.value,source,'moving caret must not change source or issue playback');
+  assert.equal(state.playing,sounds,'arrow navigation does not start/stop playback');
+  els.source.focus();
+  assert.equal(press('ArrowRight').prevented,undefined,'when source is focused native caret movement resumes');
+});
+
+test('selecting a terminal bar and Enter shows a transient break hint, then reselection cancels it',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |\n.Words\nW1@1,1:\n甲';
+  const {els,state,document}=boot({source,pianoAudition:false});
+  els.score.querySelectorAll('.bar-click')[0].dispatch('click');
+  const press=code=>{const ev={code,timeStamp:100,preventDefault(){ev.prevented=true},stopPropagation(){}};document.dispatch('keydown',ev);return ev};
+  assert.equal(press('Enter').prevented,true);
+  assert.equal(state.selectedItem.kind,'break');
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,1);
+  const hit=els.score.querySelectorAll('.break-click')[0];
+  assert.ok(hit,'terminal break has separate focusable SVG overlay');
+  assert.equal(hit.classList.contains('is-selected'),true);
+  assert.equal(document.activeElement,hit,'keyboard focus remains in score on new break');
+  assert.match(hit.children[1].textContent,/准备另起一行/);
+  assert.ok(state.pendingTerminalBreak);
+  assert.equal(press('ArrowLeft').prevented,true);
+  assert.deepEqual(state.selectedItem,{kind:'bar',index:0});
+  assert.equal(state.pendingTerminalBreak,null);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,0);
+  assert.equal(els.source.value,source,'canceling pending newline restores source byte-for-byte');
+  const overlay=els.score.querySelectorAll('.break-click');
+  assert.equal(overlay.length,0,'no old pending hint remains after canceling');
+  assert.equal(document.activeElement,els.score.querySelectorAll('.bar-click')[0]);
+});
+
+test('a terminal break survives the next keyboard note and becomes a real new system',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |\n.Words\nW1@1,1:\n甲';
+  const {els,state,document}=boot({source,pianoAudition:false,pianoContinuous:false});
+  const send=(type,code,timeStamp)=>document.dispatch(type,{code,timeStamp,preventDefault(){},stopPropagation(){}});
+  els.score.querySelectorAll('.bar-click')[0].dispatch('click');
+  send('keydown','Enter',100);send('keyup','Enter',140);
+  assert.ok(state.pendingTerminalBreak);
+  send('keydown','KeyQ',180);send('keyup','KeyQ',300);
+  assert.equal(state.pendingTerminalBreak,null);
+  assert.equal(state.song.elements.filter(e=>e.kind==='break').length,1);
+  assert.deepEqual(state.song.notes.map(n=>n.row),[0,1]);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','1,']);
+  assert.equal(els.score.querySelectorAll('.break-click').length,1);
+  assert.equal(els.score.querySelectorAll('.break-click')[0].classList.contains('is-selected'),false);
+  assert.equal(els.score.querySelectorAll('.break-click')[0].children[1].textContent,'↵ 当前选中换行符');
+});
+
+test('changing selected note or deleting provisional newline cancels pending hint without changing original jianpu paint',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |';
+  for(const scoreType of ['jianpu','staff','guitar']){
+    const {state,els,document}=boot({source,pianoAudition:false,scoreType,backspacePrevious:true});
+    const send=code=>document.dispatch('keydown',{code,preventDefault(){},stopPropagation(){}});
+    els.score.querySelectorAll('.bar-click')[0].dispatch('click');
+    send('Enter');
+    assert.ok(state.pendingTerminalBreak);
+    send('Backspace');
+    assert.equal(state.pendingTerminalBreak,null);
+    assert.equal(state.song.elements.filter(e=>e.kind==='break').length,0);
+    assert.equal(els.source.value,source);
+    els.score.querySelectorAll('.bar-click')[0].dispatch('click');
+    send('Enter');
+    els.score.querySelectorAll('.note-click')[0].dispatch('click');
+    assert.equal(state.pendingTerminalBreak,null);
+    assert.equal(state.song.elements.filter(e=>e.kind==='break').length,0);
+    assert.equal(els.source.value,source);
+    assert.equal(els.score.querySelectorAll('.break-click').length,0);
+  }
+  const css=read('styles.css');
+  assert.match(css,/\.break-click\.is-selected \.break-hint\{display:block\}/);
+  assert.match(css,/@media print\{\s*\.score-page \.score-line \.break-click\{display:none!important\}/);
 });
