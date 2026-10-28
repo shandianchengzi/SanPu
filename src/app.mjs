@@ -1392,6 +1392,88 @@ els.backspacePrevious.addEventListener('change',()=>{
     '退格删除选中对象前一个音符或符号':'退格删除当前选中对象';
   persist();
 });
+// Pointer gestures share one contiguous editable selection across all SVG rows.
+// Mouse selection starts after movement; touch selection starts after a long
+// press so short taps and ordinary scrolling remain available.
+let rangeGesture=null,suppressRangeClick=false;
+function pointerNoteId(ev){
+  const target=typeof document.elementFromPoint==='function'&&
+    Number.isFinite(ev.clientX)&&Number.isFinite(ev.clientY)?
+    document.elementFromPoint(ev.clientX,ev.clientY):ev.target;
+  const group=target?.closest?.('.note-click')||
+    (target?.dataset?.noteId!==undefined?target:null);
+  const id=Number(group?.dataset?.noteId);
+  return group&&Number.isInteger(id)?id:null;
+}
+els.score.addEventListener('pointerdown',ev=>{
+  if(ev.button!==undefined&&ev.button!==0)return;
+  const first=pointerNoteId(ev);
+  if(first===null)return;
+  suppressRangeClick=false;
+  const gesture={pointerId:ev.pointerId,first,last:first,
+    startX:ev.clientX??0,startY:ev.clientY??0,
+    touch:ev.pointerType==='touch',active:false,timer:null};
+  rangeGesture=gesture;
+  if(gesture.touch){
+    gesture.timer=setTimeout(()=>{
+      if(rangeGesture!==gesture)return;
+      gesture.active=true;
+      selectScoreRange(gesture.first,gesture.last);
+      els.score.classList.toggle('is-range-selecting',true);
+    },400);
+  }
+});
+document.addEventListener('pointermove',ev=>{
+  const gesture=rangeGesture;
+  if(!gesture||(gesture.pointerId!==undefined&&ev.pointerId!==gesture.pointerId))return;
+  const delta=Math.hypot((ev.clientX??gesture.startX)-gesture.startX,
+    (ev.clientY??gesture.startY)-gesture.startY);
+  if(!gesture.active){
+    if(gesture.touch){
+      if(delta>9){clearTimeout(gesture.timer);rangeGesture=null;}
+      return;
+    }
+    if(delta<5)return;
+    gesture.active=true;
+    els.score.classList.toggle('is-range-selecting',true);
+  }
+  ev.preventDefault?.();
+  const id=pointerNoteId(ev);
+  if(id!==null&&id!==gesture.last){
+    gesture.last=id;
+    selectScoreRange(gesture.first,id);
+  }
+});
+function finishScoreDrag(ev){
+  const gesture=rangeGesture;
+  if(!gesture||(gesture.pointerId!==undefined&&ev.pointerId!==gesture.pointerId))return;
+  clearTimeout(gesture.timer);
+  rangeGesture=null;
+  els.score.classList.toggle('is-range-selecting',false);
+  if(!gesture.active)return;
+  const id=pointerNoteId(ev);
+  if(id!==null)gesture.last=id;
+  selectScoreRange(gesture.first,gesture.last);
+  focusScoreSelection();
+  suppressRangeClick=true;
+  setTimeout(()=>{suppressRangeClick=false;},0);
+}
+document.addEventListener('pointerup',finishScoreDrag);
+document.addEventListener('pointercancel',ev=>{
+  if(!rangeGesture||(rangeGesture.pointerId!==undefined&&ev.pointerId!==rangeGesture.pointerId))return;
+  clearTimeout(rangeGesture.timer);
+  rangeGesture=null;
+  els.score.classList.toggle('is-range-selecting',false);
+});
+els.score.addEventListener('click',ev=>{
+  if(suppressRangeClick){
+    ev.preventDefault?.();ev.stopPropagation?.();ev.stopImmediatePropagation?.();
+    suppressRangeClick=false;return;
+  }
+  if(ev.target&&!ev.target.closest?.('.note-click, .bar-click'))
+    clearScoreSelection();
+},true);
+
 els.scoreType.addEventListener('change',()=>{
   if(!['jianpu','staff','guitar'].includes(els.scoreType.value))return;
   state.scoreType=els.scoreType.value;
