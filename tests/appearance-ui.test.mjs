@@ -1873,3 +1873,97 @@ test('jianpu bar hitboxes remain paint-invisible and within bar cells at extreme
   const css=read('styles.css');
   assert.match(css,/\.score-page \.score-line \.bar-click \.bar-hit\s*\{[^}]*fill:transparent!important;[^}]*stroke:none!important/s);
 });
+
+test('mouse drag selects a contiguous note range across bar and line break; batch controls follow selection',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1- 2- |$(true)\n3- 4-\n.Words\nW1@1,1:\n甲乙丙丁';
+  const {state,els,document,localStorage}=boot({source},true);
+  const notes=els.score.querySelectorAll('.note-click');
+  const group=notes[0];
+  assert.equal(els.batchSlur.disabled,true);
+  els.score.dispatch('pointerdown',{button:0,pointerId:7,pointerType:'mouse',
+    clientX:10,clientY:10,target:group});
+  document.dispatch('pointermove',{pointerId:7,clientX:190,clientY:80,target:notes[3],
+    preventDefault(){}});
+  document.dispatch('pointerup',{pointerId:7,clientX:190,clientY:80,target:notes[3]});
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3]);
+  assert.equal(state.selectedItem.index,3);
+  assert.equal(els.batchSlur.disabled,false);
+  assert.equal(document.getElementById('batch-target-label').textContent,'选中音符偏移');
+  assert.equal(document.getElementById('batch-rhythm-target').textContent,'选中音符节奏增快');
+  assert.equal(document.getElementById('batch-selection-count').textContent,'已选中 4 个音符');
+  assert.equal(els.score.querySelectorAll('.note-click').filter(x=>x.classList.contains('is-selected')).length,4);
+  document.getElementById('score-type').value='staff';document.getElementById('score-type').dispatch('change');
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'changing score view must preserve selection');
+  const font=field(els,'lyricSize');font.value='52';font.dispatch('input');
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'changing appearance must preserve selection');
+  els.batchShift.value='2';els.batchApply.dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['2-','#3-','#4-','5-']);
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3],'batch pitch edit must preserve note selection');
+  document.getElementById('batch-rhythm').value='1';
+  document.getElementById('batch-rhythm-apply').dispatch('click');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['2.','#3.','#4.','5.']);
+  assert.equal(els.source.value.split('.Words')[1],source.split('.Words')[1]);
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3]);
+  els.batchSlur.dispatch('click');
+  assert.deepEqual(state.song.slurs,[{startId:0,endId:3}]);
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2,3]);
+  assert.ok(JSON.parse(localStorage.data['sanpu.editor.v1']).source.includes('(2.'));
+  document.getElementById('batch-clear').dispatch('click');
+  assert.equal(state.selectedNoteIds.size,0);
+  assert.equal(state.selectedItem,null);
+  assert.equal(els.batchSlur.disabled,true);
+  assert.equal(document.getElementById('batch-target-label').textContent,'全谱音程偏移');
+});
+
+test('touch long press and drag selects range; a score blank click clears, other controls do not',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 2 3 4';
+  const {els,state,document,timers,fireTimer}=boot({source});
+  const notes=els.score.querySelectorAll('.note-click');
+  els.score.dispatch('pointerdown',{button:0,pointerId:19,pointerType:'touch',
+    clientX:10,clientY:10,target:notes[0]});
+  assert.equal(state.selectedNoteIds.size,0,'short touch does not select until long press');
+  const timer=[...timers.entries()].find(([,t])=>t.delay===400)?.[0];
+  assert.ok(timer,'long press timeout exists');
+  fireTimer(timer);
+  document.dispatch('pointermove',{pointerId:19,clientX:110,clientY:20,target:notes[2],preventDefault(){}});
+  document.dispatch('pointerup',{pointerId:19,clientX:110,clientY:20,target:notes[2]});
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2]);
+  els.tempo.dispatch('input',{target:{value:'95'}});
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2]);
+  els.score.dispatch('click',{target:els.score,preventDefault(){},stopPropagation(){}});
+  assert.deepEqual([...state.selectedNoteIds],[0,1,2],'synthetic gesture click must be suppressed');
+  const reset=[...timers.entries()].find(([,t])=>t.delay===0)?.[0];
+  if(reset!==undefined)fireTimer(reset);
+  els.score.dispatch('click',{target:els.score});
+  assert.equal(state.selectedNoteIds.size,0,'blank canvas click clears explicit selection');
+});
+
+test('relative Delete and Backspace process note, bar and system break in source order',()=>{
+  const source='.Title\nKeyAndMeters = {1=C,3/4}\n.Voice\n1 |$(true)\n2 3\n.Words\nW1@1,1:\n甲乙丙';
+  const {els,state,document,localStorage}=boot({source,pianoAudition:false});
+  const send=code=>{
+    const ev={code,timeStamp:100,preventDefault(){ev.prevented=true},stopPropagation(){}};
+    document.dispatch('keydown',ev);return ev;
+  };
+  let notes=els.score.querySelectorAll('.note-click');
+  notes[1].dispatch('click');
+  assert.equal(send('Backspace').prevented,true);
+  assert.equal(state.song.elements.filter(x=>x.kind==='break').length,0,
+    'Backspace deletes the previous system break before selected note 2');
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','2','3']);
+  assert.equal(send('Delete').prevented,true);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1','2'],
+    'Delete removes the item after the selected note');
+  const option=document.getElementById('backspace-previous');
+  option.checked=false;option.dispatch('change');
+  assert.equal(state.backspacePrevious,false);
+  assert.equal(JSON.parse(localStorage.data['sanpu.editor.v1']).backspacePrevious,false);
+  assert.equal(send('Backspace').prevented,true);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1'],
+    'with option off, Backspace deletes selected note');
+  const bar=els.score.querySelectorAll('.bar-click')[0];
+  bar.dispatch('click');
+  assert.equal(send('Delete').prevented,true);
+  assert.deepEqual(state.song.notes.map(n=>n.raw),['1'],
+    'Delete on bar when nothing follows must not delete the previous note');
+});
