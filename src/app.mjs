@@ -76,7 +76,7 @@ function loadSelectedExample(){
   if(!example)return;
   if(els.source.value!==example.source && !confirm('将当前内容替换为《'+example.title+'》示例谱？当前内容可以先用「保存源码」备份。'))return;
   els.source.value=example.source;
-  refresh();
+  refresh(false);
 }
 // Use the user's exact three 12-key mappings for C3, C4, and C5.
 const PIANO_FIRST=48;
@@ -1175,7 +1175,7 @@ function render() {
   updateSelectedVisuals();
   if(restoreScoreFocus)focusScoreSelection();
 }
-function refresh(keepSelection=false) {
+function refresh(keepSelection=true) {
   clearPianoSequence();stopAudio();
   if(!keepSelection){
     state.cursorNoteId=-1;state.selectedItem=null;state.selectedNoteIds.clear();
@@ -1183,6 +1183,9 @@ function refresh(keepSelection=false) {
   state.song=parseSong(els.source.value);
   if(keepSelection){
     state.selectedNoteIds=new Set([...state.selectedNoteIds].filter(id=>id<state.song.notes.length));
+    if(state.selectedItem&&!voiceEditItems(els.source.value).some(item=>
+      item.kind===state.selectedItem.kind&&item.index===state.selectedItem.index))
+      state.selectedItem=null;
   }
   render();persist();
 }
@@ -1491,7 +1494,7 @@ els.pianoContinuous.addEventListener('change',()=>{
   persist();
 });
 $('import-btn').addEventListener('click',()=>$('file-input').click());
-$('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh();}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
+$('file-input').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{els.source.value=await readTextFile(file);refresh(false);}catch(err){alert(`导入失败：${err.message}`);}finally{ev.target.value='';}});
 $('save-btn').addEventListener('click',()=>download(fileName()+'.jpwabc','\ufeff'+els.source.value,'text/plain;charset=utf-8'));
 $('example-btn').addEventListener('click',loadSelectedExample);
 $('insert-spacer-btn').addEventListener('click',()=>{
