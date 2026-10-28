@@ -463,7 +463,7 @@ export function transposeSongSemitones(source,semitones,selectedNoteIds=null){
 }
 
 /** Encode an exact dyadic beat count. Unlike the legacy dotted form,
- * mixed _/*/- operations are read LEFT TO RIGHT, starting at one beat.
+ * mixed underscore, asterisk and dash operations are read left-to-right.
  * No approximation is permitted (0.1 beats cannot be represented).
  */
 export function beatDurationSuffix(value) {
