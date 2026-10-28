@@ -13,7 +13,7 @@ const els = {
   zoom:$('preview-zoom'), zoomValue:$('preview-zoom-value'), zoomFit:$('zoom-fit'),
   formatTabs:$('format-tabs'),timbre:$('timbre'),pianoAudition:$('piano-audition'),pianoTranspose:$('piano-transpose'),pianoContinuous:$('piano-continuous'),batchShift:$('batch-shift'),batchApply:$('batch-apply'),batchStatus:$('batch-status'),batchRhythm:$('batch-rhythm'),batchBeatsPreview:$('batch-beats-preview'),batchRhythmApply:$('batch-rhythm-apply'),batchSlur:$('batch-slur'),batchClear:$('batch-clear'),backspacePrevious:$('backspace-previous'),keyboardDiagram:$('piano-keyboard-diagram'),pianoKeys:$('piano-keys'),pianoStatus:$('piano-status')
 };
-const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),pendingTerminalBreak:null,lyricDraft:null,notePreviewRequest:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
+const state = { song:null, tempo:72, audio:null, nodes:[], playing:false, position:0, origin:0, frame:0, schedule:[], total:0, active:-1, format:{...DEFAULT_FORMAT},zoom:100,timbre:'piano',loopCount:0,loopsDone:0,scoreType:'jianpu',selectedItem:null,selectedNoteIds:new Set(),selectionAnchorId:null,pendingTerminalBreak:null,lyricDraft:null,notePreviewRequest:0,pianoAudition:true,pianoTranspose:true,pianoContinuous:true,backspacePrevious:true,cursorNoteId:-1 };
 function message(msg) {els.saved.textContent=msg;}
 function normalizeLoopCount(value){
   const n=Number(value);
@@ -622,7 +622,8 @@ function commitLyricDraft(returnToNote=false,stayInLyricMode=false){
   state.lyricDraft=null;
   clearTimeout(lyricIdleTimer);lyricIdleTimer=null;
   state.selectedItem={kind:'note',index:draft.noteId};
-  state.selectedNoteIds=new Set([draft.noteId]);
+  // A full-row lyric edit must not destroy a discontiguous Ctrl-click selection.
+  if(state.selectedNoteIds.size<=1)state.selectedNoteIds=new Set([draft.noteId]);
   state.cursorNoteId=draft.noteId;
   if(stayInLyricMode){
     state.lyricDraft={...draft,original:draft.value,
@@ -717,7 +718,11 @@ function makeLyricRowEditor(system,line,width){
   draft.input=input;
 }
 function enterLyricEditing(){
-  const noteId=state.selectedItem?.kind==='note'?state.selectedItem.index:null;
+  // With multiple selected notes, edit the last one in score order, even if
+  // Ctrl-clicks were made in a different sequence.
+  const noteId=state.selectedNoteIds.size>1?
+    Math.max(...state.selectedNoteIds):
+    state.selectedItem?.kind==='note'?state.selectedItem.index:null;
   if(!Number.isInteger(noteId))return;
   if(state.lyricDraft){
     state.lyricDraft.input?.focus?.({preventScroll:true});
@@ -1193,7 +1198,7 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    g.addEventListener('click',()=>selectScoreNote(n.id));
+    g.addEventListener('click',ev=>selectScoreNote(n.id,ev));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     score.append(g);x+=w;
   }
@@ -1294,7 +1299,7 @@ function drawSystem(elements,song,width){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    g.addEventListener('click',()=>selectScoreNote(n.id));
+    g.addEventListener('click',ev=>selectScoreNote(n.id,ev));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     s.append(g);
     x+=w;
@@ -1564,6 +1569,7 @@ function clearScoreSelection(){
   state.selectedNoteIds.clear();
   state.selectedItem=null;
   state.cursorNoteId=-1;
+  state.selectionAnchorId=null;
   updateSelectedVisuals();
   highlight(state.active);
 }
@@ -1576,6 +1582,7 @@ function selectScoreRange(from,to){
     (_,index)=>Math.min(from,to)+index));
   state.selectedItem={kind:'note',index:to};
   state.cursorNoteId=to;
+  state.selectionAnchorId=from;
   const caret=noteSourceCaret(els.source.value,to);
   if(caret!==null)els.source.selectionStart=els.source.selectionEnd=caret;
   if(canceled){render();focusScoreSelection();}
@@ -1655,11 +1662,53 @@ async function previewScoreNote(id){
   const voice=createVoice(state.audio,{frequency,start:now,end:now+seconds,timbre:state.timbre});
   if(voice)state.nodes.push(voice);
 }
-function selectScoreNote(id){
+function selectScoreNote(id,ev){
   if(state.lyricDraft&&!commitLyricDraft(false))return;
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
+  const range=!!ev?.shiftKey;
+  const toggle=!!(ev?.ctrlKey||ev?.metaKey);
+  if(range||toggle){
+    // Modifier clicks select only; they must not start song playback or
+    // schedule an individual preview. Existing playing voices are stopped.
+    ev?.preventDefault?.();
+    stopAudio();
+    const canceled=!!state.pendingTerminalBreak&&cancelPendingTerminalBreak();
+    if(range){
+      const anchor=Number.isInteger(state.selectionAnchorId)?
+        state.selectionAnchorId:
+        state.selectedItem?.kind==='note'?state.selectedItem.index:id;
+      const lower=Math.min(anchor,id),upper=Math.max(anchor,id);
+      const picked=new Set(Array.from({length:upper-lower+1},(_,i)=>lower+i));
+      if(toggle)for(const existing of state.selectedNoteIds)picked.add(existing);
+      state.selectedNoteIds=picked;
+      state.selectionAnchorId=anchor;
+      state.selectedItem={kind:'note',index:id};
+      state.cursorNoteId=id;
+    }else{
+      const picked=new Set(state.selectedNoteIds);
+      if(picked.has(id))picked.delete(id);
+      else picked.add(id);
+      state.selectedNoteIds=picked;
+      // A deselected note is not a valid lyric-editing anchor.
+      const current=picked.has(id)?id:([ ...picked ].at(-1)??null);
+      state.selectedItem=current===null?null:{kind:'note',index:current};
+      state.cursorNoteId=current??-1;
+      state.selectionAnchorId=current;
+    }
+    const current=state.cursorNoteId;
+    const nextCaret=noteSourceCaret(els.source.value,current>=0?current:id);
+    if(nextCaret!==null)els.source.selectionStart=els.source.selectionEnd=nextCaret;
+    if(canceled)render();
+    else updateSelectedVisuals();
+    syncSelectedBeatTarget();
+    highlight(-1);
+    const focused=[...els.score.querySelectorAll('.note-click')]
+      .find(g=>Number(g.dataset.noteId)===id);
+    focused?.focus?.({preventScroll:true});
+    return;
+  }
   if(!state.pianoAudition)stopAudio();
   selectScoreRange(id,id);
   highlight(id);
@@ -1681,6 +1730,7 @@ function selectScoreNavigationItem(item){
   clearPianoSequence();
   state.selectedItem={kind:item.kind,index:item.index};
   state.selectedNoteIds=item.kind==='note'?new Set([item.index]):new Set();
+  state.selectionAnchorId=item.kind==='note'?item.index:null;
   const index=voiceEditItems(els.source.value).findIndex(e=>e.kind===item.kind&&e.index===item.index);
   const previous=voiceEditItems(els.source.value).slice(0,index+1).filter(e=>e.kind==='note').at(-1);
   state.cursorNoteId=item.kind==='note'?item.index:previous?.index??-1;
@@ -1718,6 +1768,7 @@ function selectScoreBar(index){
   clearPianoSequence();stopAudio();
   state.selectedItem={kind:'bar',index};
   state.selectedNoteIds.clear();
+  state.selectionAnchorId=null;
   const previous=voiceEditItems(els.source.value).filter(e=>e.kind==='note'&&e.to<=item.from).at(-1);
   state.cursorNoteId=previous?.index??-1;
   els.source.selectionStart=els.source.selectionEnd=item.to;
