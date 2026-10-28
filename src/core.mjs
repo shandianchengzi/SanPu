@@ -482,8 +482,15 @@ export function beatDurationSuffix(value) {
   // backwards. '_' <- x2, '*' <- x2/3, '-' <- subtract one.
   // The canonical fallback is always possible: start at numerator beats,
   // then halve denominator times.
-  const numerator=beats*denominator;
-  let fallback='-'.repeat(numerator-1)+'_'.repeat(Math.log2(denominator));
+  // A bounded linear-size construction works for EVERY dyadic positive
+  // value in range: if above one, undo an added beat; below one, undo a
+  // halving. This avoids expanding the potentially enormous numerator.
+  let residual=beats,fallback='';
+  for(let i=0;i<1050&&residual!==1;i++){
+    if(residual>1){residual-=1;fallback='-'+fallback;}
+    else {residual*=2;fallback='_'+fallback;}
+  }
+  if(residual!==1)throw new Error('时值所需记号过长，无法安全写入谱面。');
   const maxSteps=Math.min(14,fallback.length);
   const queue=[{beats,suffix:''}],seen=new Set([beats]);
   for(let i=0;i<queue.length&&i<20000;i++){
