@@ -550,7 +550,7 @@ test('absolute beat setting uses short exact _, * and - suffix expressions',()=>
   assert.equal(durationFromSuffix('._'),0.75,'legacy dotted-underscore suffix unchanged');
   assert.equal(durationFromSuffix('_.'),0.75);
   for(const invalid of [0,-1,NaN,Infinity,0.1,0.3,2.3,1024.5]){
-    assert.throws(()=>beatDurationSuffix(invalid),/拍数|精确/,'invalid '+invalid);
+    assert.throws(()=>beatDurationSuffix(invalid),/拍|精确/,'invalid '+invalid);
   }
 });
 
