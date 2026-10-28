@@ -414,6 +414,99 @@ export function deleteVoiceItem(source,kind,index){
     previous:previous?{kind:previous.kind,index:previous.index}:null};
 }
 
+/** A song-library name can end in "D调", "《标题》1=#F" or
+ * "(1=bB)" notation. If there is no explicit key marker, use the active key.
+ */
+export function parseLibrarySongName(input,defaultKey='C'){
+  const raw=String(input??'').trim();
+  if(!raw||raw.length>120||/[\r\n]/.test(raw))throw new Error('曲名不能为空、不能换行且不能超过 120 字符。');
+  const keys=new Set(['C','#C','bD','D','#D','bE','E','F','#F','bG','G','#G','bA','A','#A','bB','B']);
+  let name=raw,key=keys.has(defaultKey)?defaultKey:'C',recognized=false;
+  const match=/^(.*?)\s*(?:[-—·|]\s*)?[\[【(（]?\s*(?:1\s*=\s*([#b♯♭]?[A-G])\s*|([#b♯♭]?[A-G])\s*(?:大调|调))[\]】)）]?\s*$/i.exec(raw);
+  if(match&&match[1].trim()){
+    const value=(match[2]||match[3]).replace('♯','#').replace('♭','b');
+    const normalized=value.length===1?value.toUpperCase():value[0]+value[1].toUpperCase();
+    if(keys.has(normalized)){
+      key=normalized;recognized=true;name=match[1].trim().replace(/[《》\s\-—·|]+$/g,'').trim();
+      if(name.startsWith('《')&&name.endsWith('》'))name=name.slice(1,-1).trim();
+    }
+  }
+  if(!name)throw new Error('请输入歌曲名称。');
+  return {title:name,key,recognized};
+}
+export function newLibrarySongSource(title,key='C',meter='4/4'){
+  const parsed=parseLibrarySongName(title,key);
+  const safeKey=parseLibrarySongName('新曲 1='+key,key).key;
+  const safeMeter=/^\d{1,2}\/\d{1,2}$/.test(String(meter))?meter:'4/4';
+  return '.Title\nTitle = '+parsed.title+'\nKeyAndMeters = {1='+safeKey+','+safeMeter+'}\n.Voice\n\n.Words\n';
+}
+export function renameSongSourceTitle(source,title){
+  const text=String(source??''),name=String(title??'').trim();
+  if(!name||name.length>120||/[\r\n]/.test(name))throw new Error('歌曲名称无效。');
+  const heading=/^[ \t]*\.Title[ \t]*\r?$/m.exec(text);
+  if(!heading)return '.Title\nTitle = '+name+'\n'+text;
+  const start=heading.index+heading[0].length;
+  const after=text.slice(start),end=after.search(/^[ \t]*\.(?:Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/m);
+  const block=end<0?after:after.slice(0,end);
+  const current=/^[ \t]*Title[ \t]*=[ \t]*[^\r\n]*/m.exec(block);
+  if(current){
+    const from=start+current.index;
+    return text.slice(0,from)+'Title = '+name+text.slice(from+current[0].length);
+  }
+  return text.slice(0,start)+'\nTitle = '+name+text.slice(start);
+}
+
+/** Copy selected notes as original JPW-ABC source tokens, preserving the
+ * intervening bars, explicit row breaks, slurs, and layout spacers.
+ * Discontiguous Ctrl selections exclude unselected notes and their gaps.
+ */
+export function copyVoiceSelection(source,selectedNoteIds,selectedItem=null){
+  const text=String(source??''),items=voiceEditItems(text);
+  const wanted=new Set(selectedNoteIds??[]);
+  const notes=items.filter(item=>item.kind==='note'&&wanted.has(item.index));
+  if(wanted.size&&notes.length!==wanted.size)throw new Error('音符选区已失效，请重新选择。');
+  if(!notes.length){
+    const target=items.find(item=>item.kind===selectedItem?.kind&&item.index===selectedItem?.index);
+    if(!target)return null;
+    return {text:target.raw,noteCount:0,items:[target]};
+  }
+  const parts=[];
+  let group=[notes[0]];
+  for(const item of notes.slice(1)){
+    if(item.index===group.at(-1).index+1)group.push(item);
+    else{
+      parts.push(text.slice(group[0].from,group.at(-1).to));group=[item];
+    }
+  }
+  parts.push(text.slice(group[0].from,group.at(-1).to));
+  return {text:parts.join(' '),noteCount:notes.length,items:notes};
+}
+/** Paste only known .Voice symbols immediately after the selected score item.
+ * Never permits a clipboard payload to create a new .Title or .Words section.
+ */
+export function pasteVoiceSelection(source,clipboard,selection=null){
+  const text=String(source??''),raw=String(clipboard??'');
+  if(!raw.trim()||raw.length>100000)throw new Error('剪贴板没有可粘贴的音符符号。');
+  const headers=[...text.matchAll(/^[ \t]*\.(Title|Voice|Words|Layout|Repeat)[ \t]*\r?$/gm)];
+  const voice=headers.findIndex(h=>h[1]==='Voice');
+  if(voice<0)throw new Error('当前乐谱没有 .Voice 段。');
+  if(/^[ \t]*\./m.test(raw)||/[\u0000-\u0008\u000e-\u001f]/.test(raw))
+    throw new Error('剪贴板包含非音符内容，无法粘贴。');
+  const check=parseSong('.Voice\n'+raw);
+  const stripped=raw.replace(/\$\([^)]*\)|\$\b|\|\:\||\:\||\|\:|\|\||\|\]|\[\|\]|\||(?:#{0,2}|b{0,2})[0-7][,']*(?:_+\.*|\.+_+|-+|\.+|[_*-]+)?|y\d*|[()\s]/g,'');
+  if(stripped.trim()||(!check.notes.length&&!check.elements.some(e=>e.kind==='bar'||e.kind==='break')))
+    throw new Error('只允许粘贴音符、小节线、换行及排版记号。');
+  const begin=headers[voice].index+headers[voice][0].length;
+  const end=headers[voice+1]?.index??text.length;
+  const items=voiceEditItems(text);
+  const selected=items.find(item=>item.kind===selection?.kind&&item.index===selection?.index);
+  const at=selected?selected.to:begin+(text.slice(begin,end).match(/^\r?\n/)?.[0].length??0);
+  const inserted=' '+raw.trim()+' ';
+  const result=text.slice(0,at)+inserted+text.slice(at);
+  const noteId=items.filter(item=>item.kind==='note'&&item.to<=at).length;
+  return {source:result,caret:at+inserted.length,noteId,noteCount:check.notes.length};
+}
+
 /** Insert by parsed note index, not by matching raw note text, preserving the
  * exact lyrics, bars, empty layout spacers, source line endings and spacing.
  */
