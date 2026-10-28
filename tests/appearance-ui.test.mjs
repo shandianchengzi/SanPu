@@ -57,7 +57,7 @@ function boot(saved,allowOverwrite=false){
   const ids={};
   for(const id of ['source','score','warnings','note-count','tempo','tempo-value',
     'play-btn','stop-btn','loop-count','score-type','mp3-btn','mp3-status','batch-shift','batch-apply','batch-status','batch-rhythm','batch-beats-preview','batch-rhythm-apply','batch-slur','batch-clear','batch-target-label','batch-rhythm-target','batch-selection-count','backspace-previous','saved','transcriber-input','format-controls','format-preset','format-reset',
-    'import-btn','file-input','save-btn','example-select','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
+    'import-btn','file-input','save-btn','library-save-btn','library-delete-btn','example-select','song-library-options','example-btn','pdf-btn','preview-zoom','preview-zoom-value','zoom-fit','format-tabs','timbre',
     'style-export-btn','style-import-btn','style-file-input','style-transfer-status','insert-spacer-btn',
      'piano-keys','piano-audition','piano-transpose','piano-continuous','piano-keyboard-diagram','piano-status']){
     ids[id]=new FakeElement('div');ids[id].id=id;
