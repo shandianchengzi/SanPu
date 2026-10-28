@@ -1198,7 +1198,7 @@ function drawAlternativeSystem(elements,song,sourceWidth,kind){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    g.addEventListener('click',ev=>selectScoreNote(n.id,ev));
+    g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     score.append(g);x+=w;
   }
@@ -1299,7 +1299,7 @@ function drawSystem(elements,song,width){
         punctuationPairs.push({body,before,after,cx,main});
       }
     }
-    g.addEventListener('click',ev=>selectScoreNote(n.id,ev));
+    g.addEventListener('click',()=>selectScoreNote(n.id));
     g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectScoreNote(n.id);}});
     s.append(g);
     x+=w;
@@ -1902,6 +1902,8 @@ els.score.addEventListener('pointerdown',ev=>{
   if(ev.button!==undefined&&ev.button!==0)return;
   const first=pointerNoteId(ev);
   if(first===null)return;
+  // Modifier-click is a discrete range/toggle gesture, never drag-selection.
+  if(ev.shiftKey||ev.ctrlKey||ev.metaKey)return;
   suppressRangeClick=false;
   const gesture={pointerId:ev.pointerId,first,last:first,
     startX:ev.clientX??0,startY:ev.clientY??0,
@@ -1959,6 +1961,15 @@ document.addEventListener('pointercancel',ev=>{
   els.score.classList.toggle('is-range-selecting',false);
 });
 els.score.addEventListener('click',ev=>{
+  if((ev.shiftKey||ev.ctrlKey||ev.metaKey)&&ev.target?.closest?.('.note-click')){
+    const note=ev.target.closest('.note-click');
+    const id=Number(note.dataset.noteId);
+    if(Number.isInteger(id)){
+      ev.preventDefault?.();ev.stopPropagation?.();ev.stopImmediatePropagation?.();
+      selectScoreNote(id,ev);
+      return;
+    }
+  }
   if(suppressRangeClick){
     ev.preventDefault?.();ev.stopPropagation?.();ev.stopImmediatePropagation?.();
     suppressRangeClick=false;return;
