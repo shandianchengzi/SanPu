@@ -1105,6 +1105,7 @@ function render() {
   applyAppearance();
   applyPreviewZoom();
   const song=state.song;
+  const restoreScoreFocus=scoreFocused();
   els.transcriber.value=song.transcriber;
   els.score.replaceChildren();
   els.noteCount.textContent=`${song.notes.length} 个音符`;
@@ -1145,13 +1146,68 @@ function render() {
   const msgs=[...new Set(song.warnings)];
   for(const w of msgs){const p=document.createElement('div');p.textContent='⚠ '+w;els.warnings.append(p);}
   highlight(state.active);
+  updateSelectedVisuals();
+  if(restoreScoreFocus)focusScoreSelection();
 }
-function refresh() {
-  clearPianoSequence();stopAudio();state.cursorNoteId=-1;state.selectedItem=null;state.song=parseSong(els.source.value);
+function refresh(keepSelection=false) {
+  clearPianoSequence();stopAudio();
+  if(!keepSelection){
+    state.cursorNoteId=-1;state.selectedItem=null;state.selectedNoteIds.clear();
+  }
+  state.song=parseSong(els.source.value);
+  if(keepSelection){
+    state.selectedNoteIds=new Set([...state.selectedNoteIds].filter(id=>id<state.song.notes.length));
+  }
   render();persist();
 }
 function buildSchedule(){const schedule=songSchedule(state.song,state.tempo);state.schedule=schedule.timeline;state.total=schedule.total;}
 function clearNodes(){for(const voice of state.nodes)voice.stop();state.nodes=[];}
+function updateSelectedVisuals(){
+  const count=state.selectedNoteIds.size;
+  for(const g of els.score.querySelectorAll('.note-click')){
+    const selected=state.selectedNoteIds.has(Number(g.dataset.noteId));
+    g.classList.toggle('is-selected',selected);
+    g.setAttribute('aria-pressed',String(selected));
+  }
+  for(const g of els.score.querySelectorAll('.bar-click')){
+    const selected=state.selectedItem?.kind==='bar'&&Number(g.dataset.barId)===state.selectedItem.index;
+    g.classList.toggle('is-selected',selected);
+    g.setAttribute('aria-pressed',String(selected));
+  }
+  $('batch-target-label').textContent=count?'选中音符偏移':'全谱音程偏移';
+  $('batch-rhythm-target').textContent=count?'选中音符节奏增快':'全谱节奏增快';
+  $('batch-selection-count').textContent=count?'已选中 '+count+' 个音符':
+    state.selectedItem?.kind==='bar'?'已选中小节线':'未选中音符';
+  els.batchSlur.disabled=count<2;
+}
+function focusScoreSelection(){
+  const selection=state.selectedItem;
+  const notes=els.score.querySelectorAll('.note-click');
+  const bars=els.score.querySelectorAll('.bar-click');
+  const target=selection?.kind==='note'?notes.find(g=>Number(g.dataset.noteId)===selection.index):
+    selection?.kind==='bar'?bars.find(g=>Number(g.dataset.barId)===selection.index):
+    notes.find(g=>Number(g.dataset.noteId)===state.cursorNoteId);
+  target?.focus?.({preventScroll:true});
+}
+function clearScoreSelection(){
+  state.selectedNoteIds.clear();
+  state.selectedItem=null;
+  state.cursorNoteId=-1;
+  updateSelectedVisuals();
+  highlight(state.active);
+}
+function selectScoreRange(from,to){
+  if(!Number.isInteger(from)||!Number.isInteger(to))return;
+  const max=state.song.notes.length-1;
+  if(from<0||to<0||from>max||to>max)return;
+  state.selectedNoteIds=new Set(Array.from({length:Math.abs(to-from)+1},
+    (_,index)=>Math.min(from,to)+index));
+  state.selectedItem={kind:'note',index:to};
+  state.cursorNoteId=to;
+  const caret=noteSourceCaret(els.source.value,to);
+  if(caret!==null)els.source.selectionStart=els.source.selectionEnd=caret;
+  updateSelectedVisuals();
+}
 function highlight(id) {
   state.active=id;
   for(const g of els.score.querySelectorAll('.note-click'))g.classList.toggle('active',Number(g.dataset.noteId)===id);
@@ -1202,36 +1258,30 @@ async function runPlayback() {
 }
 function playFrom(id){state.cursorNoteId=id;state.loopsDone=0;buildSchedule();state.position=state.schedule.find(i=>i.id===id)?.start??0;clearNodes();state.playing=false;cancelAnimationFrame(state.frame);runPlayback();}
 function selectScoreNote(id){
-  state.selectedItem={kind:'note',index:id};
   const caret=noteSourceCaret(els.source.value,id);
   if(caret===null)return;
   clearPianoSequence();
-  if(state.pianoAudition)playFrom(id);
-  else{
-    // Record mode: stop playback immediately and preserve the selected note
-    // as the resume point and the insertion anchor, without replaying.
-    stopAudio();
-    buildSchedule();
-    state.position=state.schedule.find(item=>item.id===id)?.start??0;
-    state.loopsDone=0;
-    els.play.textContent='▶ 继续';
-    state.cursorNoteId=id;
-    highlight(id);
-  }
-  els.source.focus();
-  if(typeof els.source.setSelectionRange==='function')els.source.setSelectionRange(caret,caret);
-  else els.source.selectionStart=els.source.selectionEnd=caret;
+  selectScoreRange(id,id);
+  // A click always starts playback from this note, including recording mode;
+  // pianoAudition controls only whether piano key presses write source notes.
+  highlight(id);
+  playFrom(id);
+  const note=els.score.querySelectorAll('.note-click').find(g=>Number(g.dataset.noteId)===id);
+  note?.focus?.({preventScroll:true});
 }
 function selectScoreBar(index){
   const item=voiceEditItems(els.source.value).find(e=>e.kind==='bar'&&e.index===index);
   if(!item)return;
   clearPianoSequence();stopAudio();
   state.selectedItem={kind:'bar',index};
+  state.selectedNoteIds.clear();
   const previous=voiceEditItems(els.source.value).filter(e=>e.kind==='note'&&e.to<=item.from).at(-1);
   state.cursorNoteId=previous?.index??-1;
   els.source.selectionStart=els.source.selectionEnd=item.to;
   highlight(-1);
-  els.pianoStatus.textContent='已选中小节线：按退格删除，或从此处录入';
+  updateSelectedVisuals();
+  els.score.querySelectorAll('.bar-click').find(g=>Number(g.dataset.barId)===index)?.focus?.({preventScroll:true});
+  els.pianoStatus.textContent='已选中小节线：可用 Delete 删除后一个符号，Backspace 默认删除前一个';
 }
 function download(name,bytes,type) {
   const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');
@@ -1287,15 +1337,10 @@ els.pianoTranspose.addEventListener('change',()=>{
   els.pianoStatus.textContent=state.pianoTranspose?'已按 1='+state.song.key+' 移调（C → '+pianoLabel(pianoSoundMidi(60))+'）':'已恢复固定音高键盘（C → C）';
   persist();
 });
-els.keyboardMode.addEventListener('change',()=>{
-  releaseComputerKeys();clearPianoSequence();state.keyboardMode=els.keyboardMode.checked;
-  els.source.disabled=state.keyboardMode;
-  if(state.keyboardMode){
-    // The checkbox would otherwise eat Space as a toggle while the player
-    // expects it to write a barline. Capturing keydown prevents that default.
-    if(document.activeElement===els.source)els.source.blur?.();
-  }
-  els.pianoStatus.textContent=state.keyboardMode?'键盘模式已开启：36 个琴键；空格分小节、回车换行、· 记休止符；源码框禁用':'键盘模式已关闭：源谱输入框可编辑';
+els.backspacePrevious.addEventListener('change',()=>{
+  state.backspacePrevious=els.backspacePrevious.checked;
+  els.pianoStatus.textContent=state.backspacePrevious?
+    '退格删除选中对象前一个音符或符号':'退格删除当前选中对象';
   persist();
 });
 els.scoreType.addEventListener('change',()=>{
