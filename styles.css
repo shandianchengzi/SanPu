@@ -425,3 +425,16 @@ main{padding-top:23px}
 @media print{
   .score-page .score-line .break-click{display:none!important}
 }
+
+/* Scoped to the selected SVG note; does not affect original jianpu metrics. */
+.score-page .lyric-edit-foreign{overflow:visible}
+.score-page .lyric-inline-input{
+  display:block;box-sizing:border-box;width:100%;height:100%;
+  padding:1px 5px;border:1.5px solid #268d75;border-radius:5px;
+  outline:none;background:#fff;color:#23392f;
+  font:500 18px "Microsoft YaHei","PingFang SC",sans-serif;
+  text-align:center;line-height:1.4;
+  box-shadow:0 0 0 2px rgba(38,141,117,.15);
+}
+.score-page .lyric-inline-input:focus{border-color:#168466}
+@media print{.score-page .lyric-edit-foreign{display:none!important}}
