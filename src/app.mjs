@@ -1208,8 +1208,8 @@ function updateSelectedVisuals(){
 }
 function focusScoreSelection(){
   const selection=state.selectedItem;
-  const notes=els.score.querySelectorAll('.note-click');
-  const bars=els.score.querySelectorAll('.bar-click');
+  const notes=[...els.score.querySelectorAll('.note-click')];
+  const bars=[...els.score.querySelectorAll('.bar-click')];
   const target=selection?.kind==='note'?notes.find(g=>Number(g.dataset.noteId)===selection.index):
     selection?.kind==='bar'?bars.find(g=>Number(g.dataset.barId)===selection.index):
     notes.find(g=>Number(g.dataset.noteId)===state.cursorNoteId);
@@ -1292,7 +1292,7 @@ function selectScoreNote(id){
   // pianoAudition controls only whether piano key presses write source notes.
   highlight(id);
   playFrom(id);
-  const note=els.score.querySelectorAll('.note-click').find(g=>Number(g.dataset.noteId)===id);
+  const note=[...els.score.querySelectorAll('.note-click')].find(g=>Number(g.dataset.noteId)===id);
   note?.focus?.({preventScroll:true});
 }
 function selectScoreBar(index){
@@ -1306,7 +1306,7 @@ function selectScoreBar(index){
   els.source.selectionStart=els.source.selectionEnd=item.to;
   highlight(-1);
   updateSelectedVisuals();
-  els.score.querySelectorAll('.bar-click').find(g=>Number(g.dataset.barId)===index)?.focus?.({preventScroll:true});
+  [...els.score.querySelectorAll('.bar-click')].find(g=>Number(g.dataset.barId)===index)?.focus?.({preventScroll:true});
   els.pianoStatus.textContent='已选中小节线：可用 Delete 删除后一个符号，Backspace 默认删除前一个';
 }
 function download(name,bytes,type) {
