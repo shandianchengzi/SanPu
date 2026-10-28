@@ -699,10 +699,12 @@ test('song library initializes from the built-in score and explicit load protect
   const initial=boot();
   assert.equal(initial.document.getElementById('example-select').value,'一生所爱');
   assert.equal(initial.state.currentSongId,'yi-sheng-suo-ai');
-  assert.match(initial.els.source.value,/KeyAndMeters = \{1=D,3\/4\}/);
+  assert.match(initial.els.source.value,/KeyAndMeters = \{1=D\}/);
+  assert.equal(initial.state.song.meter,'');
   assert.ok(initial.els.source.value.includes('y y y y y y y30|'));
-  assert.ok(initial.els.source.value.includes('从前，现在,过去了再不来'));
-  assert.equal(initial.state.song.notes.length,92);
+  assert.ok(initial.els.source.value.includes("6,-  0_    y15|$(true)"));
+  assert.ok(!initial.els.source.value.includes('.Words'));
+  assert.equal(initial.state.song.notes.length,93);
   assert.equal(initial.state.song.warnings.length,0);
   const draft=boot({source:'.Voice\n1 2',format:{titleSize:62}});
   assert.equal(draft.els.source.value,'.Voice\n1 2');
@@ -719,7 +721,9 @@ test('song library initializes from the built-in score and explicit load protect
   approved.document.getElementById('example-btn').click();
   assert.match(approved.els.source.value,/Title = 一生所爱/);
   assert.equal(approved.state.song.key,'D');
-  assert.equal(approved.state.song.notes.length,92);
+  assert.equal(approved.state.song.notes.length,93);
+  assert.equal(approved.state.song.meter,'');
+  assert.equal(approved.els.source.value,initial.els.source.value);
 });
 
 test('piano keyboard and saved audition mode',()=>{
